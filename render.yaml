@@ -1,0 +1,39 @@
+services:
+  # Backend API service
+  - type: web
+    name: alumni-verification-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
+      - key: NOTIFICATIONS_ENABLED
+        value: true
+      - key: BLOCKCHAIN_ENABLED
+        value: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PORT
+        value: 8000
+
+  # Frontend static site
+  - type: web
+    name: alumni-verification-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: alumni-verification-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+          append: /api/v1
+      - key: VITE_POLLING_INTERVAL
+        value: 5000 
