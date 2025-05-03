@@ -1,7 +1,8 @@
 services:
   # Static site for frontend
-  - type: static
+  - type: web
     name: alumni-frontend
+    env: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
     pullRequestPreviewsEnabled: false
