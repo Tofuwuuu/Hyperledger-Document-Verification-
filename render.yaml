@@ -1,43 +1,34 @@
 services:
-  # Static site for frontend
+  # Backend API service
+  - type: web
+    name: alumni-api
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python run.py
+    envVars:
+      - key: MONGODB_URI
+        value: mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority
+      - key: SECRET_KEY
+        generateValue: true
+      - key: NOTIFICATIONS_ENABLED
+        value: true
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: PORT
+        value: 10000
+
+  # Frontend static site
   - type: web
     name: alumni-frontend
     env: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
-    pullRequestPreviewsEnabled: false
     envVars:
       - key: VITE_API_URL
         fromService:
           name: alumni-api
           type: web
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
           append: /api/v1
       - key: VITE_POLLING_INTERVAL
-        value: 5000
-
-  # Backend API (simple web service)
-  - type: web
-    name: alumni-api
-    runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: python backend/run.py
-    plan: free
-    autoDeploy: false
-    envVars:
-      - key: MONGODB_URI
-        sync: false
-      - key: SECRET_KEY
-        generateValue: true
-      - key: JWT_ALGORITHM
-        value: HS256
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: 60
-      - key: NOTIFICATIONS_ENABLED
-        value: true
-      - key: BLOCKCHAIN_ENABLED
-        value: false
-      - key: CORS_ORIGINS
-        sync: false
-      - key: PORT
-        value: 8000 
+        value: 5000 
