@@ -3,7 +3,13 @@ services:
   - type: web
     name: alumni-verification-api
     env: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    branch: main
+    buildFilter:
+      paths:
+        - backend/**
+        - Dockerfile
     envVars:
       - key: MONGODB_URI
         sync: false
@@ -28,6 +34,10 @@ services:
     env: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
+    branch: main
+    buildFilter:
+      paths:
+        - frontend/**
     envVars:
       - key: VITE_API_URL
         fromService:
