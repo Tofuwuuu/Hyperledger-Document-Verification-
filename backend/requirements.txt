@@ -8,9 +8,10 @@ python-jose==3.3.0
 passlib==1.7.4
 python-multipart==0.0.6
 bcrypt==4.0.1
-fabric-sdk-py==0.9.0
+# Temporarily commenting out fabric-sdk-py for deployment testing
+# fabric-sdk-py==0.9.0
 cryptography==41.0.4
-hashlib==20081119
+# hashlib is a built-in module, not a package
 aiofiles==23.2.1
 email-validator==2.0.0
 qrcode==7.4.2
