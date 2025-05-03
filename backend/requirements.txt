@@ -1,0 +1,23 @@
+fastapi==0.104.0
+uvicorn==0.23.2
+pymongo==4.5.0
+motor==3.3.1
+pydantic==2.4.2
+python-dotenv==1.0.0
+python-jose==3.3.0
+passlib==1.7.4
+python-multipart==0.0.6
+bcrypt==4.0.1
+fabric-sdk-py==0.9.0
+cryptography==41.0.4
+hashlib==20081119
+aiofiles==23.2.1
+email-validator==2.0.0
+qrcode==7.4.2
+pillow==10.0.1
+
+# Retry mechanism
+tenacity>=8.2.2
+
+# WebSocket support
+websockets>=12.0 
