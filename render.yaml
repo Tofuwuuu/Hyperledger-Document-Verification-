@@ -1,15 +1,28 @@
 services:
-  # Backend API service
+  # Static site for frontend
+  - type: static
+    name: alumni-frontend
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: alumni-api
+          type: web
+          property: url
+          append: /api/v1
+      - key: VITE_POLLING_INTERVAL
+        value: 5000
+
+  # Backend API (simple web service)
   - type: web
-    name: alumni-verification-api
-    env: docker
-    dockerfilePath: Dockerfile
-    dockerContext: .
-    branch: main
-    buildFilter:
-      paths:
-        - backend/**
-        - Dockerfile
+    name: alumni-api
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    autoDeploy: false
     envVars:
       - key: MONGODB_URI
         sync: false
@@ -24,26 +37,4 @@ services:
       - key: BLOCKCHAIN_ENABLED
         value: false
       - key: CORS_ORIGINS
-        sync: false
-      - key: PORT
-        value: 8000
-
-  # Frontend static site
-  - type: web
-    name: alumni-verification-frontend
-    env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
-    branch: main
-    buildFilter:
-      paths:
-        - frontend/**
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          name: alumni-verification-api
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
-          append: /api/v1
-      - key: VITE_POLLING_INTERVAL
-        value: 5000 
+        sync: false 
