@@ -11,7 +11,7 @@ services:
         fromService:
           name: alumni-api
           type: web
-          property: url
+          property: host
           append: /api/v1
       - key: VITE_POLLING_INTERVAL
         value: 5000
@@ -21,7 +21,7 @@ services:
     name: alumni-api
     runtime: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python backend/run.py
     plan: free
     autoDeploy: false
     envVars:
@@ -38,4 +38,6 @@ services:
       - key: BLOCKCHAIN_ENABLED
         value: false
       - key: CORS_ORIGINS
-        sync: false 
+        sync: false
+      - key: PORT
+        value: 8000 
