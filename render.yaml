@@ -4,25 +4,24 @@ services:
     name: alumni-api
     env: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && python run.py
+    startCommand: cd backend && python debug_run.py
     envVars:
       - key: MONGODB_URI
         value: mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority
       - key: SECRET_KEY
         generateValue: true
       - key: NOTIFICATIONS_ENABLED
-        value: true
+        value: "true"
       - key: CORS_ORIGINS
         value: "*"
       - key: PORT
-        value: 10000
+        value: "10000"
 
   # Frontend static site
-  - type: web
+  - type: static
     name: alumni-frontend
-    env: static
     buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    publishDir: frontend/dist
     envVars:
       - key: VITE_API_URL
         fromService:
@@ -31,4 +30,4 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
           append: /api/v1
       - key: VITE_POLLING_INTERVAL
-        value: 5000 
+        value: "5000" 
