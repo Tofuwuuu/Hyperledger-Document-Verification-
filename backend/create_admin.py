@@ -29,8 +29,33 @@ def create_admin_user(email, full_name, password, student_id=None, graduation_ye
         # Check if user already exists
         existing_user = db.users.find_one({"email": email})
         if existing_user:
-            print(f"User with email {email} already exists.")
-            return False
+            print(f"User with email {email} already exists. Updating admin privileges and activating account.")
+            
+            # Update the existing account to make sure it's active and has admin privileges
+            update_data = {
+                "$set": {
+                    "is_active": True,
+                    "is_admin": True,
+                    "hashed_password": get_password_hash(password),
+                    "updated_at": datetime.utcnow()
+                }
+            }
+            
+            if student_id:
+                update_data["$set"]["student_id"] = student_id
+                
+            if graduation_year:
+                update_data["$set"]["graduation_year"] = graduation_year
+            
+            result = db.users.update_one({"email": email}, update_data)
+            
+            if result.modified_count > 0:
+                print(f"User updated successfully: {email}")
+                print(f"User ID: {existing_user['_id']}")
+                return True
+            else:
+                print("No changes were made to the existing user.")
+                return False
         
         # Create admin user
         now = datetime.utcnow()
@@ -51,6 +76,16 @@ def create_admin_user(email, full_name, password, student_id=None, graduation_ye
         db.users.insert_one(new_user)
         print(f"Admin user created successfully: {email}")
         print(f"User ID: {new_user['_id']}")
+        
+        # Let's verify the user exists in the database
+        verify_user = db.users.find_one({"email": email})
+        if verify_user:
+            print("Verified: User exists in database")
+            print(f"Is active: {verify_user.get('is_active', False)}")
+            print(f"Is admin: {verify_user.get('is_admin', False)}")
+        else:
+            print("WARNING: User not found in database after creation!")
+            
         return True
     
     except Exception as e:
@@ -86,7 +121,7 @@ if __name__ == "__main__":
     success = create_admin_user(email, full_name, password, student_id, graduation_year)
     
     if success:
-        print("\nAdmin account created successfully!")
+        print("\nAdmin account created or updated successfully!")
         print(f"Email: {email}")
         print(f"Password: {password}")
         print("\nPlease change the password after first login.")
