@@ -6,6 +6,13 @@ from dotenv import load_dotenv
 import sys
 from passlib.context import CryptContext
 
+# Load environment variables
+load_dotenv()
+
+# MongoDB Atlas connection string
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority&appName=Cluster0")
+MONGODB_DB = os.getenv("MONGODB_DB", "cvsu_alumni")
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -15,9 +22,9 @@ def get_password_hash(password):
 
 def create_admin_user(email, full_name, password, student_id=None, graduation_year=None):
     try:
-        # Connect to MongoDB
-        client = MongoClient("mongodb://localhost:27017/")
-        db = client["cvsu_alumni"]
+        # Connect to MongoDB Atlas
+        client = MongoClient(MONGODB_URL)
+        db = client[MONGODB_DB]
         
         # Check if user already exists
         existing_user = db.users.find_one({"email": email})
