@@ -9,8 +9,10 @@ python-jose==3.3.0
 passlib==1.7.4
 python-multipart==0.0.6
 bcrypt==4.0.1
-# Temporarily commenting out fabric-sdk-py for deployment testing
-fabric-sdk-py==1.0.0
+# Temporarily commenting out fabric-sdk-py due to dependency conflict with idna package
+# fabric-sdk-py==1.0.0 has a dependency on requests 2.20.0 which requires idna<2.8
+# while FastAPI's anyio requires idna>=2.8
+# fabric-sdk-py==1.0.0
 cryptography==41.0.4
 # hashlib is a built-in module, not a package
 aiofiles==23.2.1
