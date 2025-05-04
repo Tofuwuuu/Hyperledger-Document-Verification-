@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours
     
     # CORS settings
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Union[List[str], str] = [
         "*",  # Allow all origins during development
         "http://localhost:3000",
         "http://localhost:5173",  # Vite default port
@@ -31,6 +31,16 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "https://cvsu-alumni.vercel.app"
     ]
+    
+    # Handle CORS origins from environment variable
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Convert CORS_ORIGINS to a list regardless of input type"""
+        if isinstance(self.CORS_ORIGINS, str):
+            if self.CORS_ORIGINS == "*":
+                return ["*"]
+            return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        return self.CORS_ORIGINS
     
     # Frontend URL for redirects and QR codes
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
