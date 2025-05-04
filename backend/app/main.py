@@ -29,6 +29,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_PREFIX}/openapi.json",
     docs_url=f"{settings.API_PREFIX}/docs",
     redoc_url=f"{settings.API_PREFIX}/redoc",
+    swagger_ui_parameters={"tryItOutEnabled": True},
 )
 
 # Configure CORS
