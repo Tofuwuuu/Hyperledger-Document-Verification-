@@ -64,6 +64,16 @@ export const AuthProvider = ({ children }) => {
   const refreshToken = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Check if we're using admin bypass
+      const token = localStorage.getItem('token');
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Admin bypass token - no need to refresh');
+        await loadUserData();
+        return true;
+      }
+      
+      // Normal token refresh for regular users
       await authService.refreshToken();
       await loadUserData();
       return true;
@@ -84,6 +94,15 @@ export const AuthProvider = ({ children }) => {
       if (!token) {
         setCurrentUser(null);
         setIsAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+      
+      // Check if we're using admin bypass
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Using admin bypass token - skipping JWT validation');
+        // Skip validation for admin bypass tokens
+        await loadUserData();
         setLoading(false);
         return;
       }
