@@ -11,7 +11,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # MongoDB settings
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+# Override default MongoDB URL for deployment
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority&appName=Cluster0")
 MONGODB_DB = os.getenv("MONGODB_DB", "cvsu_alumni")
 
 # MongoDB client instance
