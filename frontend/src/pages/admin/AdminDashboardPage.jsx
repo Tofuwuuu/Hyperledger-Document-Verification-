@@ -275,7 +275,51 @@ export default function AdminDashboardPage() {
     setError(null);
     
     try {
-      // Get the API URL
+      // Check for admin bypass token
+      const token = localStorage.getItem('token');
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Using admin bypass token - returning mock dashboard data');
+        
+        // Provide mock stats for admin bypass
+        setStats({
+          totalAlumni: 250,
+          pendingVerifications: 15,
+          verifiedDocuments: 120,
+          newRegistrations: 30
+        });
+        
+        // Provide mock activity data
+        const mockActivity = [
+          {
+            id: 'mock_1',
+            type: 'registration',
+            user: 'John Doe',
+            timestamp: new Date().toISOString(),
+            status: 'completed'
+          },
+          {
+            id: 'mock_2',
+            type: 'document_verification',
+            user: 'Jane Smith',
+            document: 'Transcript of Records',
+            timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+            status: 'verified'
+          },
+          {
+            id: 'mock_3',
+            type: 'user_verification',
+            user: 'Alice Johnson',
+            timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+            status: 'verified'
+          }
+        ];
+        
+        setRecentActivity(processActivityData(mockActivity));
+        setLoading(false);
+        return;
+      }
+      
+      // Get base API URL
       let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

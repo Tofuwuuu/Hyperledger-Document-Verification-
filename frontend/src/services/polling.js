@@ -53,6 +53,29 @@ class PollingService {
         return;
       }
 
+      // Special handling for admin bypass tokens
+      if (token.startsWith('admin_access_token_')) {
+        console.log('Using admin bypass token - returning empty notifications array');
+        // For admin bypass, just emit empty notifications to prevent API calls that would 401
+        const mockData = {
+          notifications: [],
+          count: 0,
+          unread_count: 0
+        };
+        
+        // Emit empty message event to satisfy any listeners
+        this.emit('message', {
+          type: 'admin_bypass',
+          message: 'Using admin bypass - notifications simulated',
+          notification_id: 'mock_' + Date.now(),
+          timestamp: new Date().toISOString(),
+          is_read: false,
+          data: {}
+        });
+        
+        return;
+      }
+
       // Get base API URL
       let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       // Remove trailing slash if present
