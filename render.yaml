@@ -4,7 +4,7 @@ services:
     name: alumni-api
     env: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && python debug_run.py
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: MONGODB_URI
         value: mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority
@@ -21,8 +21,12 @@ services:
   - type: web
     name: alumni-frontend
     env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    buildCommand: cd frontend && npm run install-and-build
+    staticPublishPath: ./frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
         fromService:
