@@ -3,6 +3,7 @@ uvicorn==0.23.2
 pymongo==4.5.0
 motor==3.3.1
 pydantic==2.4.2
+pydantic-settings==2.0.3
 python-dotenv==1.0.0
 python-jose==3.3.0
 passlib==1.7.4
