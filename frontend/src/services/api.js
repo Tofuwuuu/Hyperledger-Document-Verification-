@@ -37,6 +37,12 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
+      
+      // For admin bypass tokens, add a special header
+      if (token.startsWith('admin_access_token_')) {
+        config.headers['X-Admin-Bypass'] = 'true';
+        console.log('Added admin bypass header to request:', config.url);
+      }
     }
     return config;
   },
@@ -50,6 +56,16 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    
+    // Get the token to check if it's an admin bypass token
+    const token = localStorage.getItem('token');
+    
+    // If using admin bypass token, don't try to refresh the token
+    if (token && token.startsWith('admin_access_token_')) {
+      console.log('Admin bypass token detected - not attempting refresh for:', originalRequest.url);
+      // For admin bypass, we don't want to redirect to login on 401 either
+      return Promise.reject(error);
+    }
     
     // If the error is not 401 or the request was already retried, reject
     if (error.response?.status !== 401 || originalRequest._retry) {
@@ -285,6 +301,16 @@ export const authService = {
 
   checkAuth: async () => {
     try {
+      // Check if we're using admin bypass
+      const token = localStorage.getItem('token');
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Using admin bypass token - returning mock auth check');
+        // Get stored user data
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        return { isAuthenticated: true, user };
+      }
+      
+      // Regular auth check
       const response = await api.get('/auth/me');
       return { isAuthenticated: true, user: response.data };
     } catch (error) {

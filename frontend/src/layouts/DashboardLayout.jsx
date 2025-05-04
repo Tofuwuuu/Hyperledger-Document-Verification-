@@ -161,6 +161,16 @@ export default function DashboardLayout() {
 
   // Fetch notifications on component mount
   useEffect(() => {
+    // Check if using admin bypass token
+    const token = localStorage.getItem('token');
+    if (token && token.startsWith('admin_access_token_')) {
+      console.log('DashboardLayout detected admin bypass token - skipping notification API calls');
+      // For admin bypass, set empty notifications
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+    
     const fetchNotifications = async () => {
       try {
         // Get base API URL
@@ -215,6 +225,18 @@ export default function DashboardLayout() {
   // Handle notification click
   const handleNotificationClick = async (notificationId) => {
     try {
+      // Check if using admin bypass token
+      const token = localStorage.getItem('token');
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Admin bypass token - skipping notification read API call');
+        // Just update local state
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        setNotifications(prev => 
+          prev.map(n => n.notification_id === notificationId ? {...n, is_read: true} : n)
+        );
+        return;
+      }
+      
       // Get base API URL
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       
@@ -238,6 +260,16 @@ export default function DashboardLayout() {
   // Mark all notifications as read
   const markAllAsRead = async () => {
     try {
+      // Check if using admin bypass token
+      const token = localStorage.getItem('token');
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Admin bypass token - skipping mark all as read API call');
+        // Just update local state
+        setUnreadCount(0);
+        setNotifications(prev => prev.map(n => ({...n, is_read: true})));
+        return;
+      }
+      
       // Get base API URL
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       
