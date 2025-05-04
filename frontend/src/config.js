@@ -1,5 +1,5 @@
-// Parse API URL to avoid path duplication
-let baseApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Hardcode API URL to avoid environment issues
+let baseApiUrl = 'https://final-rkpz.onrender.com';
 // Remove trailing slash if present
 baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 // Add /api/v1 only if it's not already included
