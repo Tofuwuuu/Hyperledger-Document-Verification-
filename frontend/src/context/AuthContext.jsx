@@ -22,23 +22,27 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
-  // Memoized function to load user data
+  // Load user data from API or localStorage for admin bypass
   const loadUserData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await authService.getCurrentUser();
       
-      // Normalize user data to ensure consistent ID field
-      const userData = response.data;
-      if (userData) {
-        // Ensure we always have both _id and id available and they're the same
-        if (userData._id && !userData.id) {
-          userData.id = userData._id;
-        } else if (userData.id && !userData._id) {
-          userData._id = userData.id;
+      // Check if we're using the admin bypass
+      const token = localStorage.getItem('token');
+      if (token && token.startsWith('admin_access_token_')) {
+        // This is a mock admin token from our bypass
+        const adminUser = JSON.parse(localStorage.getItem('user'));
+        if (adminUser && adminUser.is_admin) {
+          console.log('Using admin bypass user data');
+          setCurrentUser(adminUser);
+          setIsAuthenticated(true);
+          return adminUser;
         }
-        console.log('Normalized user data:', userData);
       }
+      
+      // Normal API flow for regular users
+      const response = await authService.getCurrentUser();
+      const userData = response.data;
       
       setCurrentUser(userData);
       setIsAuthenticated(true);
@@ -47,6 +51,9 @@ export const AuthProvider = ({ children }) => {
       console.error('Error loading user data:', error);
       setCurrentUser(null);
       setIsAuthenticated(false);
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
       return null;
     } finally {
       setLoading(false);
