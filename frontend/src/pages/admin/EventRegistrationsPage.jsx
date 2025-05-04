@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import { getEventById, getEventRegistrations, checkInUser, updateRegistrationStatus, updateEvent } from '../../services/eventService';
-import QrReader from 'react-qr-reader';
+import { QrReader } from 'react-qr-reader';
 
 const EventRegistrationsPage = () => {
   const { eventId } = useParams();
