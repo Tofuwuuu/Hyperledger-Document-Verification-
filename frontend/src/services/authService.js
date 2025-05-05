@@ -45,9 +45,18 @@ export const logout = () => {
 
 export const getProfile = async () => {
   try {
-    const response = await axios.get(`${API_URL}/auth/me`, {
-      headers: getAuthHeader()
-    });
+    // Get the token and check if it's an admin bypass token
+    const token = getToken();
+    const isAdminBypass = token && token.startsWith('admin_access_token_');
+    
+    // Set up headers with auth and admin bypass if needed
+    const headers = getAuthHeader();
+    if (isAdminBypass) {
+      headers['X-Admin-Bypass'] = 'true';
+      console.log('Adding admin bypass header for profile request');
+    }
+    
+    const response = await axios.get(`${API_URL}/auth/me`, { headers });
     return response.data;
   } catch (error) {
     console.error('Get profile error:', error);
@@ -70,9 +79,19 @@ export const changePassword = async (passwordData) => {
 // New functions for user verification
 export const getUnverifiedUsers = async () => {
   try {
-    const response = await axios.get(`${API_URL}/auth/unverified-users`, {
-      headers: getAuthHeader()
-    });
+    // Get the token and check if it's an admin bypass token
+    const token = getToken();
+    const isAdminBypass = token && token.startsWith('admin_access_token_');
+    
+    // Set up headers with auth and admin bypass if needed
+    const headers = getAuthHeader();
+    if (isAdminBypass) {
+      headers['X-Admin-Bypass'] = 'true';
+      console.log('Adding admin bypass header for unverified users request');
+    }
+    
+    console.log('Making request to unverified-users with headers:', headers);
+    const response = await axios.get(`${API_URL}/auth/unverified-users`, { headers });
     return response.data;
   } catch (error) {
     console.error('Get unverified users error:', error);
@@ -84,20 +103,31 @@ export const verifyUser = async (userId, notes = '') => {
   try {
     console.log(`Sending verification request for userId: ${userId}, notes: ${notes}`);
     
+    // Get the token and check if it's an admin bypass token
+    const token = getToken();
+    const isAdminBypass = token && token.startsWith('admin_access_token_');
+    
+    // Set up headers with auth and admin bypass if needed
+    const headers = getAuthHeader();
+    if (isAdminBypass) {
+      headers['X-Admin-Bypass'] = 'true';
+      console.log('Adding admin bypass header for verify user request');
+    }
+    
     const response = await axios.post(
       `${API_URL}/auth/verify-user/${userId}`, 
       { notes },
-      { headers: getAuthHeader() }
+      { headers }
     );
     
     console.log('Verification API response:', response.data);
     
     // Additional step to trigger the dashboard to refresh immediately
     try {
-      // Force the dashboard to refetch recent activity
+      // Force the dashboard to refetch recent activity with admin bypass if needed
       await axios.get(
         `${API_URL}/admin/dashboard/recent-activity?_force_refresh=true`, 
-        { headers: getAuthHeader() }
+        { headers }
       );
     } catch (refreshErr) {
       console.warn('Failed to refresh dashboard data:', refreshErr);
@@ -112,9 +142,18 @@ export const verifyUser = async (userId, notes = '') => {
 
 export const getUserById = async (userId) => {
   try {
-    const response = await axios.get(`${API_URL}/auth/user/${userId}`, {
-      headers: getAuthHeader()
-    });
+    // Get the token and check if it's an admin bypass token
+    const token = getToken();
+    const isAdminBypass = token && token.startsWith('admin_access_token_');
+    
+    // Set up headers with auth and admin bypass if needed
+    const headers = getAuthHeader();
+    if (isAdminBypass) {
+      headers['X-Admin-Bypass'] = 'true';
+      console.log('Adding admin bypass header for get user request');
+    }
+    
+    const response = await axios.get(`${API_URL}/auth/user/${userId}`, { headers });
     return response.data;
   } catch (error) {
     console.error('Get user by ID error:', error);
