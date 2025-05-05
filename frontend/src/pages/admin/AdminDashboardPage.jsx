@@ -298,6 +298,7 @@ export default function AdminDashboardPage() {
       
       // Try to fetch real stats first, even with bypass token
       try {
+        console.log(`Attempting to fetch real stats from: ${apiUrl}/admin/dashboard/stats with token: ${token.substring(0, 10)}...`);
         const statsResponse = await fetch(`${apiUrl}/admin/dashboard/stats`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -305,12 +306,16 @@ export default function AdminDashboardPage() {
           }
         });
         
+        console.log(`Stats response status: ${statsResponse.status}`);
+        
         if (statsResponse.ok) {
           console.log('Successfully fetched real stats data!');
           const statsData = await statsResponse.json();
+          console.log('Stats data received:', statsData);
           setStats(statsData);
         } else {
-          console.log(`Failed to fetch real stats: ${statsResponse.status}, falling back to mock data`);
+          console.log(`Failed to fetch real stats: ${statsResponse.status}, response:`, await statsResponse.text());
+          console.log('Falling back to mock data');
           // Fall back to mock data if API call fails
           setStats({
             totalAlumni: 250,
