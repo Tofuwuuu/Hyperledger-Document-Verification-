@@ -35,68 +35,96 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // Get the API URL from environment
-      const baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com/api/v1';
-      const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      // Get API URLs with fallbacks for possible deployment URLs
+      const baseUrlOptions = [
+        import.meta.env.VITE_API_URL,
+        'https://final-rkpz.onrender.com/api/v1',
+        'https://alumni-api-klrk.onrender.com/api/v1',
+        'http://localhost:8000/api/v1'
+      ];
       
       // Check if we have a user ID
       const userId = currentUser._id || currentUser.id;
       
       if (userId) {
         console.log(`Attempting to fetch admin profile for user ID: ${userId}`);
-        try {
-          // Try to get the actual user profile from the API
-          const response = await fetch(`${apiUrl}/admin/users/${userId}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'X-Admin-Bypass': 'true'
+        
+        let profileData = null;
+        let lastError = null;
+        
+        // Try each API URL until one works
+        for (const baseUrl of baseUrlOptions) {
+          if (!baseUrl) continue;
+          
+          const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+          
+          try {
+            console.log(`Trying API URL: ${apiUrl}`);
+            
+            // Try to get the actual user profile from the API
+            const response = await fetch(`${apiUrl}/admin/users/${userId}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'X-Admin-Bypass': 'true'
+              }
+            });
+            
+            if (response.ok) {
+              profileData = await response.json();
+              console.log('Successfully fetched user profile from API:', profileData);
+              break; // Exit loop on success
+            } else {
+              const errorText = await response.text();
+              console.warn(`Failed with ${response.status} using ${apiUrl}: ${errorText}`);
+              lastError = new Error(`Server returned ${response.status}`);
             }
+          } catch (apiError) {
+            console.error(`Error fetching user profile from ${apiUrl}:`, apiError);
+            lastError = apiError;
+            // Continue to next URL
+          }
+        }
+        
+        if (profileData) {
+          // Use the successfully fetched profile data
+          setProfile({
+            id: profileData._id || profileData.id,
+            full_name: profileData.full_name,
+            employee_id: profileData.employee_id || '',
+            department: profileData.department || 'IT Department',
+            position: profileData.position || 'System Administrator',
+            email: profileData.email,
+            phone: profileData.phone || '',
+            address: profileData.address || '',
+            bio: profileData.bio || '',
+            profile_picture: profileData.profile_picture || ''
           });
           
-          if (response.ok) {
-            const userData = await response.json();
-            console.log('Successfully fetched user profile from API:', userData);
-            
-            setProfile({
-              id: userData._id || userData.id,
-              full_name: userData.full_name,
-              employee_id: userData.employee_id || '',
-              department: userData.department || 'IT Department',
-              position: userData.position || 'System Administrator',
-              email: userData.email,
-              phone: userData.phone || '',
-              address: userData.address || '',
-              bio: userData.bio || '',
-              profile_picture: userData.profile_picture || ''
-            });
-            
-            setInitialProfile({
-              id: userData._id || userData.id,
-              full_name: userData.full_name,
-              employee_id: userData.employee_id || '',
-              department: userData.department || 'IT Department',
-              position: userData.position || 'System Administrator',
-              email: userData.email,
-              phone: userData.phone || '',
-              address: userData.address || '',
-              bio: userData.bio || '',
-              profile_picture: userData.profile_picture || ''
-            });
-            
-            if (userData.profile_picture) {
-              setPreviewUrl(`${apiUrl.replace('/api/v1', '')}/${userData.profile_picture}`);
-            }
-            
-            return;
-          } else {
-            console.log(`Failed to fetch user profile: ${response.status}`);
+          setInitialProfile({
+            id: profileData._id || profileData.id,
+            full_name: profileData.full_name,
+            employee_id: profileData.employee_id || '',
+            department: profileData.department || 'IT Department',
+            position: profileData.position || 'System Administrator',
+            email: profileData.email,
+            phone: profileData.phone || '',
+            address: profileData.address || '',
+            bio: profileData.bio || '',
+            profile_picture: profileData.profile_picture || ''
+          });
+          
+          // Get the base URL without /api/v1 for profile picture
+          const baseUrl = baseUrlOptions.find(url => url && profileData)?.replace('/api/v1', '') || '';
+          
+          if (profileData.profile_picture) {
+            setPreviewUrl(`${baseUrl}/${profileData.profile_picture}`);
           }
-        } catch (apiError) {
-          console.error('Error fetching user profile from API:', apiError);
+          
+          return;
         }
       }
       
-      // Fallback to using currentUser if API call fails
+      // Fallback to using currentUser if API calls fail
       console.log('Using fallback from currentUser object');
       const adminData = {
         _id: currentUser._id || currentUser.id,
@@ -138,7 +166,8 @@ export default function AdminProfilePage() {
       });
       
       if (adminData.profile_picture) {
-        setPreviewUrl(`${baseUrl.replace('/api/v1', '')}/${adminData.profile_picture}`);
+        const baseUrl = baseUrlOptions[0]?.replace('/api/v1', '') || '';
+        setPreviewUrl(`${baseUrl}/${adminData.profile_picture}`);
       }
     } catch (error) {
       console.error('Error fetching admin profile:', error);
@@ -183,9 +212,13 @@ export default function AdminProfilePage() {
     
     setIsUploading(true);
     try {
-      // Get the API URL from environment
-      const baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com/api/v1';
-      const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      // Get API URLs with fallbacks for possible deployment URLs
+      const baseUrlOptions = [
+        import.meta.env.VITE_API_URL,
+        'https://final-rkpz.onrender.com/api/v1',
+        'https://alumni-api-klrk.onrender.com/api/v1',
+        'http://localhost:8000/api/v1'
+      ];
       
       console.log(`Uploading profile picture for user ID: ${profile.id}`);
       
@@ -193,18 +226,52 @@ export default function AdminProfilePage() {
       const formData = new FormData();
       formData.append('profile_picture', profilePicture);
       
-      // Upload the profile picture
-      const response = await fetch(`${apiUrl}/admin/users/${profile.id}/profile-picture`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Admin-Bypass': 'true'
-        },
-        body: formData
-      });
+      let response = null;
+      let lastError = null;
       
-      if (response.ok) {
-        const result = await response.json();
+      // Try each API URL until one works
+      for (const baseUrl of baseUrlOptions) {
+        if (!baseUrl) continue;
+        
+        const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+        
+        try {
+          console.log(`Trying API URL for upload: ${apiUrl}`);
+          
+          // Upload the profile picture
+          response = await fetch(`${apiUrl}/admin/users/${profile.id}/profile-picture`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'X-Admin-Bypass': 'true'
+            },
+            body: formData
+          });
+          
+          if (response.ok) {
+            console.log(`Successfully uploaded profile picture using: ${apiUrl}`);
+            break; // Exit loop on success
+          } else {
+            const errorText = await response.text();
+            console.warn(`Failed with ${response.status} using ${apiUrl}: ${errorText}`);
+            lastError = new Error(`Server returned ${response.status}`);
+          }
+        } catch (e) {
+          console.warn(`API call failed for ${apiUrl}:`, e);
+          lastError = e;
+          // Continue to the next URL
+        }
+      }
+      
+      if (response && response.ok) {
+        let result;
+        try {
+          result = await response.json();
+        } catch (e) {
+          console.warn('Could not parse response JSON:', e);
+          result = { success: true };
+        }
+        
         console.log('Profile picture uploaded successfully:', result);
         
         setSuccessMessage('Profile picture updated successfully!');
@@ -213,9 +280,10 @@ export default function AdminProfilePage() {
         // Refetch the profile to get the updated picture URL
         fetchAdminProfile();
       } else {
-        const errorData = await response.json();
-        console.error('Error uploading profile picture:', errorData);
-        setErrorMessage(errorData.detail || 'Failed to upload profile picture.');
+        // Handle the case where all attempts failed
+        console.error('All API endpoints failed for profile picture upload');
+        setErrorMessage('Failed to upload profile picture. Please try again later.');
+        throw lastError || new Error('All API endpoints failed');
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
@@ -246,9 +314,16 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // Get the API URL from environment
-      const baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com/api/v1';
-      const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      // Get the API URL from environment with fallbacks for possible deployment URLs
+      const baseUrlOptions = [
+        import.meta.env.VITE_API_URL,
+        'https://final-rkpz.onrender.com/api/v1',
+        'https://alumni-api-klrk.onrender.com/api/v1',
+        'http://localhost:8000/api/v1'
+      ];
+      
+      // Find the first working URL
+      let apiUrl = baseUrlOptions[0];
       
       console.log('Attempting to save profile:', profile);
       
@@ -264,19 +339,54 @@ export default function AdminProfilePage() {
         employee_id: profile.employee_id
       };
       
-      // Make the API call to update the user
-      const response = await fetch(`${apiUrl}/admin/users/${profile.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Admin-Bypass': 'true'
-        },
-        body: JSON.stringify(profileData)
-      });
+      // Try to update the user with each base URL if needed
+      let response = null;
+      let lastError = null;
       
-      if (response.ok) {
-        const updatedUser = await response.json();
+      for (const baseUrl of baseUrlOptions) {
+        if (!baseUrl) continue;
+        
+        const currentApiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+        
+        try {
+          console.log(`Trying API URL: ${currentApiUrl}`);
+          
+          // Make the API call to update the user
+          response = await fetch(`${currentApiUrl}/admin/users/${profile.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'X-Admin-Bypass': 'true'
+            },
+            body: JSON.stringify(profileData)
+          });
+          
+          if (response.ok) {
+            console.log(`Successfully updated profile using: ${currentApiUrl}`);
+            break; // If successful, exit the loop
+          } else {
+            const errorText = await response.text();
+            console.warn(`Failed with ${response.status} using ${currentApiUrl}: ${errorText}`);
+            lastError = new Error(`Server returned ${response.status}`);
+          }
+        } catch (e) {
+          console.warn(`API call failed for ${currentApiUrl}:`, e);
+          lastError = e;
+          // Continue to the next URL
+        }
+      }
+      
+      if (response && response.ok) {
+        let updatedUser;
+        try {
+          updatedUser = await response.json();
+        } catch (e) {
+          // If we can't parse JSON, still treat as success but with warning
+          console.warn('Could not parse response JSON:', e);
+          updatedUser = { ...profileData, id: profile.id };
+        }
+        
         console.log('Profile updated successfully:', updatedUser);
         
         // Update local storage user data to reflect changes
@@ -293,9 +403,10 @@ export default function AdminProfilePage() {
         // Refetch the profile to get the latest data
         fetchAdminProfile();
       } else {
-        const errorData = await response.json();
-        console.error('Error updating profile:', errorData);
-        setErrorMessage(errorData.detail || 'Failed to update profile. Please try again.');
+        // Handle the case where all attempts failed
+        console.error('All API endpoints failed for profile update');
+        setErrorMessage('Failed to update profile. Please try again later.');
+        throw lastError || new Error('All API endpoints failed');
       }
     } catch (error) {
       console.error('Error updating admin profile:', error);
