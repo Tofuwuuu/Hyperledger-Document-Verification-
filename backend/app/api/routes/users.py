@@ -159,25 +159,29 @@ async def get_admin_user_by_id(
                 detail=f"Admin user with ID {user_id} not found"
             )
         
-        user = serialize_id(user)
+        user_dict = serialize_id(user)
+        
+        # For admin bypass users, ensure _id is present for schema validation
+        if not "_id" in user_dict and "id" in user_dict:
+            user_dict["_id"] = user_dict["id"]
         
         # Remove sensitive information
-        if "hashed_password" in user:
-            del user["hashed_password"]
+        if "hashed_password" in user_dict:
+            del user_dict["hashed_password"]
         
         # Get role information if role_id exists
-        if "role_id" in user and user["role_id"]:
+        if "role_id" in user_dict and user_dict["role_id"]:
             try:
-                role = await db.roles.find_one({"_id": ObjectId(user["role_id"])})
+                role = await db.roles.find_one({"_id": ObjectId(user_dict["role_id"])})
                 if role:
                     role = serialize_id(role)
-                    user["role"] = role["name"]
+                    user_dict["role"] = role["name"]
             except:
-                user["role"] = "Unknown"
+                user_dict["role"] = "Unknown"
         else:
-            user["role"] = "No Role"
+            user_dict["role"] = "No Role"
         
-        return user
+        return user_dict
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -236,25 +240,36 @@ async def update_admin_user(
         
         # Get updated user
         updated_user = await db.users.find_one({"_id": user_id})
-        updated_user = serialize_id(updated_user)
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found after update"
+            )
+            
+        # Properly handle the _id field for admin bypass users with string IDs
+        user_dict = serialize_id(updated_user)
+        
+        # For admin bypass users, ensure _id is present for schema validation
+        if not "_id" in user_dict and "id" in user_dict:
+            user_dict["_id"] = user_dict["id"]
         
         # Remove sensitive information
-        if "hashed_password" in updated_user:
-            del updated_user["hashed_password"]
+        if "hashed_password" in user_dict:
+            del user_dict["hashed_password"]
         
         # Get role information if role_id exists
-        if "role_id" in updated_user and updated_user["role_id"]:
+        if "role_id" in user_dict and user_dict["role_id"]:
             try:
-                role = await db.roles.find_one({"_id": ObjectId(updated_user["role_id"])})
+                role = await db.roles.find_one({"_id": ObjectId(user_dict["role_id"])})
                 if role:
                     role = serialize_id(role)
-                    updated_user["role"] = role["name"]
+                    user_dict["role"] = role["name"]
             except:
-                updated_user["role"] = "Unknown"
+                user_dict["role"] = "Unknown"
         else:
-            updated_user["role"] = "No Role"
+            user_dict["role"] = "No Role"
         
-        return updated_user
+        return user_dict
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
