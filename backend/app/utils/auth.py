@@ -5,9 +5,13 @@ from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from bson.objectid import ObjectId
+from passlib.context import CryptContext
 import os
 from dotenv import load_dotenv
 import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 from app.config.database import get_database
 from app.models.user import User
