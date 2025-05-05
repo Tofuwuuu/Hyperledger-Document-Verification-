@@ -120,10 +120,36 @@ async def get_document_requests(
                 detail="Database connection not available. Please check MongoDB connection."
             )
         
-        # Get alumni ID from user ID
+        # Special handling for admin bypass users - redirect to admin endpoint
+        if current_user.get("is_admin", False):
+            # For admin users, call the admin endpoint
+            print(f"Admin user detected, redirecting to admin document requests endpoint")
+            
+            # Build query for admin view
+            query = {}
+            if status:
+                query["status"] = status
+            
+            # Get all document requests
+            cursor = db.document_requests.find(query)
+            requests = await cursor.to_list(length=100)
+            
+            # Return simplified data for admin overview
+            result = []
+            for request in requests:
+                result.append(request)
+            
+            return result
+        
+        # Regular user flow - get alumni ID from user ID
         alumni = await db.alumni.find_one({"user_id": str(current_user["_id"])})
         if not alumni:
-            raise HTTPException(status_code=404, detail="Alumni record not found")
+            # Provide more detailed error for missing alumni record
+            print(f"Alumni record not found for user ID: {current_user['_id']}")
+            raise HTTPException(
+                status_code=404, 
+                detail="Alumni record not found for your user account"
+            )
         
         alumni_id = str(alumni["_id"])
         
