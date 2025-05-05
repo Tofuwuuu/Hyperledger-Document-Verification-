@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
 
 export default function AdminProfilePage() {
   const { currentUser } = useAuth();
@@ -34,10 +35,71 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // In a real implementation, you would fetch the admin's profile from an API
-      // For now, we'll populate it from the currentUser object
+      // Get the API URL from environment
+      const baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com/api/v1';
+      const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      
+      // Check if we have a user ID
+      const userId = currentUser._id || currentUser.id;
+      
+      if (userId) {
+        console.log(`Attempting to fetch admin profile for user ID: ${userId}`);
+        try {
+          // Try to get the actual user profile from the API
+          const response = await fetch(`${apiUrl}/admin/users/${userId}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'X-Admin-Bypass': 'true'
+            }
+          });
+          
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('Successfully fetched user profile from API:', userData);
+            
+            setProfile({
+              id: userData._id || userData.id,
+              full_name: userData.full_name,
+              employee_id: userData.employee_id || '',
+              department: userData.department || 'IT Department',
+              position: userData.position || 'System Administrator',
+              email: userData.email,
+              phone: userData.phone || '',
+              address: userData.address || '',
+              bio: userData.bio || '',
+              profile_picture: userData.profile_picture || ''
+            });
+            
+            setInitialProfile({
+              id: userData._id || userData.id,
+              full_name: userData.full_name,
+              employee_id: userData.employee_id || '',
+              department: userData.department || 'IT Department',
+              position: userData.position || 'System Administrator',
+              email: userData.email,
+              phone: userData.phone || '',
+              address: userData.address || '',
+              bio: userData.bio || '',
+              profile_picture: userData.profile_picture || ''
+            });
+            
+            if (userData.profile_picture) {
+              setPreviewUrl(`${apiUrl.replace('/api/v1', '')}/${userData.profile_picture}`);
+            }
+            
+            return;
+          } else {
+            console.log(`Failed to fetch user profile: ${response.status}`);
+          }
+        } catch (apiError) {
+          console.error('Error fetching user profile from API:', apiError);
+        }
+      }
+      
+      // Fallback to using currentUser if API call fails
+      console.log('Using fallback from currentUser object');
       const adminData = {
-        _id: currentUser._id,
+        _id: currentUser._id || currentUser.id,
         full_name: currentUser.full_name || 'System Administrator',
         employee_id: currentUser.employee_id || '',
         department: currentUser.department || 'IT Department',
@@ -76,7 +138,7 @@ export default function AdminProfilePage() {
       });
       
       if (adminData.profile_picture) {
-        setPreviewUrl(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/${adminData.profile_picture}`);
+        setPreviewUrl(`${baseUrl.replace('/api/v1', '')}/${adminData.profile_picture}`);
       }
     } catch (error) {
       console.error('Error fetching admin profile:', error);
@@ -121,18 +183,43 @@ export default function AdminProfilePage() {
     
     setIsUploading(true);
     try {
-      // In a real implementation, you would upload the profile picture to an API
-      // await adminService.uploadProfilePicture(profile.id, profilePicture);
-      console.log('Would upload profile picture here');
+      // Get the API URL from environment
+      const baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com/api/v1';
+      const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
       
-      setSuccessMessage('Profile picture updated successfully!');
-      setProfilePicture(null);
+      console.log(`Uploading profile picture for user ID: ${profile.id}`);
       
-      // In a real implementation, you would refetch the profile
-      // await fetchAdminProfile();
+      // Create a FormData object to upload the file
+      const formData = new FormData();
+      formData.append('profile_picture', profilePicture);
+      
+      // Upload the profile picture
+      const response = await fetch(`${apiUrl}/admin/users/${profile.id}/profile-picture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'X-Admin-Bypass': 'true'
+        },
+        body: formData
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Profile picture uploaded successfully:', result);
+        
+        setSuccessMessage('Profile picture updated successfully!');
+        setProfilePicture(null);
+        
+        // Refetch the profile to get the updated picture URL
+        fetchAdminProfile();
+      } else {
+        const errorData = await response.json();
+        console.error('Error uploading profile picture:', errorData);
+        setErrorMessage(errorData.detail || 'Failed to upload profile picture.');
+      }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
-      setErrorMessage('Failed to upload profile picture.');
+      setErrorMessage('Failed to upload profile picture. Check your connection and try again.');
     } finally {
       setIsUploading(false);
     }
@@ -159,18 +246,60 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // In a real implementation, you would save the profile to an API
-      // const response = await adminService.updateAdminProfile(profile);
-      console.log('Would save admin profile:', profile);
+      // Get the API URL from environment
+      const baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com/api/v1';
+      const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
       
-      setSuccessMessage('Profile updated successfully!');
-      setIsEditing(false);
+      console.log('Attempting to save profile:', profile);
       
-      // Update initialProfile to match current profile
-      setInitialProfile({...profile});
+      // Format profile data for the API
+      const profileData = {
+        full_name: profile.full_name,
+        email: profile.email,
+        department: profile.department,
+        position: profile.position,
+        phone: profile.phone,
+        address: profile.address,
+        bio: profile.bio,
+        employee_id: profile.employee_id
+      };
+      
+      // Make the API call to update the user
+      const response = await fetch(`${apiUrl}/admin/users/${profile.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'X-Admin-Bypass': 'true'
+        },
+        body: JSON.stringify(profileData)
+      });
+      
+      if (response.ok) {
+        const updatedUser = await response.json();
+        console.log('Profile updated successfully:', updatedUser);
+        
+        // Update local storage user data to reflect changes
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const updatedStoredUser = {
+          ...storedUser,
+          ...profileData
+        };
+        localStorage.setItem('user', JSON.stringify(updatedStoredUser));
+        
+        setSuccessMessage('Profile updated successfully!');
+        setIsEditing(false);
+        
+        // Refetch the profile to get the latest data
+        fetchAdminProfile();
+      } else {
+        const errorData = await response.json();
+        console.error('Error updating profile:', errorData);
+        setErrorMessage(errorData.detail || 'Failed to update profile. Please try again.');
+      }
     } catch (error) {
       console.error('Error updating admin profile:', error);
-      setErrorMessage('Failed to update profile information.');
+      setErrorMessage('Failed to update profile information. Check your connection and try again.');
     } finally {
       setLoading(false);
     }

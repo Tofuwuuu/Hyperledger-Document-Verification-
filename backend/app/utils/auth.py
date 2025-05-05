@@ -109,24 +109,61 @@ async def get_current_user(request: Request = None, authorization: str = Header(
             logger.info(f"Admin bypass detected with token: {param[:20]}...")
             admin_bypass = True
     
-    # Create a mock admin user if using admin bypass
+    # Handle admin bypass by ensuring a persistent admin user exists
     if admin_bypass:
-        logger.info("Creating mock admin user for admin bypass")
-        # Generate a unique ID for the mock admin
-        admin_id = f"admin_bypass_{datetime.now().timestamp()}"
-        mock_admin = {
-            "_id": admin_id,
-            "id": admin_id,
-            "email": "admin@example.com",
-            "full_name": "Admin Bypass User",
-            "is_active": True,
-            "is_admin": True,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        return mock_admin
+        logger.info("Handling admin bypass authentication")
+        db = get_database()
+        
+        # Check if the admin bypass user already exists
+        bypass_email = "admin.bypass@cvsu.edu.ph"
+        admin_user = await db.users.find_one({"email": bypass_email})
+        
+        if admin_user:
+            logger.info(f"Found existing admin bypass user: {admin_user['_id']}")
+            return admin_user
+        else:
+            # Create a persistent admin bypass user
+            logger.info("Creating persistent admin bypass user in database")
+            now = datetime.utcnow()
+            admin_id = f"admin_bypass_{now.timestamp()}"
+            
+            # Prepare admin user data with strong defaults
+            new_admin = {
+                "_id": admin_id,
+                "email": bypass_email,
+                "full_name": "Admin Bypass User",
+                "first_name": "Admin",
+                "last_name": "Bypass",
+                "hashed_password": get_password_hash("Admin@12345"),  # Default password
+                "department": "IT Department",
+                "position": "System Administrator",
+                "is_active": True,
+                "is_admin": True,
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            try:
+                # Insert the admin user into the database
+                await db.users.insert_one(new_admin)
+                logger.info(f"Created admin bypass user with ID: {admin_id}")
+                return new_admin
+            except Exception as e:
+                logger.error(f"Error creating admin bypass user: {str(e)}")
+                # Fall back to in-memory mock admin if database insert fails
+                mock_admin = {
+                    "_id": admin_id,
+                    "id": admin_id,
+                    "email": bypass_email,
+                    "full_name": "Admin Bypass User (Temporary)",
+                    "is_active": True,
+                    "is_admin": True,
+                    "created_at": now,
+                    "updated_at": now
+                }
+                return mock_admin
     
-    # Standard JWT validation
+    # Standard JWT validation for non-admin-bypass cases
     try:
         # Decode JWT
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

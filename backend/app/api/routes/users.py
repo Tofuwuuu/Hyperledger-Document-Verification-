@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Path, Query, UploadFile, File
+from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
+import os
+import shutil
+from uuid import uuid4
 
 from app.utils.auth import get_admin_user, get_password_hash
 from app.config.database import get_database
@@ -415,4 +419,68 @@ async def get_user_activity(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching user activity: {str(e)}"
+        )
+
+@router.post("/users/{user_id}/profile-picture", response_model=Dict[str, str])
+async def upload_profile_picture(
+    user_id: str = Path(..., description="The ID of the user to update"),
+    profile_picture: UploadFile = File(...),
+    admin_user: Dict[str, Any] = Depends(get_admin_user)
+):
+    """
+    Upload a profile picture for a user
+    """
+    db = get_database()
+    
+    # Check if user exists
+    user = await db.users.find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+    
+    # Make sure the uploads directory exists
+    upload_dir = os.path.join("uploads", "profile_pictures")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Generate a unique filename for the profile picture
+    file_extension = os.path.splitext(profile_picture.filename)[1]
+    unique_filename = f"{user_id}_{uuid4()}{file_extension}"
+    file_path = os.path.join(upload_dir, unique_filename)
+    
+    # Save the file
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(profile_picture.file, buffer)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save profile picture: {str(e)}"
+        )
+    
+    # Update the user record with the profile picture path
+    relative_path = os.path.join("uploads", "profile_pictures", unique_filename)
+    normalized_path = relative_path.replace("\\", "/")  # Normalize for web paths
+    
+    try:
+        await db.users.update_one(
+            {"_id": user_id},
+            {"$set": {
+                "profile_picture": normalized_path,
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        
+        return {"profile_picture": normalized_path}
+    except Exception as e:
+        # Try to clean up the file if the DB update fails
+        try:
+            os.remove(file_path)
+        except:
+            pass
+            
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user with profile picture: {str(e)}"
         ) 
