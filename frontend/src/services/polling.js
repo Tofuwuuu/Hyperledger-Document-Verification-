@@ -53,9 +53,9 @@ class PollingService {
         return;
       }
 
-      // Special handling for admin bypass tokens
+      // Special handling for old admin bypass tokens (but not the new format)
       if (token.startsWith('admin_access_token_')) {
-        console.log('Using admin bypass token - returning empty notifications array');
+        console.log('Using old admin bypass token - returning empty notifications array');
         // For admin bypass, just emit empty notifications to prevent API calls that would 401
         const mockData = {
           notifications: [],

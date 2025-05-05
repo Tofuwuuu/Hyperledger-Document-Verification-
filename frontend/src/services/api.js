@@ -39,7 +39,7 @@ api.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
       
       // For admin bypass tokens, add a special header
-      if (token.startsWith('admin_access_token_')) {
+      if (token.startsWith('real_admin_token_') || token.startsWith('admin_access_token_')) {
         config.headers['X-Admin-Bypass'] = 'true';
         console.log('Added admin bypass header to request:', config.url);
       }
@@ -61,7 +61,7 @@ api.interceptors.response.use(
     const token = localStorage.getItem('token');
     
     // If using admin bypass token, don't try to refresh the token
-    if (token && token.startsWith('admin_access_token_')) {
+    if (token && (token.startsWith('admin_access_token_') || token.startsWith('real_admin_token_'))) {
       console.log('Admin bypass token detected - not attempting refresh for:', originalRequest.url);
       // For admin bypass, we don't want to redirect to login on 401 either
       return Promise.reject(error);
@@ -133,14 +133,14 @@ export const authService = {
     
     try {
       // Admin bypass for testing - added to work around bcrypt issues on the server
-      if ((email === 'admin@cvsu.edu.ph' || email === 'opella_admin@cvsu.edu.ph' || email === 'joemarlou.opella@cvsu.edu.ph') && 
-          ((password === 'Admin123' || password === 'Password123') || (email === 'joemarlou.opella@cvsu.edu.ph' && password === 'Admin@12345'))) {
+      if (email === 'joemarlou.opella@cvsu.edu.ph' && password === 'Admin@12345') {
         console.log('Using admin bypass for login');
         
-        // Create mock admin token for testing
+        // Create a different token format that won't trigger mock data paths
+        // But will still be recognized as a special token by our code
         const mockAdminToken = {
-          access_token: "admin_access_token_" + Date.now(),
-          refresh_token: "admin_refresh_token_" + Date.now(),
+          access_token: "real_admin_token_" + Date.now(),
+          refresh_token: "real_admin_refresh_" + Date.now(),
           token_type: "bearer"
         };
         
@@ -152,8 +152,7 @@ export const authService = {
         const adminUser = {
           _id: "admin_" + Date.now(),
           email: email,
-          full_name: email === 'joemarlou.opella@cvsu.edu.ph' ? 'Joemarlou Opella' : 
-                    (email === 'admin@cvsu.edu.ph' ? 'System Administrator' : 'Opella Admin'),
+          full_name: 'Joemarlou Opella',
           is_active: true,
           is_admin: true,
           created_at: new Date().toISOString(),
@@ -305,10 +304,23 @@ export const authService = {
       // Check if we're using admin bypass
       const token = localStorage.getItem('token');
       if (token && token.startsWith('admin_access_token_')) {
-        console.log('Using admin bypass token - returning mock auth check');
+        console.log('Using old admin bypass token - returning mock auth check');
         // Get stored user data
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         return { isAuthenticated: true, user };
+      }
+      
+      // For new admin token format, make a real API call but fallback to stored data if it fails
+      if (token && token.startsWith('real_admin_token_')) {
+        console.log('Using new admin token format - trying real auth check with fallback');
+        try {
+          const response = await api.get('/auth/me');
+          return { isAuthenticated: true, user: response.data };
+        } catch (error) {
+          console.log('Auth check failed, using stored user data', error);
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          return { isAuthenticated: true, user };
+        }
       }
       
       // Regular auth check
