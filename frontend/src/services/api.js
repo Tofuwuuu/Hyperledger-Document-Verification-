@@ -134,9 +134,9 @@ export const authService = {
     try {
       // Admin bypass for testing - added to work around bcrypt issues on the server
       if (email === 'joemarlou.opella@cvsu.edu.ph' && password === 'Admin@12345') {
-        console.log('Using admin bypass for login');
+        console.log('Using admin bypass for login - skipping API call entirely');
         
-        // Create mock admin token for testing - using the original format that the system expects
+        // Create mock admin token for testing
         const mockAdminToken = {
           access_token: "admin_access_token_" + Date.now(),
           refresh_token: "admin_refresh_token_" + Date.now(),
@@ -159,6 +159,9 @@ export const authService = {
         };
         localStorage.setItem('user', JSON.stringify(adminUser));
         
+        console.log('Admin bypass login successful - user data stored in localStorage');
+        
+        // Immediately return without making API calls
         return mockAdminToken;
       }
       
@@ -295,6 +298,16 @@ export const authService = {
   },
   
   getCurrentUser: async () => {
+    // Check if we're using admin bypass
+    const token = localStorage.getItem('token');
+    if (token && token.startsWith('admin_access_token_')) {
+      console.log('Using admin bypass token - returning stored user data without API call');
+      // Get stored user data
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return { data: user };
+    }
+    
+    // Regular API call for non-bypass tokens
     return api.get('/auth/me');
   },
 

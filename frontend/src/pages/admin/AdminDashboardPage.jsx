@@ -32,6 +32,13 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     console.log("Starting polling from AdminDashboardPage");
     
+    // Check if we're using admin bypass
+    const token = localStorage.getItem('token');
+    if (token && token.startsWith('admin_access_token_')) {
+      console.log('Admin bypass token detected - not starting polling to avoid API calls');
+      return; // Skip polling for admin bypass
+    }
+    
     // Start polling as admin
     pollingService.stopPolling(); // Stop any existing polling
     pollingService.startPolling('admin'); // Start with admin role
@@ -76,8 +83,8 @@ export default function AdminDashboardPage() {
     });
     
     return () => {
-      unsubscribe();
-      messageUnsubscribe();
+      unsubscribe && unsubscribe();
+      messageUnsubscribe && messageUnsubscribe();
       pollingService.stopPolling();
     };
   }, []);
