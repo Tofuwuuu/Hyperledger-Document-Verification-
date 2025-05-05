@@ -22,42 +22,50 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
-  // Load user data from API or localStorage for admin bypass
-  const loadUserData = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      // Check if we're using the admin bypass
+  // Load user data on initial render or when token changes
+  useEffect(() => {
+    const loadUserData = async () => {
       const token = localStorage.getItem('token');
-      if (token && token.startsWith('admin_access_token_')) {
-        // This is a mock admin token from our bypass
-        const adminUser = JSON.parse(localStorage.getItem('user'));
-        if (adminUser && adminUser.is_admin) {
-          console.log('Using admin bypass user data');
-          setCurrentUser(adminUser);
-          setIsAuthenticated(true);
-          return adminUser;
-        }
+      
+      if (!token) {
+        setLoading(false);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        return;
       }
       
-      // Normal API flow for regular users
-      const response = await authService.getCurrentUser();
-      const userData = response.data;
-      
-      setCurrentUser(userData);
-      setIsAuthenticated(true);
-      return userData;
-    } catch (error) {
-      console.error('Error loading user data:', error);
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-      localStorage.removeItem('token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      return null;
-    } finally {
-      setLoading(false);
-    }
+      setLoading(true);
+      try {
+        console.log('Loading user data from API or local storage');
+        // Attempt to get current user - will automatically handle admin bypass fallback
+        const userData = await authService.getCurrentUser();
+        console.log('User data loaded:', userData);
+        
+        if (userData) {
+          setCurrentUser(userData);
+          setIsAuthenticated(true);
+          // Store user in local storage for persistence
+          localStorage.setItem('user', JSON.stringify(userData));
+        } else {
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        // Clean up storage on auth error
+        if (error.response?.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
   }, []);
 
   // Memoized function to refresh token

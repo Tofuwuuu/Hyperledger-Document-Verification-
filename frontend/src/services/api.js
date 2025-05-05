@@ -298,17 +298,42 @@ export const authService = {
   },
   
   getCurrentUser: async () => {
-    // Check if we're using admin bypass
-    const token = localStorage.getItem('token');
-    if (token && token.startsWith('admin_access_token_')) {
-      console.log('Using admin bypass token - returning stored user data without API call');
-      // Get stored user data
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      return { data: user };
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (token && token.startsWith('admin_access_token_')) {
+        console.log('Using admin bypass token - attempting real API call first');
+        
+        // Attempt a real API call first, even with admin bypass token
+        try {
+          const response = await api.get('/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'X-Admin-Bypass': 'true' // Add admin bypass header for the backend to handle
+            }
+          });
+          
+          if (response.status === 200) {
+            console.log('Successfully fetched real user data with admin bypass');
+            return response.data;
+          }
+        } catch (error) {
+          console.log('Real API call failed, falling back to stored user data');
+          // If API call fails, fall back to stored user data
+        }
+        
+        // Return stored user data as fallback
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        console.log('Using stored user data for admin bypass');
+        return userData;
+      }
+      
+      const response = await api.get('/auth/me');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      throw error;
     }
-    
-    // Regular API call for non-bypass tokens
-    return api.get('/auth/me');
   },
 
   checkAuth: async () => {
