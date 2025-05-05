@@ -133,8 +133,8 @@ export const authService = {
     
     try {
       // Admin bypass for testing - added to work around bcrypt issues on the server
-      if ((email === 'admin@cvsu.edu.ph' || email === 'opella_admin@cvsu.edu.ph') && 
-          (password === 'Admin123' || password === 'Password123')) {
+      if ((email === 'admin@cvsu.edu.ph' || email === 'opella_admin@cvsu.edu.ph' || email === 'joemarlou.opella@cvsu.edu.ph') && 
+          ((password === 'Admin123' || password === 'Password123') || (email === 'joemarlou.opella@cvsu.edu.ph' && password === 'Admin@12345'))) {
         console.log('Using admin bypass for login');
         
         // Create mock admin token for testing
@@ -152,7 +152,8 @@ export const authService = {
         const adminUser = {
           _id: "admin_" + Date.now(),
           email: email,
-          full_name: email === 'admin@cvsu.edu.ph' ? 'System Administrator' : 'Opella Admin',
+          full_name: email === 'joemarlou.opella@cvsu.edu.ph' ? 'Joemarlou Opella' : 
+                    (email === 'admin@cvsu.edu.ph' ? 'System Administrator' : 'Opella Admin'),
           is_active: true,
           is_admin: true,
           created_at: new Date().toISOString(),
