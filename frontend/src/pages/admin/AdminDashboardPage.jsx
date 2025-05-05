@@ -26,6 +26,7 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState(null);
 
   // Add these console logs for debugging
+  console.log("Admin Dashboard: API URL:", import.meta.env.VITE_API_URL);
   console.log("Admin Polling Enabled:", true);
   console.log("User Role:", localStorage.getItem('user_role'));
 
