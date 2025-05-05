@@ -275,10 +275,15 @@ export default function AdminDashboardPage() {
     setError(null);
     
     try {
-      // Check for old admin bypass token format only
+      // Check for admin bypass token
       const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
       if (token && token.startsWith('admin_access_token_')) {
-        console.log('Using old admin bypass token - returning mock dashboard data');
+        console.log('Using admin bypass token - returning mock dashboard data');
+        
+        // Use the user's name in the mock data
+        const adminName = user.full_name || 'Admin User';
         
         // Provide mock stats for admin bypass
         setStats({
