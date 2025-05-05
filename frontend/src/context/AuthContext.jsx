@@ -22,51 +22,55 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
-  // Load user data on initial render or when token changes
-  useEffect(() => {
-    const loadUserData = async () => {
-      const token = localStorage.getItem('token');
+  // Define loadUserData at component level with useCallback
+  const loadUserData = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      setLoading(false);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      return null;
+    }
+    
+    setLoading(true);
+    try {
+      console.log('Loading user data from API or local storage');
+      // Attempt to get current user - will automatically handle admin bypass fallback
+      const userData = await authService.getCurrentUser();
+      console.log('User data loaded:', userData);
       
-      if (!token) {
-        setLoading(false);
+      if (userData) {
+        setCurrentUser(userData);
+        setIsAuthenticated(true);
+        // Store user in local storage for persistence
+        localStorage.setItem('user', JSON.stringify(userData));
+        return userData;
+      } else {
         setCurrentUser(null);
         setIsAuthenticated(false);
-        return;
+        return null;
       }
-      
-      setLoading(true);
-      try {
-        console.log('Loading user data from API or local storage');
-        // Attempt to get current user - will automatically handle admin bypass fallback
-        const userData = await authService.getCurrentUser();
-        console.log('User data loaded:', userData);
-        
-        if (userData) {
-          setCurrentUser(userData);
-          setIsAuthenticated(true);
-          // Store user in local storage for persistence
-          localStorage.setItem('user', JSON.stringify(userData));
-        } else {
-          setCurrentUser(null);
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Error loading user:', error);
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-        // Clean up storage on auth error
-        if (error.response?.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-        }
-      } finally {
-        setLoading(false);
+    } catch (error) {
+      console.error('Error loading user:', error);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      // Clean up storage on auth error
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
       }
-    };
-
-    loadUserData();
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Load user data on initial render
+  useEffect(() => {
+    loadUserData();
+  }, [loadUserData]);
 
   // Memoized function to refresh token
   const refreshToken = useCallback(async () => {
