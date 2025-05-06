@@ -145,6 +145,47 @@ class Event(EventInDB):
                 
         # Create Event object
         return cls(**db_event)
+    
+    @staticmethod
+    def from_mongo(mongo_doc: Dict[str, Any]) -> "Event":
+        """
+        Create an Event model from a MongoDB document, bypassing Pydantic validation
+        to avoid Pydantic v2 compatibility issues.
+        """
+        # Create a shallow copy to avoid modifying the original
+        doc = dict(mongo_doc)
+        
+        # Convert ObjectId fields
+        if "_id" in doc and doc["_id"] is not None:
+            doc["id"] = str(doc["_id"])
+            
+        if "created_by" in doc and doc["created_by"] is not None:
+            doc["created_by"] = PyObjectId(doc["created_by"])
+            
+        # Ensure datetime fields
+        date_fields = ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']
+        for field in date_fields:
+            if field in doc and doc[field] is not None:
+                if not isinstance(doc[field], datetime):
+                    try:
+                        doc[field] = datetime.fromisoformat(str(doc[field]))
+                    except Exception:
+                        # If conversion fails, leave as is
+                        pass
+        
+        # Create a new instance directly without validation
+        instance = Event.__new__(Event)
+        
+        # Manually set all attributes
+        for key, value in doc.items():
+            if key == "_id":
+                # Set both _id and id
+                setattr(instance, "_id", value)
+                setattr(instance, "id", PyObjectId(value))
+            else:
+                setattr(instance, key, value)
+                
+        return instance
 
 
 class EventResponse(BaseModel):
