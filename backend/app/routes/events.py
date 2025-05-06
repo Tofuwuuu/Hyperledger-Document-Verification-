@@ -11,6 +11,7 @@ from app.models.common import PyObjectId
 from app.repositories.event_repository import EventRepository
 from app.utils.auth import get_current_user, get_current_active_user, get_admin_user
 from app.models.user import User
+from app.utils.json_utils import serialize_dict, jsonify
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -64,8 +65,10 @@ async def create_event(
             logger.error("Event creation returned None")
             raise ValueError("Event creation failed - returned None")
             
-        logger.info(f"Event created successfully with ID: {getattr(created_event, 'id', None)}")
-        return created_event
+        # Ensure all values are JSON serializable
+        serialized_event = jsonify(created_event)
+        logger.info(f"Event created successfully with ID: {serialized_event.get('id', None)}")
+        return serialized_event
         
     except Exception as e:
         detail = f"Failed to create event: {str(e)}"
@@ -104,7 +107,8 @@ async def get_events(
     Get a list of events.
     """
     try:
-        return await EventRepository.get_events(skip, limit, active_only)
+        events = await EventRepository.get_events(skip, limit, active_only)
+        return jsonify(events)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch events: {str(e)}")
 
@@ -115,7 +119,8 @@ async def get_upcoming_events(
     """
     Get upcoming events. Public endpoint.
     """
-    return await EventRepository.get_upcoming_events(limit)
+    events = await EventRepository.get_upcoming_events(limit)
+    return jsonify(events)
 
 @router.get("/events/{event_id}")
 async def get_event(
@@ -128,7 +133,7 @@ async def get_event(
     event = await EventRepository.get_event(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    return event
+    return jsonify(event)
 
 @router.put("/events/{event_id}")
 async def update_event(
@@ -143,13 +148,13 @@ async def update_event(
         event = await EventRepository.update_event(event_id, event_update)
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
-        return event
+        return jsonify(event)
     except Exception as e:
         logger.error(f"Error updating event {event_id}: {str(e)}")
         logger.error(f"Exception traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to update event: {str(e)}")
 
-@router.delete("/events/{event_id}", response_model=bool)
+@router.delete("/events/{event_id}")
 async def delete_event(
     event_id: PyObjectId = Path(...),
     current_user: User = Depends(get_admin_user)
@@ -161,7 +166,7 @@ async def delete_event(
         success = await EventRepository.delete_event(event_id)
         if not success:
             raise HTTPException(status_code=404, detail="Event not found")
-        return success
+        return {"success": success}
     except Exception as e:
         logger.error(f"Error deleting event {event_id}: {str(e)}")
         logger.error(f"Exception traceback: {traceback.format_exc()}")

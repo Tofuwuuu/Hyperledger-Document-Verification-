@@ -30,7 +30,8 @@ class Settings(BaseSettings):
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "https://cvsu-alumni.vercel.app",
-        "https://alumni-frontend-zzr2.onrender.com"  # Add the specific render.com frontend URL
+        "https://alumni-frontend-zzr2.onrender.com",  # Add the specific render.com frontend URL
+        "http://alumni-frontend-zzr2.onrender.com"   # Also include HTTP version for completeness
     ]
     
     # Handle CORS origins from environment variable
