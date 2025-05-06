@@ -37,8 +37,12 @@ async def create_event(
         logger.info(f"Starting event creation for user: {user_id}")
         logger.info(f"Event data: {event.dict()}")
         
-        # Ensure user ID is properly handled
-        if isinstance(user_id, str):
+        # Handle admin bypass IDs which are not valid ObjectIds
+        if isinstance(user_id, str) and user_id.startswith('admin_bypass_'):
+            logger.info(f"Detected admin bypass ID, generating new ObjectId instead of converting")
+            user_id = ObjectId()  # Generate a new valid ObjectId
+        # Normal user IDs - try to convert if they're strings
+        elif isinstance(user_id, str):
             try:
                 user_id = ObjectId(user_id)
             except Exception as e:
