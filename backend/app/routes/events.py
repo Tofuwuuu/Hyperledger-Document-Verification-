@@ -26,8 +26,14 @@ async def create_event(
     Create a new event (admin only).
     """
     try:
-        # Get user ID from User object
-        user_id = current_user.id
+        # Get user ID handling both dict and User object (for admin bypass)
+        if isinstance(current_user, dict):
+            user_id = current_user.get("_id")
+            logger.info(f"Using dict user with ID: {user_id}")
+        else:
+            user_id = current_user.id
+            logger.info(f"Using User object with ID: {user_id}")
+        
         logger.info(f"Starting event creation for user: {user_id}")
         logger.info(f"Event data: {event.dict()}")
         
@@ -55,14 +61,15 @@ async def create_event(
         logger.error(f"Event data: {json.dumps(event.dict(), default=str)}")
         logger.error(f"Exception traceback: {traceback.format_exc()}")
         
-        # Return a more descriptive error message
+        # Return a more descriptive error message with safe user_id access
+        user_id_str = str(getattr(current_user, 'id', current_user.get('_id', 'unknown')))
         raise HTTPException(
             status_code=500, 
             detail={
                 "message": detail,
                 "error_type": type(e).__name__,
                 "event_data": str(event.dict()),
-                "user_id": str(current_user.id)
+                "user_id": user_id_str
             }
         )
 
@@ -112,10 +119,15 @@ async def update_event(
     """
     Update an event (admin only).
     """
-    event = await EventRepository.update_event(event_id, event_update)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    return event
+    try:
+        event = await EventRepository.update_event(event_id, event_update)
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+        return event
+    except Exception as e:
+        logger.error(f"Error updating event {event_id}: {str(e)}")
+        logger.error(f"Exception traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to update event: {str(e)}")
 
 @router.delete("/events/{event_id}", response_model=bool)
 async def delete_event(
@@ -125,10 +137,15 @@ async def delete_event(
     """
     Delete an event (admin only).
     """
-    success = await EventRepository.delete_event(event_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Event not found")
-    return success
+    try:
+        success = await EventRepository.delete_event(event_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Event not found")
+        return success
+    except Exception as e:
+        logger.error(f"Error deleting event {event_id}: {str(e)}")
+        logger.error(f"Exception traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete event: {str(e)}")
 
 @router.get("/events/{event_id}/qrcode", response_model=Dict[str, str])
 async def generate_event_qr_code(
