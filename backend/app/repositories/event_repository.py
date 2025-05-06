@@ -22,7 +22,7 @@ class EventRepository:
     async def create_event(event: EventCreate, created_by: Union[str, ObjectId]) -> Event:
         """Create a new event."""
         try:
-            logger.info(f"Creating event with data: {json.dumps(event.dict(), default=str)}")
+            logger.info(f"Creating event with data: {json.dumps(event.model_dump(), default=str)}")
             
             # Get database connection
             db = await get_database_async()
@@ -36,7 +36,7 @@ class EventRepository:
                     raise ValueError(f"Invalid created_by format: {str(e)}")
             
             # Convert event to dict and add additional fields
-            event_dict = event.dict()
+            event_dict = event.model_dump()
             
             # Add metadata fields
             now = datetime.utcnow()
@@ -102,7 +102,7 @@ class EventRepository:
             # Return as Event model
             try:
                 logger.debug("Creating Event object from document")
-                event_obj = Event(**inserted_doc)
+                event_obj = Event.model_validate(inserted_doc)
                 logger.info(f"Successfully created Event object with ID: {event_obj.id}")
                 return event_obj
             except Exception as e:
@@ -112,7 +112,7 @@ class EventRepository:
                 
         except Exception as e:
             logger.error(f"Error creating event: {str(e)}", exc_info=True)
-            logger.error(f"Event data: {json.dumps(event.dict() if event else {}, default=str)}")
+            logger.error(f"Event data: {json.dumps(event.model_dump() if event else {}, default=str)}")
             logger.error(f"Exception traceback: {traceback.format_exc()}")
             raise ValueError(f"Failed to create event: {str(e)}")
     
@@ -123,7 +123,7 @@ class EventRepository:
             event = await db[EventRepository.collection_name].find_one({"_id": event_id})
             
             if event:
-                return Event(**event)
+                return Event.model_validate(event)
             return None
         except Exception as e:
             logger.error(f"Error getting event by ID {event_id}: {str(e)}")
@@ -138,7 +138,7 @@ class EventRepository:
             
             events = []
             async for event in cursor:
-                events.append(Event(**event))
+                events.append(Event.model_validate(event))
             
             return events
         except Exception as e:
@@ -155,7 +155,7 @@ class EventRepository:
             
             events = []
             async for event in cursor:
-                events.append(Event(**event))
+                events.append(Event.model_validate(event))
             
             return events
         except Exception as e:
@@ -166,7 +166,7 @@ class EventRepository:
     async def update_event(event_id: ObjectId, event_update: EventUpdate) -> Optional[Event]:
         try:
             db = await get_database_async()
-            update_data = {k: v for k, v in event_update.dict().items() if v is not None}
+            update_data = {k: v for k, v in event_update.model_dump().items() if v is not None}
             update_data["updated_at"] = datetime.utcnow()
             
             if update_data:
@@ -178,7 +178,7 @@ class EventRepository:
             updated_event = await db[EventRepository.collection_name].find_one({"_id": event_id})
             
             if updated_event:
-                return Event(**updated_event)
+                return Event.model_validate(updated_event)
             return None
         except Exception as e:
             logger.error(f"Error updating event {event_id}: {str(e)}")

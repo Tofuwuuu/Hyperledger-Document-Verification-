@@ -31,6 +31,17 @@ class EventBase(BaseModel):
     attendance_token: Optional[str] = None
     attendance_qr_url: Optional[str] = None
 
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        values = obj
+        if isinstance(obj, dict):
+            values = obj.copy()
+            # Perform validation for end_date here if needed
+            if "end_date" in values and values["end_date"] is not None and "start_date" in values and values["start_date"] is not None:
+                if values["end_date"] < values["start_date"]:
+                    raise ValueError('end_date must be after start_date')
+        return super().model_validate(values, **kwargs)
+
     @validator('end_date')
     def end_date_after_start_date(cls, v, values):
         if v and 'start_date' in values and values['start_date'] and v < values['start_date']:
@@ -73,10 +84,11 @@ class EventInDB(EventBase):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     registration_count: int = 0
 
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "allow_population_by_field_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
         
     def dict(self, **kwargs):
         """Custom dict method that handles ObjectIds properly."""
@@ -108,10 +120,11 @@ class EventInDB(EventBase):
 class Event(EventInDB):
     """Model for reading events. Inherits all fields and methods from EventInDB."""
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "allow_population_by_field_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
     
     # Explicitly inherit dict method from parent class
     def dict(self, **kwargs):
@@ -155,9 +168,10 @@ class EventResponse(BaseModel):
     registration_fields: List[Dict[str, Any]]
     organizer_id: str
     
-    class Config:
-        orm_mode = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "orm_mode": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
         
     @classmethod
     def from_mongo(cls, data: dict) -> "EventResponse":
