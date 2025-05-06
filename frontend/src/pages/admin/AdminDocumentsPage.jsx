@@ -10,7 +10,7 @@ import {
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { API_URL } from '../../config';
-import { adminVerificationService } from '../../services/api';
+import { adminVerificationService, api, adminDocumentService } from '../../services/api';
 
 export default function AdminDocumentsPage() {
   const [documents, setDocuments] = useState([]);
@@ -29,20 +29,15 @@ export default function AdminDocumentsPage() {
     setError(null);
     
     try {
-      let endpoint = `${API_URL}/documents/search`;
-      if (statusFilter !== 'all') {
-        endpoint += `?verification_status=${statusFilter}`;
-      }
+      const result = await adminDocumentService.searchDocuments(statusFilter);
       
-      const response = await axios.get(endpoint, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+      if (result.success) {
+        setDocuments(result.data.results || []);
+        if (result.data.results && result.data.results.length > 0) {
+          setSelectedDocument(result.data.results[0]);
         }
-      });
-      
-      setDocuments(response.data.results || []);
-      if (response.data.results && response.data.results.length > 0) {
-        setSelectedDocument(response.data.results[0]);
+      } else {
+        setError(result.error || 'Failed to fetch documents');
       }
     } catch (err) {
       console.error('Error fetching documents:', err);
@@ -95,6 +90,16 @@ export default function AdminDocumentsPage() {
         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Rejected</span>
       default:
         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Unknown</span>
+    }
+  };
+  
+  // Add a function to download and preview document files
+  const handleDownloadDocument = async (fileUrl) => {
+    try {
+      window.open(`${API_URL}${fileUrl}`, '_blank');
+    } catch (err) {
+      console.error('Error downloading document:', err);
+      setError('Failed to download document: ' + err.message);
     }
   };
   

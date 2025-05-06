@@ -1029,4 +1029,44 @@ export const adminDocumentRequestService = {
   }
 };
 
+// Admin Document services
+export const adminDocumentService = {
+  searchDocuments: async (statusFilter = 'all') => {
+    try {
+      let endpoint = `/documents/search`;
+      if (statusFilter !== 'all') {
+        endpoint += `?verification_status=${statusFilter}`;
+      }
+      
+      const response = await api.get(endpoint);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error searching documents:', error);
+      return {
+        success: false,
+        error: error.response?.data?.detail || error.message
+      };
+    }
+  },
+  
+  getDocument: async (documentId) => {
+    try {
+      const response = await api.get(`/documents/${documentId}`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error(`Error fetching document ${documentId}:`, error);
+      return {
+        success: false,
+        error: error.response?.data?.detail || error.message
+      };
+    }
+  }
+};
+
 export default api; 
