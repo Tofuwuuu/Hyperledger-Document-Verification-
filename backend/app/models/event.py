@@ -152,16 +152,34 @@ class Event(EventInDB):
         Create an Event model from a MongoDB document, bypassing Pydantic validation
         to avoid Pydantic v2 compatibility issues.
         """
-        # Create a shallow copy to avoid modifying the original
+        # Create a copy to avoid modifying the original
         doc = dict(mongo_doc)
         
+        # Ensure all required fields are present
+        required_fields = [
+            "title", "description", "start_date", "location", "is_active", 
+            "_id", "created_by", "created_at", "updated_at", "registration_count"
+        ]
+        
+        # Initialize with default values if missing
+        for field in required_fields:
+            if field not in doc:
+                if field == "_id":
+                    doc["_id"] = ObjectId()
+                elif field in ["created_at", "updated_at"]:
+                    doc[field] = datetime.utcnow()
+                elif field == "created_by":
+                    doc[field] = ObjectId()
+                elif field == "registration_count":
+                    doc[field] = 0
+                elif field == "is_active":
+                    doc[field] = True
+                else:
+                    doc[field] = ""  # Default string value for other required fields
+        
         # Convert ObjectId fields
-        if "_id" in doc and doc["_id"] is not None:
-            doc["id"] = str(doc["_id"])
-            
-        if "created_by" in doc and doc["created_by"] is not None:
-            doc["created_by"] = PyObjectId(doc["created_by"])
-            
+        doc["id"] = PyObjectId(doc["_id"])
+        
         # Ensure datetime fields
         date_fields = ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']
         for field in date_fields:
@@ -170,22 +188,57 @@ class Event(EventInDB):
                     try:
                         doc[field] = datetime.fromisoformat(str(doc[field]))
                     except Exception:
-                        # If conversion fails, leave as is
-                        pass
+                        # If conversion fails, set to current time if this is a required date field
+                        if field in ["created_at", "updated_at", "start_date"]:
+                            doc[field] = datetime.utcnow()
         
-        # Create a new instance directly without validation
-        instance = Event.__new__(Event)
+        # For compatibility with Pydantic v2, create an Event object properly
+        # Use the simplest approach - create a dictionary with all the fields
+        event_dict = {
+            "title": doc.get("title", ""),
+            "description": doc.get("description", ""),
+            "start_date": doc.get("start_date", datetime.utcnow()),
+            "end_date": doc.get("end_date"),
+            "location": doc.get("location", ""),
+            "image_url": doc.get("image_url"),
+            "registration_url": doc.get("registration_url"),
+            "category": doc.get("category"),
+            "department": doc.get("department"),
+            "is_active": doc.get("is_active", True),
+            "max_attendees": doc.get("max_attendees"),
+            "registration_deadline": doc.get("registration_deadline"),
+            "requires_approval": doc.get("requires_approval", False),
+            "registration_token": doc.get("registration_token"),
+            "qr_code_url": doc.get("qr_code_url"),
+            "attendance_token": doc.get("attendance_token"),
+            "attendance_qr_url": doc.get("attendance_qr_url"),
+            "id": doc.get("id", PyObjectId()),
+            "created_by": doc.get("created_by", ObjectId()),
+            "created_at": doc.get("created_at", datetime.utcnow()),
+            "updated_at": doc.get("updated_at", datetime.utcnow()),
+            "registration_count": doc.get("registration_count", 0),
+            "tags": doc.get("tags", []),
+            "cover_image": doc.get("cover_image"),
+            "registration_fields": doc.get("registration_fields", [])
+        }
         
-        # Manually set all attributes
-        for key, value in doc.items():
-            if key == "_id":
-                # Set both _id and id
-                setattr(instance, "_id", value)
-                setattr(instance, "id", PyObjectId(value))
-            else:
+        # Create new Event
+        try:
+            # Create a regular dict with all fields from our processed document
+            return Event(**event_dict)
+        except Exception as e:
+            # Fallback to the __new__ approach if **event_dict fails
+            instance = Event.__new__(Event)
+            
+            # Set the public attributes
+            for key, value in event_dict.items():
                 setattr(instance, key, value)
                 
-        return instance
+            # Also set _id attribute specifically
+            if "_id" in doc:
+                setattr(instance, "_id", doc["_id"])
+                
+            return instance
 
 
 class EventResponse(BaseModel):

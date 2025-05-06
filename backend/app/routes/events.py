@@ -35,7 +35,15 @@ async def create_event(
             logger.info(f"Using User object with ID: {user_id}")
         
         logger.info(f"Starting event creation for user: {user_id}")
-        logger.info(f"Event data: {event.dict()}")
+        
+        # Use model_dump instead of dict for Pydantic v2 compatibility
+        try:
+            event_data = event.model_dump()
+            logger.info(f"Event data: {event_data}")
+        except AttributeError:
+            # Fallback for older Pydantic versions
+            event_data = event.dict()
+            logger.info(f"Event data (using dict): {event_data}")
         
         # Handle admin bypass IDs which are not valid ObjectIds
         if isinstance(user_id, str) and user_id.startswith('admin_bypass_'):
@@ -62,7 +70,15 @@ async def create_event(
     except Exception as e:
         detail = f"Failed to create event: {str(e)}"
         logger.error(detail)
-        logger.error(f"Event data: {json.dumps(event.dict(), default=str)}")
+        
+        # Use try-except for model_dump() or fall back to dict()
+        try:
+            event_dict = event.model_dump()
+            logger.error(f"Event data: {json.dumps(event_dict, default=str)}")
+        except AttributeError:
+            event_dict = event.dict()
+            logger.error(f"Event data (using dict): {json.dumps(event_dict, default=str)}")
+            
         logger.error(f"Exception traceback: {traceback.format_exc()}")
         
         # Return a more descriptive error message with safe user_id access
@@ -72,7 +88,7 @@ async def create_event(
             detail={
                 "message": detail,
                 "error_type": type(e).__name__,
-                "event_data": str(event.dict()),
+                "event_data": str(event_dict),
                 "user_id": user_id_str
             }
         )
