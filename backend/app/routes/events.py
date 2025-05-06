@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/events", response_model=Event, status_code=201)
+@router.post("/events", status_code=201)
 async def create_event(
     event: EventCreate,
     current_user: User = Depends(get_admin_user)
@@ -93,7 +93,7 @@ async def create_event(
             }
         )
 
-@router.get("/events", response_model=List[Event])
+@router.get("/events")
 async def get_events(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
@@ -108,7 +108,7 @@ async def get_events(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch events: {str(e)}")
 
-@router.get("/events/upcoming", response_model=List[Event])
+@router.get("/events/upcoming")
 async def get_upcoming_events(
     limit: int = Query(5, ge=1, le=20)
 ):
@@ -117,7 +117,7 @@ async def get_upcoming_events(
     """
     return await EventRepository.get_upcoming_events(limit)
 
-@router.get("/events/{event_id}", response_model=Event)
+@router.get("/events/{event_id}")
 async def get_event(
     event_id: PyObjectId = Path(...),
     current_user: User = Depends(get_current_user)
@@ -130,7 +130,7 @@ async def get_event(
         raise HTTPException(status_code=404, detail="Event not found")
     return event
 
-@router.put("/events/{event_id}", response_model=Event)
+@router.put("/events/{event_id}")
 async def update_event(
     event_update: EventUpdate,
     event_id: PyObjectId = Path(...),
@@ -167,7 +167,7 @@ async def delete_event(
         logger.error(f"Exception traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to delete event: {str(e)}")
 
-@router.get("/events/{event_id}/qrcode", response_model=Dict[str, str])
+@router.get("/events/{event_id}/qrcode")
 async def generate_event_qr_code(
     event_id: PyObjectId = Path(...),
     type: str = Query("registration", description="Type of QR code: 'registration' or 'attendance'"),
@@ -197,7 +197,7 @@ async def generate_event_qr_code(
             detail=f"Failed to generate {type} QR code: {str(e)}"
         )
 
-@router.get("/events/{event_id}/attendance-qrcode", response_model=Dict[str, str])
+@router.get("/events/{event_id}/attendance-qrcode")
 async def generate_event_attendance_qr_code(
     event_id: PyObjectId = Path(...),
     current_user: User = Depends(get_admin_user)

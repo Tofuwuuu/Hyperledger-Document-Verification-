@@ -20,7 +20,7 @@ class EventRepository:
     collection_name = "events"
     
     @staticmethod
-    async def create_event(event: EventCreate, created_by: Union[str, ObjectId]) -> Event:
+    async def create_event(event: EventCreate, created_by: Union[str, ObjectId]) -> Dict[str, Any]:
         """Create a new event."""
         try:
             logger.info(f"Creating event with data: {json.dumps(event.model_dump(), default=str)}")
@@ -37,7 +37,10 @@ class EventRepository:
                     raise ValueError(f"Invalid created_by format: {str(e)}")
             
             # Convert event to dict and add additional fields
-            event_dict = event.model_dump()
+            try:
+                event_dict = event.model_dump()
+            except AttributeError:
+                event_dict = event.dict()
             
             # Add metadata fields
             now = datetime.utcnow()
@@ -78,61 +81,60 @@ class EventRepository:
                 logger.error(f"Document retrieval error: {str(e)}", exc_info=True)
                 raise ValueError(f"Error retrieving created event: {str(e)}")
             
-            # Ensure _id is available in the document
-            if "_id" not in inserted_doc:
-                inserted_doc["_id"] = inserted_id
-                logger.warning("Added missing _id field to retrieved document")
+            # Convert ObjectId to string for JSON serialization
+            if "_id" in inserted_doc:
+                inserted_doc["id"] = str(inserted_doc["_id"])
             
-            # Ensure ObjectId fields are properly handled
-            if not isinstance(inserted_doc["_id"], ObjectId):
-                try:
-                    inserted_doc["_id"] = ObjectId(inserted_doc["_id"])
-                    logger.warning("Converted string _id to ObjectId")
-                except Exception as e:
-                    logger.error(f"Failed to convert _id to ObjectId: {str(e)}")
+            if "created_by" in inserted_doc and isinstance(inserted_doc["created_by"], ObjectId):
+                inserted_doc["created_by"] = str(inserted_doc["created_by"])
             
-            # Convert dates to proper format if needed
+            # Convert datetime objects to strings
             for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
-                if date_field in inserted_doc and not isinstance(inserted_doc[date_field], datetime):
-                    try:
-                        inserted_doc[date_field] = datetime.fromisoformat(str(inserted_doc[date_field]))
-                        logger.debug(f"Converted {date_field} to datetime")
-                    except Exception as e:
-                        logger.warning(f"Failed to convert {date_field} to datetime: {str(e)}")
+                if date_field in inserted_doc and inserted_doc[date_field]:
+                    if isinstance(inserted_doc[date_field], datetime):
+                        inserted_doc[date_field] = inserted_doc[date_field].isoformat()
             
-            # Return as Event model
-            try:
-                logger.debug("Creating Event object from document")
-                # Use our custom from_mongo method instead of parse_obj
-                event_obj = Event.from_mongo(inserted_doc)
-                logger.info(f"Successfully created Event object with ID: {event_obj.id}")
-                return event_obj
-            except Exception as e:
-                logger.error(f"Failed to create Event object: {str(e)}", exc_info=True)
-                logger.error(f"Document that failed: {json.dumps(inserted_doc, default=str)}")
-                raise ValueError(f"Failed to create Event object from document: {str(e)}")
+            # Return the raw document as a dict
+            logger.info(f"Returning event document with ID: {inserted_doc.get('id', str(inserted_id))}")
+            return inserted_doc
                 
         except Exception as e:
             logger.error(f"Error creating event: {str(e)}", exc_info=True)
-            logger.error(f"Event data: {json.dumps(event.model_dump() if event else {}, default=str)}")
+            try:
+                logger.error(f"Event data: {json.dumps(event.model_dump() if event else {}, default=str)}")
+            except AttributeError:
+                logger.error(f"Event data: {json.dumps(event.dict() if event else {}, default=str)}")
             logger.error(f"Exception traceback: {traceback.format_exc()}")
             raise ValueError(f"Failed to create event: {str(e)}")
     
     @staticmethod
-    async def get_event(event_id: ObjectId) -> Optional[Event]:
+    async def get_event(event_id: ObjectId) -> Optional[Dict[str, Any]]:
         try:
             db = await get_database_async()
             event = await db[EventRepository.collection_name].find_one({"_id": event_id})
             
             if event:
-                return Event.from_mongo(event)
+                # Convert ObjectId to string
+                if "_id" in event:
+                    event["id"] = str(event["_id"])
+                
+                if "created_by" in event and isinstance(event["created_by"], ObjectId):
+                    event["created_by"] = str(event["created_by"])
+                
+                # Convert datetime objects to strings
+                for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
+                    if date_field in event and event[date_field]:
+                        if isinstance(event[date_field], datetime):
+                            event[date_field] = event[date_field].isoformat()
+                            
+                return event
             return None
         except Exception as e:
             logger.error(f"Error getting event by ID {event_id}: {str(e)}")
             raise
     
     @staticmethod
-    async def get_events(skip: int = 0, limit: int = 100, active_only: bool = False) -> List[Event]:
+    async def get_events(skip: int = 0, limit: int = 100, active_only: bool = False) -> List[Dict[str, Any]]:
         try:
             db = await get_database_async()
             query = {"is_active": True} if active_only else {}
@@ -140,7 +142,20 @@ class EventRepository:
             
             events = []
             async for event in cursor:
-                events.append(Event.from_mongo(event))
+                # Convert ObjectId to string
+                if "_id" in event:
+                    event["id"] = str(event["_id"])
+                
+                if "created_by" in event and isinstance(event["created_by"], ObjectId):
+                    event["created_by"] = str(event["created_by"])
+                
+                # Convert datetime objects to strings
+                for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
+                    if date_field in event and event[date_field]:
+                        if isinstance(event[date_field], datetime):
+                            event[date_field] = event[date_field].isoformat()
+                            
+                events.append(event)
             
             return events
         except Exception as e:
@@ -148,7 +163,7 @@ class EventRepository:
             return []
     
     @staticmethod
-    async def get_upcoming_events(limit: int = 5) -> List[Event]:
+    async def get_upcoming_events(limit: int = 5) -> List[Dict[str, Any]]:
         try:
             db = await get_database_async()
             now = datetime.utcnow()
@@ -157,7 +172,20 @@ class EventRepository:
             
             events = []
             async for event in cursor:
-                events.append(Event.from_mongo(event))
+                # Convert ObjectId to string
+                if "_id" in event:
+                    event["id"] = str(event["_id"])
+                
+                if "created_by" in event and isinstance(event["created_by"], ObjectId):
+                    event["created_by"] = str(event["created_by"])
+                
+                # Convert datetime objects to strings
+                for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
+                    if date_field in event and event[date_field]:
+                        if isinstance(event[date_field], datetime):
+                            event[date_field] = event[date_field].isoformat()
+                            
+                events.append(event)
             
             return events
         except Exception as e:
@@ -165,10 +193,14 @@ class EventRepository:
             return []
     
     @staticmethod
-    async def update_event(event_id: ObjectId, event_update: EventUpdate) -> Optional[Event]:
+    async def update_event(event_id: ObjectId, event_update: EventUpdate) -> Optional[Dict[str, Any]]:
         try:
             db = await get_database_async()
-            update_data = {k: v for k, v in event_update.model_dump().items() if v is not None}
+            try:
+                update_data = {k: v for k, v in event_update.model_dump().items() if v is not None}
+            except AttributeError:
+                update_data = {k: v for k, v in event_update.dict().items() if v is not None}
+                
             update_data["updated_at"] = datetime.utcnow()
             
             if update_data:
@@ -180,7 +212,20 @@ class EventRepository:
             updated_event = await db[EventRepository.collection_name].find_one({"_id": event_id})
             
             if updated_event:
-                return Event.from_mongo(updated_event)
+                # Convert ObjectId to string
+                if "_id" in updated_event:
+                    updated_event["id"] = str(updated_event["_id"])
+                
+                if "created_by" in updated_event and isinstance(updated_event["created_by"], ObjectId):
+                    updated_event["created_by"] = str(updated_event["created_by"])
+                
+                # Convert datetime objects to strings
+                for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
+                    if date_field in updated_event and updated_event[date_field]:
+                        if isinstance(updated_event[date_field], datetime):
+                            updated_event[date_field] = updated_event[date_field].isoformat()
+                            
+                return updated_event
             return None
         except Exception as e:
             logger.error(f"Error updating event {event_id}: {str(e)}")
@@ -318,7 +363,7 @@ class EventRepository:
         return await EventRepository.generate_event_qr_code(event_id, qr_type="attendance")
         
     @staticmethod
-    async def get_event_by_attendance_token(attendance_token: str) -> Optional[Event]:
+    async def get_event_by_attendance_token(attendance_token: str) -> Optional[Dict[str, Any]]:
         """
         Get an event by its attendance token.
         
@@ -333,7 +378,20 @@ class EventRepository:
             event_data = await db[EventRepository.collection_name].find_one({"attendance_token": attendance_token})
             
             if event_data:
-                return Event.from_mongo(event_data)
+                # Convert ObjectId to string
+                if "_id" in event_data:
+                    event_data["id"] = str(event_data["_id"])
+                
+                if "created_by" in event_data and isinstance(event_data["created_by"], ObjectId):
+                    event_data["created_by"] = str(event_data["created_by"])
+                
+                # Convert datetime objects to strings
+                for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
+                    if date_field in event_data and event_data[date_field]:
+                        if isinstance(event_data[date_field], datetime):
+                            event_data[date_field] = event_data[date_field].isoformat()
+                            
+                return event_data
             return None
         except Exception as e:
             logger.error(f"Error getting event by attendance token {attendance_token}: {str(e)}")
