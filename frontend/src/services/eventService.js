@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL } from '../config';
+import api from './api';
 
 const getToken = () => {
   return localStorage.getItem('token');
@@ -13,6 +14,7 @@ const getAuthHeader = () => {
 // Event-related API calls
 export const getUpcomingEvents = async (limit = 5) => {
   try {
+    // This is a public endpoint, so we can use direct axios call
     const response = await axios.get(`${API_URL}/events/upcoming?limit=${limit}`);
     return response.data;
   } catch (error) {
@@ -23,9 +25,8 @@ export const getUpcomingEvents = async (limit = 5) => {
 
 export const getAllEvents = async (activeOnly = false) => {
   try {
-    const response = await axios.get(`${API_URL}/events?active_only=${activeOnly}`, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.get(`/events?active_only=${activeOnly}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching all events:', error);
@@ -35,9 +36,8 @@ export const getAllEvents = async (activeOnly = false) => {
 
 export const getEventById = async (eventId) => {
   try {
-    const response = await axios.get(`${API_URL}/events/${eventId}`, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.get(`/events/${eventId}`);
     return response.data;
   } catch (error) {
     console.error(`Error fetching event with ID ${eventId}:`, error);
@@ -67,14 +67,8 @@ export const createEvent = async (eventData) => {
     
     console.log('Sending cleaned event data:', JSON.stringify(cleanedData));
     
-    // Set proper content type header and increase timeout
-    const headers = {
-      ...getAuthHeader(),
-      'Content-Type': 'application/json'
-    };
-    
-    const response = await axios.post(`${API_URL}/events`, cleanedData, {
-      headers,
+    // Use api instance to include admin headers
+    const response = await api.post(`/events`, cleanedData, {
       timeout: 10000 // 10 second timeout
     });
     
@@ -95,9 +89,8 @@ export const createEvent = async (eventData) => {
 
 export const updateEvent = async (eventId, eventData) => {
   try {
-    const response = await axios.put(`${API_URL}/events/${eventId}`, eventData, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.put(`/events/${eventId}`, eventData);
     return response.data;
   } catch (error) {
     console.error(`Error updating event with ID ${eventId}:`, error);
@@ -107,9 +100,8 @@ export const updateEvent = async (eventId, eventData) => {
 
 export const deleteEvent = async (eventId) => {
   try {
-    const response = await axios.delete(`${API_URL}/events/${eventId}`, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.delete(`/events/${eventId}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting event with ID ${eventId}:`, error);
@@ -143,9 +135,8 @@ export const registerForEvent = async (eventId) => {
     };
     console.log('Request payload:', JSON.stringify(payload));
     
-    const response = await axios.post(`${API_URL}/registrations`, payload, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.post(`/registrations`, payload);
     console.log('Registration successful:', response.data);
     
     // Add the new registration to localStorage cache
@@ -198,7 +189,7 @@ export const registerForEvent = async (eventId) => {
       }
       error.userMessage = errorDetail;
     } else {
-      error.userMessage = 'Failed to connect to the server. Please try again later.';
+      error.userMessage = 'Unable to connect to the server. Please try again later.';
     }
     
     throw error;
@@ -207,86 +198,47 @@ export const registerForEvent = async (eventId) => {
 
 export const getUserRegistrations = async () => {
   try {
-    console.log('Fetching user registrations...');
+    console.log('Fetching user registrations');
     
-    // Add timestamp to prevent caching
-    const timestamp = new Date().getTime();
+    // Use api instance to include admin headers
+    const response = await api.get(`/registrations/user`);
+    console.log(`Received ${response.data.length} registrations from API`);
     
-    const response = await axios.get(`${API_URL}/registrations/user?_=${timestamp}`, {
-      headers: {
-        ...getAuthHeader(),
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      },
-      timeout: 10000 // 10 second timeout
-    });
-    
-    console.log('User registrations fetched:', response.data);
-    
-    // Store registrations in localStorage for persistence between page refreshes
-    if (response.data && Array.isArray(response.data)) {
-      localStorage.setItem('userRegistrations', JSON.stringify(response.data));
-    }
+    // Cache registrations in localStorage for offline access
+    localStorage.setItem('userRegistrations', JSON.stringify(response.data));
+    localStorage.setItem('userRegistrationsLastUpdated', new Date().toISOString());
     
     return response.data;
   } catch (error) {
     console.error('Error fetching user registrations:', error);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-    }
     
-    // Try to get registrations from localStorage if API call fails
-    const cachedRegistrations = localStorage.getItem('userRegistrations');
-    if (cachedRegistrations) {
-      console.log('Using cached registrations from localStorage');
-      try {
-        const parsedRegistrations = JSON.parse(cachedRegistrations);
-        return parsedRegistrations;
-      } catch (parseError) {
-        console.error('Error parsing cached registrations:', parseError);
+    // Try to use cached data if available
+    try {
+      const cachedData = localStorage.getItem('userRegistrations');
+      if (cachedData) {
+        console.log('Using cached registration data');
+        return JSON.parse(cachedData);
       }
+    } catch (cacheError) {
+      console.error('Error reading cached registrations:', cacheError);
     }
     
-    // Return empty array if no cached data or parsing fails
-    return [];
+    throw error;
   }
 };
 
 export const getEventRegistrations = async (eventId) => {
   try {
-    console.log(`Making API call to fetch registrations for event ID: ${eventId}`);
-    const response = await axios.get(`${API_URL}/registrations/event/${eventId}`, {
-      headers: getAuthHeader(),
-      timeout: 15000 // Increase timeout to 15 seconds
-    });
+    console.log(`Fetching registrations for event ${eventId}`);
     
-    console.log(`Raw API response for event ${eventId} registrations:`, response);
+    // Use api instance to include admin headers
+    const response = await api.get(`/registrations/event/${eventId}`);
+    console.log(`Received ${response.data.length} registrations for event ${eventId}`);
     
-    // Validate the response data
-    if (response.data === undefined || response.data === null) {
-      console.error('API returned invalid data for registrations:', response.data);
-      throw new Error('API returned invalid data');
-    }
-    
-    // Ensure response data is handled correctly based on its structure
-    let registrations = Array.isArray(response.data) ? response.data : 
-                        (response.data.registrations || response.data.data || []);
-    
-    console.log(`Retrieved ${registrations.length} registrations for event ${eventId}`);
-    return registrations;
+    return response.data;
   } catch (error) {
-    console.error(`Error fetching registrations for event with ID ${eventId}:`, error);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-    } else if (error.request) {
-      console.error('No response received. Network issue likely.');
-    }
-    
-    // Instead of throwing error, return empty array
-    console.warn(`Returning empty array for event ${eventId} registrations due to error`);
-    return [];
+    console.error(`Error fetching registrations for event ${eventId}:`, error);
+    throw error;
   }
 };
 
@@ -294,15 +246,8 @@ export const getAllEventRegistrations = async () => {
   try {
     console.log("Making API call to fetch all registrations");
     
-    // First, verify auth token is valid
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No authentication token found');
-      throw new Error('You must be logged in to access registrations');
-    }
-    
-    const response = await axios.get(`${API_URL}/registrations/all`, {
-      headers: getAuthHeader(),
+    // Use api instance to include admin headers
+    const response = await api.get(`/registrations/all`, {
       timeout: 15000 // Increase timeout to 15 seconds
     });
     
@@ -333,56 +278,28 @@ export const getAllEventRegistrations = async () => {
     return registrations;
   } catch (error) {
     console.error('Error fetching all event registrations:', error);
-    
-    // More detailed error logging
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-      
-      // If unauthorized (401) or forbidden (403), redirect to login
-      if (error.response.status === 401 || error.response.status === 403) {
-        console.error('Authentication error - redirecting to login');
-        // Clear token and redirect
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        
-        // If we're in a browser environment, redirect to login
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-      }
-    } else if (error.request) {
-      console.error('No response received. Network issue likely.');
-      console.error('Request details:', error.request);
-    } else {
-      console.error('Error setting up request:', error.message);
-    }
-    
-    // Throw error to handle in the component
     throw error;
   }
 };
 
 export const checkInUser = async (registrationId) => {
   try {
-    const response = await axios.post(`${API_URL}/registrations/${registrationId}/check-in`, {}, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.post(`/registrations/${registrationId}/check-in`);
     return response.data;
   } catch (error) {
-    console.error(`Error checking in registration ID ${registrationId}:`, error);
+    console.error(`Error checking in user with registration ID ${registrationId}:`, error);
     throw error;
   }
 };
 
 export const checkInByQR = async (qrCodeData) => {
   try {
-    const response = await axios.post(`${API_URL}/registrations/check-in-by-qr?qr_code_data=${encodeURIComponent(qrCodeData)}`, {}, {
-      headers: getAuthHeader()
-    });
+    // Use api instance to include admin headers
+    const response = await api.post(`/registrations/check-in-qr`, { qr_data: qrCodeData });
     return response.data;
   } catch (error) {
-    console.error('Error checking in by QR code:', error);
+    console.error(`Error checking in user with QR code:`, error);
     throw error;
   }
 };
@@ -544,8 +461,9 @@ export const updateRegistrationStatus = async (registrationId, newStatus) => {
 export const getEventAttendees = async (eventId) => {
   try {
     console.log(`Fetching detailed attendees for event: ${eventId}`);
-    const response = await axios.get(`${API_URL}/registrations/event/${eventId}/attendees`, {
-      headers: getAuthHeader(),
+    
+    // Use api instance to include admin headers
+    const response = await api.get(`/registrations/event/${eventId}/attendees`, {
       timeout: 15000 // 15 second timeout
     });
     
@@ -597,134 +515,42 @@ export const getEventAttendees = async (eventId) => {
     
     return response.data;
   } catch (error) {
-    console.error(`Error fetching event attendees for event ${eventId}:`, error);
-    
-    // More detailed error logging
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-      
-      // If unauthorized (401) or forbidden (403), redirect to login
-      if (error.response.status === 401 || error.response.status === 403) {
-        console.error('Authentication error - redirecting to login');
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        
-        // If we're in a browser environment, redirect to login
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-      }
-    } else if (error.request) {
-      console.error('No response received. Network issue likely.');
-    }
-    
-    // Throw error to handle in the component
+    console.error(`Error fetching attendees for event ${eventId}:`, error);
     throw error;
   }
 };
 
 export const generateEventQRCode = async (eventId, type) => {
   try {
-    console.log(`Generating QR code for event ID: ${eventId} of type: ${type}`);
+    console.log(`Generating QR code for event: ${eventId}, type: ${type}`);
     
-    // Default to registration type if not specified
-    const qrType = type || 'registration';
+    // Use api instance to include admin headers
+    const response = await api.get(`/events/${eventId}/qrcode?type=${type}`);
     
-    // Use a timestamp to prevent caching
-    const timestamp = new Date().getTime();
-    
-    // Create the API URL with cache-busting parameter
-    const apiUrl = `${API_URL}/events/${eventId}/qrcode?type=${qrType}&_t=${timestamp}`;
-    console.log(`Calling QR code API at: ${apiUrl}`);
-    
-    const response = await axios({
-      method: 'get',
-      url: apiUrl,
-      headers: {
-        ...getAuthHeader(),
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      },
-      timeout: 30000, // Increased timeout to 30 seconds
-      responseType: 'json'
-    });
-    
-    console.log('QR code API response type:', typeof response.data);
-    if (typeof response.data === 'object') {
-      console.log('QR code API response keys:', Object.keys(response.data));
+    if (!response.data || !response.data.qr_code_url) {
+      console.error('API returned invalid QR code data:', response.data);
+      throw new Error('Failed to generate QR code');
     }
     
-    // Extract the QR code URL from the response
-    let qrCodeUrl;
-    
-    if (typeof response.data === 'object' && response.data !== null) {
-      // Handle object response
-      qrCodeUrl = response.data.qr_code_url || response.data.attendance_qr_url;
-      
-      if (!qrCodeUrl) {
-        // Try to find any property that might contain the QR code
-        const possibleProps = ['qr_code', 'qrcode', 'qr_code_data', 'image', 'url'];
-        for (const prop of possibleProps) {
-          if (response.data[prop]) {
-            qrCodeUrl = response.data[prop];
-            console.log(`Found QR code in '${prop}' property`);
-            break;
-          }
-        }
-      }
-    } else {
-      // Handle string response (might be direct base64 data)
-      qrCodeUrl = response.data;
-    }
-    
-    // Validate the QR code URL
-    if (!qrCodeUrl) {
-      console.error('QR code URL not found in response:', response.data);
-      throw new Error('QR code URL not found in response');
-    }
-    
-    // Ensure the QR code URL is in the correct format
-    if (typeof qrCodeUrl === 'string' && !qrCodeUrl.startsWith('data:image')) {
-      if (qrCodeUrl.match(/^[A-Za-z0-9+/=]+$/)) {
-        // Looks like a raw base64 string, convert to data URL
-        qrCodeUrl = `data:image/png;base64,${qrCodeUrl}`;
-        console.log('Converted raw base64 to data URL');
-      }
-    }
-    
-    console.log('QR code URL extracted successfully, type:', typeof qrCodeUrl);
-    if (typeof qrCodeUrl === 'string') {
-      console.log('QR code URL length:', qrCodeUrl.length);
-      console.log('QR code URL prefix:', qrCodeUrl.substring(0, 30) + '...');
-    }
-    
-    // Validate the QR code URL format
-    if (typeof qrCodeUrl !== 'string' || !qrCodeUrl.startsWith('data:image')) {
-      console.warn('QR code URL does not have expected format:', qrCodeUrl?.substring(0, 50) + '...');
-    }
-    
-    return qrCodeUrl;
+    return response.data.qr_code_url;
   } catch (error) {
-    console.error(`Error generating QR code for event ID ${eventId}:`, error);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-    } else {
-      console.error('Error message:', error.message);
-    }
+    console.error(`Error generating QR code for event ${eventId}:`, error);
     throw error;
   }
 };
 
 export const generateAttendanceQRCode = async (eventId) => {
   try {
-    console.log(`Generating attendance QR code for event ID: ${eventId}`);
-    return await generateEventQRCode(eventId, 'attendance');
+    // Use api instance to include admin headers
+    const response = await api.get(`/events/${eventId}/attendance-qrcode`);
+    
+    if (!response.data || !response.data.qr_code_url) {
+      throw new Error('Failed to generate attendance QR code');
+    }
+    
+    return response.data.qr_code_url;
   } catch (error) {
-    console.error(`Error generating attendance QR code for event ID ${eventId}:`, error);
+    console.error(`Error generating attendance QR code for event ${eventId}:`, error);
     throw error;
   }
 };
