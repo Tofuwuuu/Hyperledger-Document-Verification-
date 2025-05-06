@@ -124,28 +124,44 @@ async def get_upcoming_events(
 
 @router.get("/events/{event_id}")
 async def get_event(
-    event_id: PyObjectId = Path(...),
+    event_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """
     Get a specific event by ID.
     """
-    event = await EventRepository.get_event(event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    return jsonify(event)
+    try:
+        # Convert string ID to ObjectId manually
+        try:
+            object_id = ObjectId(event_id)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid event ID format: {str(e)}")
+            
+        event = await EventRepository.get_event(object_id)
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+        return jsonify(event)
+    except Exception as e:
+        logger.error(f"Error getting event {event_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get event: {str(e)}")
 
 @router.put("/events/{event_id}")
 async def update_event(
     event_update: EventUpdate,
-    event_id: PyObjectId = Path(...),
+    event_id: str,
     current_user: User = Depends(get_admin_user)
 ):
     """
     Update an event (admin only).
     """
     try:
-        event = await EventRepository.update_event(event_id, event_update)
+        # Convert string ID to ObjectId manually
+        try:
+            object_id = ObjectId(event_id)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid event ID format: {str(e)}")
+            
+        event = await EventRepository.update_event(object_id, event_update)
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         return jsonify(event)
@@ -156,14 +172,20 @@ async def update_event(
 
 @router.delete("/events/{event_id}")
 async def delete_event(
-    event_id: PyObjectId = Path(...),
+    event_id: str,
     current_user: User = Depends(get_admin_user)
 ):
     """
     Delete an event (admin only).
     """
     try:
-        success = await EventRepository.delete_event(event_id)
+        # Convert string ID to ObjectId manually
+        try:
+            object_id = ObjectId(event_id)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid event ID format: {str(e)}")
+            
+        success = await EventRepository.delete_event(object_id)
         if not success:
             raise HTTPException(status_code=404, detail="Event not found")
         return {"success": success}
@@ -174,7 +196,7 @@ async def delete_event(
 
 @router.get("/events/{event_id}/qrcode")
 async def generate_event_qr_code(
-    event_id: PyObjectId = Path(...),
+    event_id: str,
     type: str = Query("registration", description="Type of QR code: 'registration' or 'attendance'"),
     current_user: User = Depends(get_admin_user)
 ):
@@ -183,15 +205,21 @@ async def generate_event_qr_code(
     Supported types: 'registration' (default) or 'attendance'
     """
     try:
-        event = await EventRepository.get_event(event_id)
+        # Convert string ID to ObjectId manually
+        try:
+            object_id = ObjectId(event_id)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid event ID format: {str(e)}")
+            
+        event = await EventRepository.get_event(object_id)
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         
         # Generate QR code based on type
         if type == "attendance":
-            qr_code_url = await EventRepository.generate_attendance_qr_code(event_id)
+            qr_code_url = await EventRepository.generate_attendance_qr_code(object_id)
         else:
-            qr_code_url = await EventRepository.generate_event_qr_code(event_id)
+            qr_code_url = await EventRepository.generate_event_qr_code(object_id)
         
         return {"qr_code_url": qr_code_url}
     except Exception as e:
@@ -204,19 +232,25 @@ async def generate_event_qr_code(
 
 @router.get("/events/{event_id}/attendance-qrcode")
 async def generate_event_attendance_qr_code(
-    event_id: PyObjectId = Path(...),
+    event_id: str,
     current_user: User = Depends(get_admin_user)
 ):
     """
     Generate a QR code for instant attendance marking for an event (admin only).
     """
     try:
-        event = await EventRepository.get_event(event_id)
+        # Convert string ID to ObjectId manually
+        try:
+            object_id = ObjectId(event_id)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid event ID format: {str(e)}")
+            
+        event = await EventRepository.get_event(object_id)
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         
         # Generate attendance QR code
-        qr_code_url = await EventRepository.generate_attendance_qr_code(event_id)
+        qr_code_url = await EventRepository.generate_attendance_qr_code(object_id)
         
         return {"qr_code_url": qr_code_url}
     except Exception as e:
