@@ -31,17 +31,6 @@ class EventBase(BaseModel):
     attendance_token: Optional[str] = None
     attendance_qr_url: Optional[str] = None
 
-    @classmethod
-    def model_validate(cls, obj, **kwargs):
-        values = obj
-        if isinstance(obj, dict):
-            values = obj.copy()
-            # Perform validation for end_date here if needed
-            if "end_date" in values and values["end_date"] is not None and "start_date" in values and values["start_date"] is not None:
-                if values["end_date"] < values["start_date"]:
-                    raise ValueError('end_date must be after start_date')
-        return super().model_validate(values, **kwargs)
-
     @validator('end_date')
     def end_date_after_start_date(cls, v, values):
         if v and 'start_date' in values and values['start_date'] and v < values['start_date']:
@@ -54,6 +43,11 @@ class EventCreate(EventBase):
     tags: Optional[List[str]] = []
     cover_image: Optional[str] = None
     registration_fields: Optional[List[Dict[str, Any]]] = []
+    
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
 
 
 class EventUpdate(BaseModel):
@@ -74,6 +68,11 @@ class EventUpdate(BaseModel):
     tags: Optional[List[str]] = None
     cover_image: Optional[str] = None
     registration_fields: Optional[List[Dict[str, Any]]] = None
+    
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
 
 
 class EventInDB(EventBase):

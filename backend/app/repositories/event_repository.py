@@ -11,6 +11,7 @@ import qrcode
 import io
 import base64
 from PIL import Image
+from pydantic import parse_obj_as
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -102,7 +103,23 @@ class EventRepository:
             # Return as Event model
             try:
                 logger.debug("Creating Event object from document")
-                event_obj = Event.model_validate(inserted_doc)
+                # Ensure all dates are in the correct format
+                for date_field in ['start_date', 'end_date', 'registration_deadline', 'created_at', 'updated_at']:
+                    if date_field in inserted_doc and inserted_doc[date_field]:
+                        if not isinstance(inserted_doc[date_field], datetime):
+                            try:
+                                inserted_doc[date_field] = datetime.fromisoformat(str(inserted_doc[date_field]))
+                            except Exception as e:
+                                logger.warning(f"Could not convert {date_field} to datetime: {e}")
+                
+                # First create a dict with proper ObjectIds
+                if "_id" in inserted_doc:
+                    inserted_doc["id"] = str(inserted_doc["_id"])
+                if "created_by" in inserted_doc:
+                    inserted_doc["created_by"] = str(inserted_doc["created_by"]) if inserted_doc["created_by"] else None
+                
+                # Create the Event object
+                event_obj = Event.parse_obj(inserted_doc)
                 logger.info(f"Successfully created Event object with ID: {event_obj.id}")
                 return event_obj
             except Exception as e:
@@ -123,7 +140,7 @@ class EventRepository:
             event = await db[EventRepository.collection_name].find_one({"_id": event_id})
             
             if event:
-                return Event.model_validate(event)
+                return Event.parse_obj(event)
             return None
         except Exception as e:
             logger.error(f"Error getting event by ID {event_id}: {str(e)}")
@@ -138,7 +155,7 @@ class EventRepository:
             
             events = []
             async for event in cursor:
-                events.append(Event.model_validate(event))
+                events.append(Event.parse_obj(event))
             
             return events
         except Exception as e:
@@ -155,7 +172,7 @@ class EventRepository:
             
             events = []
             async for event in cursor:
-                events.append(Event.model_validate(event))
+                events.append(Event.parse_obj(event))
             
             return events
         except Exception as e:
@@ -178,7 +195,7 @@ class EventRepository:
             updated_event = await db[EventRepository.collection_name].find_one({"_id": event_id})
             
             if updated_event:
-                return Event.model_validate(updated_event)
+                return Event.parse_obj(updated_event)
             return None
         except Exception as e:
             logger.error(f"Error updating event {event_id}: {str(e)}")
@@ -331,7 +348,7 @@ class EventRepository:
             event_data = await db[EventRepository.collection_name].find_one({"attendance_token": attendance_token})
             
             if event_data:
-                return Event(**event_data)
+                return Event.parse_obj(event_data)
             return None
         except Exception as e:
             logger.error(f"Error getting event by attendance token {attendance_token}: {str(e)}")
