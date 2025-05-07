@@ -113,9 +113,10 @@ class UserResponse(BaseModel):
     updated_at: datetime
     profile_picture: Optional[str] = None
     
-    class Config:
-        orm_mode = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "from_attributes": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
     
     @classmethod
     def from_mongo(cls, data: dict) -> "UserResponse":

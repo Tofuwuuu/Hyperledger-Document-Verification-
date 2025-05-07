@@ -1,14 +1,24 @@
-from typing import Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Optional, ClassVar, Annotated
+from pydantic import BaseModel, Field, GetJsonSchemaHandler
 from bson import ObjectId
 from bson.errors import InvalidId
+import json
+from pydantic_core import core_schema
 
 class PyObjectId(ObjectId):
     """Custom type for handling MongoDB ObjectIDs with Pydantic."""
     
+    # For Pydantic v2 compatibility
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(cls, _source_type, _handler):
+        return core_schema.union_schema([
+            core_schema.is_instance_schema(ObjectId),
+            core_schema.chain_schema([
+                core_schema.str_schema(),
+                core_schema.no_info_plain_validator_function(cls.validate),
+            ]),
+            core_schema.is_instance_schema(cls),
+        ])
     
     @classmethod
     def validate(cls, v):
@@ -29,9 +39,11 @@ class PyObjectId(ObjectId):
             
         raise TypeError('ObjectId required')
     
+    # For JSON schema generation
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
+    def __get_pydantic_json_schema__(cls, schema, field):
+        schema.update(type="string")
+        return schema
     
     # Basic string conversion
     def __str__(self):
@@ -50,11 +62,6 @@ class PyObjectId(ObjectId):
     # For JSON serialization
     def __hash__(self):
         return hash(str(self))
-    
-    # For Pydantic serialization
-    @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema):
-        field_schema.update(type="string")
     
     # For JSON encoding
     def json(self):

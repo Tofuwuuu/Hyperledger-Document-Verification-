@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from bson import ObjectId
 from app.models.common import PyObjectId
 
@@ -22,7 +22,8 @@ class RegistrationBase(BaseModel):
     user_id: Union[PyObjectId, str]
     status: str = RegistrationStatus.REGISTERED
     
-    @validator('event_id', 'user_id', pre=True)
+    @field_validator('event_id', 'user_id', mode='before')
+    @classmethod
     def validate_object_id(cls, v):
         if isinstance(v, str):
             return PyObjectId(v)
