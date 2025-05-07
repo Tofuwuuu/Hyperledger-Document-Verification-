@@ -347,12 +347,9 @@ export const AuthProvider = ({ children }) => {
       // Enhanced error handling
       let errorMessage = 'An error occurred during registration';
       
-      // Handle network errors
-      if (error.message?.includes('Network Error') || error.corsError) {
-        errorMessage = 'Cannot connect to the server. This may be due to CORS restrictions or network issues.';
-        
-        // Add tip for testing with specific domains
-        errorMessage += ' Try using an email with @google.com or @test.com domain for testing.';
+      // Remove error message references to specific email domains
+      if (error.corsError || error.message?.includes('Network Error') || error.message?.includes('CORS')) {
+        errorMessage = "Cannot connect to the server. This may be due to CORS restrictions or network issues.";
       }
       // Handle validation errors
       else if (error.response?.data?.detail) {
