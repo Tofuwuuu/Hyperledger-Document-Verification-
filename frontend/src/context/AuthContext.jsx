@@ -350,7 +350,6 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    isAdmin: () => currentUser?.is_admin === true,
     refreshToken,
     loadUserData,
     forceRefreshUserData,
