@@ -159,39 +159,4 @@ export const getUserById = async (userId) => {
     console.error('Get user by ID error:', error);
     throw error;
   }
-};
-
-export const selfVerify = async () => {
-  try {
-    console.log('Self-verifying user account (for testing only)');
-    
-    const headers = getAuthHeader();
-    
-    const response = await axios.post(
-      `${API_URL}/auth/self-verify`, 
-      {}, // Empty body
-      { headers }
-    );
-    
-    console.log('Self-verification response:', response.data);
-    
-    // Update user in localStorage
-    if (response.data) {
-      try {
-        const user = JSON.parse(localStorage.getItem('user'));
-        if (user) {
-          user.is_verified = true;
-          localStorage.setItem('user', JSON.stringify(user));
-          console.log('Updated user verified status in localStorage');
-        }
-      } catch (e) {
-        console.error('Error updating user in localStorage:', e);
-      }
-    }
-    
-    return response.data;
-  } catch (error) {
-    console.error('Self-verify error:', error);
-    throw error;
-  }
 }; 

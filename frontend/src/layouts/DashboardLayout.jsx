@@ -88,13 +88,6 @@ export default function DashboardLayout() {
       icon: QrCodeIcon, 
       current: location.pathname === '/alumni/registrations'
     }]),
-    // Only show Verify Yourself for regular alumni users
-    ...(isAdminUser ? [] : [{
-      name: 'Verify Your Account', 
-      href: '/alumni/verify-yourself', 
-      icon: FingerPrintIcon, 
-      current: location.pathname === '/alumni/verify-yourself'
-    }]),
   ];
 
   // Admin-only navigation items
