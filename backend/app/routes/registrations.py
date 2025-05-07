@@ -100,7 +100,15 @@ async def get_all_event_registrations(
     Get all event registrations across all events (admin only).
     """
     try:
-        logger.info(f"Fetching all event registrations for admin user: {current_user.id}")
+        # Handle both User object and dictionary cases for current_user
+        user_id = None
+        if isinstance(current_user, User):
+            user_id = current_user.id
+        else:
+            # For dictionary case, try both 'id' and '_id'
+            user_id = current_user.get("id") or current_user.get("_id") or "admin_bypass"
+            
+        logger.info(f"Fetching all event registrations for admin user: {user_id}")
         
         # Log database connection attempt
         db = await get_database_async()
