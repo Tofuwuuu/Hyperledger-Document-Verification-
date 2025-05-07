@@ -79,37 +79,14 @@ export default function RegisterPage() {
     } catch (error) {
       console.error('Registration failed:', error);
       
-      // Handle different error formats
-      let errorMessage = 'Failed to register. Please check your information and try again.';
+      // Set a general error message regardless of the specific error
+      setGeneralError('Please check your information and ensure all fields are filled correctly.');
       
-      // Handle CORS errors
-      if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
-        errorMessage = 'Cannot connect to the server. This may be due to CORS restrictions. Please try again later or contact support.';
-      } 
-      // Handle validation errors
-      else if (error.message?.includes('password')) {
-        errorMessage = 'Password validation failed. Make sure passwords match and meet complexity requirements.';
-        // Also set field errors
+      // Handle validation errors for password fields
+      if (error.message?.includes('password')) {
         setFieldError('password', 'Password validation failed');
         setFieldError('confirmPassword', 'Ensure passwords match exactly');
-      } else if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        
-        // Handle FastAPI validation errors (array of objects with loc, msg, type)
-        if (Array.isArray(detail)) {
-          errorMessage = detail.map(err => err.msg).join(', ');
-        } 
-        // Handle string error
-        else if (typeof detail === 'string') {
-          errorMessage = detail;
-        } 
-        // Handle object error
-        else if (typeof detail === 'object') {
-          errorMessage = Object.values(detail).join(', ');
-        }
       }
-      
-      setGeneralError(errorMessage);
     } finally {
       setIsLoading(false);
       setSubmitting(false);
@@ -158,20 +135,12 @@ export default function RegisterPage() {
           ) : (
             <>
               {generalError && (
-                <div className="rounded-md bg-red-50 p-4 mb-4">
+                <div className="rounded-md bg-blue-50 p-4 mb-4">
                   <div className="flex">
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">Error</h3>
-                      <div className="mt-2 text-sm text-red-700">
-                        <p>{generalError}</p>
-                        
-                        {generalError.includes('CORS') && (
-                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded">
-                            <p className="text-sm font-medium text-yellow-800">
-                              Developer Tip: For testing during CORS issues, use an email ending with @google.com or @test.com
-                            </p>
-                          </div>
-                        )}
+                      <h3 className="text-sm font-medium text-blue-800">Information</h3>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <p>Please enter your information correctly to complete registration.</p>
                       </div>
                     </div>
                   </div>
