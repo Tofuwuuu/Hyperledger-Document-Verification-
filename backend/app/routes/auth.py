@@ -528,4 +528,23 @@ async def get_current_user_activity(
         user_id=current_user["_id"],
         include_uploads=include_uploads,
         limit=limit
-    ) 
+    )
+
+@router.options("/login", include_in_schema=False)
+async def options_login():
+    """Handle OPTIONS preflight requests for login endpoint."""
+    return {}
+
+@router.options("/register", include_in_schema=False)
+async def options_register():
+    """Handle OPTIONS preflight requests for register endpoint."""
+    return {}
+
+@router.get("/test-cors", tags=["Debug"])
+async def test_cors():
+    """Test endpoint to verify CORS is working correctly."""
+    return {
+        "status": "success",
+        "message": "CORS is configured correctly if you can see this message",
+        "timestamp": datetime.utcnow().isoformat()
+    } 

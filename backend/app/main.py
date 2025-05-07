@@ -21,6 +21,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Get CORS origins from environment or use defaults
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+# Always explicitly include the frontend domain
+if "https://alumni-frontend-zzr2.onrender.com" not in cors_origins and "*" not in cors_origins:
+    cors_origins.append("https://alumni-frontend-zzr2.onrender.com")
+
+logger.info(f"Configuring CORS with origins: {cors_origins}")
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -32,14 +40,16 @@ app = FastAPI(
     swagger_ui_parameters={"tryItOutEnabled": True},
 )
 
-# Configure CORS - Use the most permissive settings to ensure it works
+# Configure CORS - Make sure this is the FIRST middleware added
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://alumni-frontend.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],  # Expose all headers
+    expose_headers=["*"],
+    max_age=86400,  # 1 day in seconds
 )
 
 # MongoDB heartbeat function
