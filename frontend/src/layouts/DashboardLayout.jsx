@@ -41,8 +41,24 @@ export default function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdminUser = isAdmin();
-  // Get user verification status
-  const isVerified = currentUser?.is_verified || false;
+  // Get user verification status with additional debugging
+  const isVerified = (currentUser?.is_verified || false);
+  
+  // Debug the verification status and user data
+  useEffect(() => {
+    console.log('Current User Data:', currentUser);
+    console.log('Is Verified:', isVerified);
+    console.log('Is Admin:', isAdminUser);
+    
+    // Check localStorage directly as a fallback
+    try {
+      const userDataFromStorage = JSON.parse(localStorage.getItem('user') || '{}');
+      console.log('User data from localStorage:', userDataFromStorage);
+      console.log('Verification status from localStorage:', userDataFromStorage.is_verified);
+    } catch (e) {
+      console.error('Error parsing user data from localStorage:', e);
+    }
+  }, [currentUser, isVerified, isAdminUser]);
 
   const handleLogout = () => {
     logout();
@@ -708,6 +724,19 @@ export default function DashboardLayout() {
                   Your account is not yet verified. Some features are disabled until verification is complete.
                   <span className="font-medium"> Please contact the administrator for verification.</span>
                 </p>
+                <div className="mt-2 text-xs">
+                  <span className="text-gray-500">
+                    API: {import.meta.env.VITE_API_URL || 'Not set'} | 
+                    Auth: {localStorage.getItem('token') ? 'Token exists' : 'No token'} | 
+                    <Link to="/debug-auth" className="text-blue-500 hover:underline ml-1">Debug Auth</Link> | 
+                    <button 
+                      onClick={() => window.location.reload()} 
+                      className="text-blue-500 hover:underline ml-1"
+                    >
+                      Force Refresh
+                    </button>
+                  </span>
+                </div>
               </div>
             </div>
           </div>

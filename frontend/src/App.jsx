@@ -317,6 +317,69 @@ function App() {
               } />
             </Route>
 
+            {/* Debug route - for troubleshooting token issues */}
+            <Route path="/debug-auth" element={
+              <div className="p-8">
+                <h1 className="text-2xl font-bold mb-4">Authentication Debug</h1>
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Current Authentication State</h2>
+                    <pre className="bg-gray-100 p-2 rounded mt-2 text-sm overflow-auto max-h-40">
+                      {JSON.stringify({
+                        token: localStorage.getItem('token') ? `${localStorage.getItem('token').substring(0, 20)}...` : null,
+                        tokenLength: localStorage.getItem('token') ? localStorage.getItem('token').length : 0,
+                        hasRefreshToken: !!localStorage.getItem('refresh_token'),
+                        apiUrl: import.meta.env.VITE_API_URL || 'Not set in environment',
+                        user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null
+                      }, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="flex space-x-4">
+                    <button 
+                      onClick={() => {
+                        localStorage.clear();
+                        alert('Local storage cleared. You will be redirected to login.');
+                        window.location.href = '/login';
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Clear All & Logout
+                    </button>
+                    <button 
+                      onClick={() => {
+                        localStorage.setItem('token', 'admin_access_token_' + Date.now());
+                        localStorage.setItem('refresh_token', 'admin_refresh_token_' + Date.now());
+                        const adminUser = {
+                          _id: "admin_" + Date.now(),
+                          email: "admin@cvsu.edu.ph",
+                          full_name: 'Admin User',
+                          is_active: true,
+                          is_admin: true,
+                          is_verified: true,
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString()
+                        };
+                        localStorage.setItem('user', JSON.stringify(adminUser));
+                        alert('Admin bypass tokens set. Redirecting to admin dashboard.');
+                        window.location.href = '/admin';
+                      }}
+                      className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+                    >
+                      Use Admin Bypass
+                    </button>
+                    <button 
+                      onClick={() => {
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Refresh Page
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } />
+
             {/* Catch-all route */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

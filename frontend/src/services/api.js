@@ -1,12 +1,13 @@
 import axios from 'axios';
 
-// Hardcode the API URL for testing
-let baseApiUrl = 'https://final-rkpz.onrender.com';
+// Get API URL from environment or use fallback
+// First try to get from environment variable
+let baseApiUrl = import.meta.env.VITE_API_URL || 'https://alumni-api-klrk.onrender.com';
 // Remove trailing slash if present
 baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 // Add /api/v1 only if it's not already included
 const API_URL = baseApiUrl.includes('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
-console.log('API URL:', API_URL); // Debug API URL
+console.log('API URL configured as:', API_URL); // Debug API URL
 
 // Flag to prevent multiple refresh token requests
 let isRefreshing = false;
