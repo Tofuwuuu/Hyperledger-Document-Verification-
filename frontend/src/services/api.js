@@ -162,6 +162,46 @@ api.interceptors.response.use(
 
 // Authentication services
 export const authService = {
+  reloadUserWithFreshData: async () => {
+    console.log("Performing complete user data reload...");
+    
+    // Clear all caches related to user data
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_verification');
+    
+    // Get the token
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      console.log("No authentication token found");
+      return null;
+    }
+    
+    try {
+      // Add cache-busting parameter
+      const timestamp = new Date().getTime();
+      
+      // Use the api instance with proper headers
+      const response = await api.get(`/auth/me?t=${timestamp}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      // Update local storage with fresh data
+      const userData = response.data;
+      localStorage.setItem('user', JSON.stringify(userData));
+      console.log("User data reloaded successfully:", userData);
+      
+      return userData;
+    } catch (error) {
+      console.error('Error reloading user data:', error);
+      throw error;
+    }
+  },
+  
   login: async (email, password) => {
     console.log('Login attempt for:', email);
     
@@ -368,77 +408,18 @@ export const authService = {
   },
   
   getCurrentUser: async () => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      return null;
+    }
+    
     try {
-      const token = localStorage.getItem('token');
-      
-      // Handle bypasses for special tokens
-      if (token) {
-        // Check for admin bypass token
-        if (token.startsWith('admin_access_token_')) {
-          console.log('Using admin bypass token - attempting real API call first');
-          
-          // Attempt a real API call first, even with admin bypass token
-          try {
-            const response = await api.get('/auth/me', {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-Admin-Bypass': 'true' // Add admin bypass header for the backend to handle
-              }
-            });
-            
-            if (response.status === 200) {
-              console.log('Successfully fetched real user data with admin bypass');
-              return response.data;
-            }
-          } catch (error) {
-            console.log('Real API call failed, falling back to stored user data');
-            // If API call fails, fall back to stored user data
-          }
-          
-          // Return stored user data as fallback
-          const userData = JSON.parse(localStorage.getItem('user') || '{}');
-          console.log('Using stored user data for admin bypass');
-          return userData;
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-        
-        // Check for alumni bypass token
-        if (token.startsWith('alumni_access_token_')) {
-          console.log('Using alumni bypass token - attempting real API call first');
-          
-          // Attempt a real API call first, even with alumni bypass token
-          try {
-            const response = await api.get('/auth/me', {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-Use-Local-User': 'true'
-              }
-            });
-            
-            if (response.status === 200) {
-              console.log('Successfully fetched real user data with alumni bypass');
-              return response.data;
-            }
-          } catch (error) {
-            console.log('Real API call failed, falling back to stored user data');
-            // If API call fails, fall back to stored user data
-          }
-          
-          // Return stored user data as fallback
-          const userData = JSON.parse(localStorage.getItem('user') || '{}');
-          console.log('Using stored user data for alumni bypass');
-          
-          // Make sure is_verified is set for alumni bypass
-          if (!userData.is_verified) {
-            userData.is_verified = true;
-            localStorage.setItem('user', JSON.stringify(userData));
-          }
-          
-          return userData;
-        }
-      }
-      
-      // Regular API call for normal tokens
-      const response = await api.get('/auth/me');
+      });
       return response.data;
     } catch (error) {
       console.error('Error getting current user:', error);
@@ -480,7 +461,7 @@ export const authService = {
     } catch (error) {
       return { isAuthenticated: false, user: null };
     }
-  }
+  },
 };
 
 // Alumni services

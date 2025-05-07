@@ -70,11 +70,24 @@ export const AuthProvider = ({ children }) => {
   // New function: Force refresh user data
   const forceRefreshUserData = useCallback(async () => {
     console.log('Force refreshing user data from API');
-    // Clear local storage user data to ensure we get fresh data
-    localStorage.removeItem('user');
-    // Reload user data from API
-    return await loadUserData();
-  }, [loadUserData]);
+    try {
+      // Use the more aggressive reload function that bypasses all caches
+      const userData = await authService.reloadUserWithFreshData();
+      
+      if (userData) {
+        setCurrentUser(userData);
+        setIsAuthenticated(true);
+        return userData;
+      } else {
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error during force refresh:', error);
+      return null;
+    }
+  }, []);
 
   // Load user data on initial render
   useEffect(() => {

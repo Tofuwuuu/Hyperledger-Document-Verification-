@@ -34,7 +34,7 @@ function classNames(...classes) {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, logout, isAdmin, loadUserData } = useAuth();
+  const { currentUser, logout, isAdmin, loadUserData, forceRefreshUserData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState([]);
@@ -87,16 +87,17 @@ export default function DashboardLayout() {
     try {
       console.log('Force refreshing user data...');
       
-      // Remove the user data from localStorage to force a fresh fetch
-      localStorage.removeItem('user');
+      // Show a loading message
+      alert("Refreshing your account data... page will reload in a moment.");
       
-      // Re-fetch user data from the API
-      await loadUserData();
+      // Use the enhanced force refresh function from AuthContext
+      await forceRefreshUserData();
       
-      // Reload the page to ensure all components update with the fresh data
-      window.location.reload();
+      // Hard reload the page to ensure all components update
+      window.location.reload(true); // true forces a reload from server, not cache
     } catch (err) {
       console.error('Error during force refresh:', err);
+      alert("Error refreshing data. Please try logging out and back in.");
     }
   };
 
