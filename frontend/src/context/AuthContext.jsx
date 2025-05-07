@@ -294,8 +294,6 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    resetPassword,
-    changePassword,
     isAdmin: () => currentUser?.is_admin === true,
     refreshToken,
     loadUserData,
