@@ -202,12 +202,34 @@ async def get_current_active_user(current_user: Dict[str, Any] = Depends(get_cur
         
         if 'last_name' not in current_user or not current_user['last_name']:
             current_user['last_name'] = "User"
+            
+        if 'hashed_password' not in current_user:
+            current_user['hashed_password'] = "placeholder_for_admin_bypass"
         
-        # Convert the dictionary to a User model object
-        user_model = User(**current_user)
+        # For Pydantic v2 compatibility, create a clean dictionary with only the fields needed
+        user_data = {
+            "_id": current_user.get("_id") or current_user.get("id"),
+            "email": current_user.get("email", "admin@example.com"),
+            "first_name": current_user.get("first_name", "Admin"),
+            "last_name": current_user.get("last_name", "User"),
+            "is_active": current_user.get("is_active", True),
+            "is_admin": current_user.get("is_admin", False),
+            "is_verified": current_user.get("is_verified", False),
+            "hashed_password": current_user.get("hashed_password", "placeholder"),
+            "created_at": current_user.get("created_at", datetime.utcnow()),
+            "updated_at": current_user.get("updated_at", datetime.utcnow()),
+            "student_id": current_user.get("student_id"),
+            "year_graduated": current_user.get("year_graduated"),
+            "department": current_user.get("department"),
+            "course": current_user.get("course"),
+            "profile_picture": current_user.get("profile_picture")
+        }
+            
+        # Convert the dictionary to a User model object - with only expected fields
+        user_model = User(**user_data)
         return user_model
     except Exception as e:
-        print(f"Error creating User model from dict: {e}")
+        logger.error(f"Error creating User model from dict: {e}")
         # If conversion fails, ensure the dictionary has id property for compatibility
         if '_id' in current_user and 'id' not in current_user:
             current_user['id'] = current_user['_id']

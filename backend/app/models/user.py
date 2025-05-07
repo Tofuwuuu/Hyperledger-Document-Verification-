@@ -30,10 +30,11 @@ class User(UserBase):
     course: Optional[str] = None
     profile_picture: Optional[str] = None
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
         
     def dict(self, **kwargs):
         """Custom dict method that handles ObjectIds properly."""
@@ -86,10 +87,11 @@ class UserInDB(User):
     verification_token: Optional[str] = None
     reset_token: Optional[str] = None
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
 
 class Token(BaseModel):
     """Token model."""

@@ -151,8 +151,9 @@ class UserInDB(UserBase):
     created_at: datetime = Field(..., description="Account creation timestamp")
     updated_at: datetime = Field(..., description="Account last update timestamp")
     
-    class Config:
-        allow_population_by_field_name = True
+    model_config = {
+        "populate_by_name": True
+    }
         
 class UserOut(UserBase):
     id: str = Field(..., alias="_id", description="User ID")
@@ -163,8 +164,9 @@ class UserOut(UserBase):
     created_at: datetime = Field(..., description="Account creation timestamp")
     updated_at: datetime = Field(..., description="Account last update timestamp")
     
-    class Config:
-        allow_population_by_field_name = True
+    model_config = {
+        "populate_by_name": True
+    }
         
 class TokenData(BaseModel):
     sub: str = Field(..., description="Subject (user ID)")
