@@ -22,10 +22,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Get CORS origins from environment or use defaults
-cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
-# Always explicitly include the frontend domain
-if "https://alumni-frontend-zzr2.onrender.com" not in cors_origins and "*" not in cors_origins:
-    cors_origins.append("https://alumni-frontend-zzr2.onrender.com")
+# First try environment variable, then fallback to a list with explicit domains
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+if cors_origins_env:
+    cors_origins = cors_origins_env.split(",")
+else:
+    # Explicitly list all known frontend domains
+    cors_origins = [
+        "https://alumni-frontend-zzr2.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "*"  # Allow all origins as fallback to ensure frontend works
+    ]
 
 logger.info(f"Configuring CORS with origins: {cors_origins}")
 

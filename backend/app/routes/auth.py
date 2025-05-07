@@ -530,15 +530,38 @@ async def get_current_user_activity(
         limit=limit
     )
 
-@router.options("/login", include_in_schema=False)
-async def options_login():
-    """Handle OPTIONS preflight requests for login endpoint."""
-    return {}
-
 @router.options("/register", include_in_schema=False)
 async def options_register():
-    """Handle OPTIONS preflight requests for register endpoint."""
-    return {}
+    """Handle OPTIONS request for register endpoint (CORS preflight)"""
+    return {
+        "allow": "POST, OPTIONS",
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "*",
+    }
+
+@router.options("/login", include_in_schema=False)
+async def options_login():
+    """Handle OPTIONS request for login endpoint (CORS preflight)"""
+    return {
+        "allow": "POST, OPTIONS",
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "*",
+    }
+
+@router.options("/{path:path}", include_in_schema=False)
+async def options_any(path: str):
+    """Handle OPTIONS request for any auth endpoint (CORS preflight)"""
+    return {
+        "allow": "GET, POST, PUT, DELETE, OPTIONS",
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "access-control-allow-headers": "*",
+    }
 
 @router.get("/test-cors", tags=["Debug"])
 async def test_cors():
