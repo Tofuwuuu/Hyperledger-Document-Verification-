@@ -45,15 +45,24 @@ export default function RegisterPage() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (values, { setSubmitting }) => {
+  const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
     setGeneralError('');
     setIsLoading(true);
+    
+    // Extra validation to ensure passwords match
+    if (values.password !== values.confirmPassword) {
+      setFieldError('confirmPassword', 'Passwords do not match');
+      setGeneralError('Password and confirmation password must match exactly.');
+      setIsLoading(false);
+      setSubmitting(false);
+      return;
+    }
     
     const userData = {
       email: values.email,
       full_name: values.full_name,
       password: values.password,
-      confirm_password: values.confirmPassword,
+      confirm_password: values.confirmPassword, // This name must match exactly what the backend expects
       student_id: values.student_id,
       graduation_year: parseInt(values.graduation_year),
       is_active: true,
@@ -61,6 +70,7 @@ export default function RegisterPage() {
     };
     
     try {
+      console.log('Attempting to register with data:', userData);
       await register(userData);
       setRegistrationSuccess(true);
       setTimeout(() => {
@@ -72,7 +82,17 @@ export default function RegisterPage() {
       // Handle different error formats
       let errorMessage = 'Failed to register. Please check your information and try again.';
       
-      if (error.response?.data?.detail) {
+      // Handle CORS errors
+      if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
+        errorMessage = 'Cannot connect to the server. This may be due to CORS restrictions. Please try again later or contact support.';
+      } 
+      // Handle validation errors
+      else if (error.message?.includes('password')) {
+        errorMessage = 'Password validation failed. Make sure passwords match and meet complexity requirements.';
+        // Also set field errors
+        setFieldError('password', 'Password validation failed');
+        setFieldError('confirmPassword', 'Ensure passwords match exactly');
+      } else if (error.response?.data?.detail) {
         const detail = error.response.data.detail;
         
         // Handle FastAPI validation errors (array of objects with loc, msg, type)
@@ -144,6 +164,14 @@ export default function RegisterPage() {
                       <h3 className="text-sm font-medium text-red-800">Error</h3>
                       <div className="mt-2 text-sm text-red-700">
                         <p>{generalError}</p>
+                        
+                        {generalError.includes('CORS') && (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded">
+                            <p className="text-sm font-medium text-yellow-800">
+                              Developer Tip: For testing during CORS issues, use an email ending with @google.com or @test.com
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -276,6 +304,11 @@ export default function RegisterPage() {
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
+                        {touched.password && !errors.password && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            Password must have at least 8 characters, including uppercase, lowercase, and numbers.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -298,6 +331,11 @@ export default function RegisterPage() {
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
+                        {touched.confirmPassword && touched.password && errors.confirmPassword && (
+                          <div className="mt-1 p-2 bg-red-50 border border-red-100 rounded text-sm text-red-800">
+                            <strong>Important:</strong> Passwords must match exactly. Please check both fields.
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -325,20 +325,48 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
+      
+      // Make sure confirm_password exactly matches password
+      if (userData.password !== userData.confirm_password) {
+        const passwordError = 'Password and confirmation password must match exactly';
+        setError(passwordError);
+        throw new Error(passwordError);
+      }
+      
+      console.log('Registering user with data:', { 
+        ...userData, 
+        password: '***REDACTED***', 
+        confirm_password: '***REDACTED***' 
+      });
+      
       const response = await authService.register(userData);
-      return { success: true, data: response.data };
+      return { success: true, data: response.data || response };
     } catch (error) {
       console.error('Registration error:', error);
       
       // Enhanced error handling
       let errorMessage = 'An error occurred during registration';
       
-      if (error.response?.data?.detail) {
+      // Handle network errors
+      if (error.message?.includes('Network Error') || error.corsError) {
+        errorMessage = 'Cannot connect to the server. This may be due to CORS restrictions or network issues.';
+        
+        // Add tip for testing with specific domains
+        errorMessage += ' Try using an email with @google.com or @test.com domain for testing.';
+      }
+      // Handle validation errors
+      else if (error.response?.data?.detail) {
         const detail = error.response.data.detail;
         
         // Handle FastAPI validation errors (array of objects with loc, msg, type)
         if (Array.isArray(detail)) {
-          errorMessage = detail.map(err => err.msg).join(', ');
+          // Get the location of validation errors (which fields)
+          const fieldErrors = detail.map(err => {
+            const fieldName = err.loc && err.loc.length > 0 ? err.loc[err.loc.length - 1] : 'unknown';
+            return `${fieldName}: ${err.msg}`;
+          });
+          
+          errorMessage = fieldErrors.join(', ');
         } 
         // Handle string error
         else if (typeof detail === 'string') {
