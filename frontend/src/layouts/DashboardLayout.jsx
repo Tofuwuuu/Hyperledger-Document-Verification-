@@ -34,7 +34,7 @@ function classNames(...classes) {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, logout, isAdmin } = useAuth();
+  const { currentUser, logout, isAdmin, loadUserData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState([]);
@@ -81,6 +81,24 @@ export default function DashboardLayout() {
     
     checkVerificationStatus();
   }, [currentUser, isAdminUser]);
+
+  // Function to handle the Force Refresh button click
+  const handleForceRefresh = async () => {
+    try {
+      console.log('Force refreshing user data...');
+      
+      // Remove the user data from localStorage to force a fresh fetch
+      localStorage.removeItem('user');
+      
+      // Re-fetch user data from the API
+      await loadUserData();
+      
+      // Reload the page to ensure all components update with the fresh data
+      window.location.reload();
+    } catch (err) {
+      console.error('Error during force refresh:', err);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -766,7 +784,7 @@ export default function DashboardLayout() {
                         Logout & Clear Data
                       </button> | 
                       <button 
-                        onClick={() => window.location.reload()} 
+                        onClick={handleForceRefresh} 
                         className="text-blue-500 hover:underline ml-2"
                       >
                         Force Refresh

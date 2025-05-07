@@ -67,6 +67,15 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // New function: Force refresh user data
+  const forceRefreshUserData = useCallback(async () => {
+    console.log('Force refreshing user data from API');
+    // Clear local storage user data to ensure we get fresh data
+    localStorage.removeItem('user');
+    // Reload user data from API
+    return await loadUserData();
+  }, [loadUserData]);
+
   // Load user data on initial render
   useEffect(() => {
     loadUserData();
@@ -276,15 +285,21 @@ export const AuthProvider = ({ children }) => {
     return currentUser?.is_admin || false;
   }, [currentUser]);
 
+  // Expose the provider value
   const value = {
     currentUser,
+    isAuthenticated,
     loading,
     error,
-    isAuthenticated,
     login,
     register,
     logout,
+    resetPassword,
+    changePassword,
+    isAdmin: () => currentUser?.is_admin === true,
     refreshToken,
+    loadUserData,
+    forceRefreshUserData,
     hasRole,
     isAdmin,
     clearError: () => setError(null)
