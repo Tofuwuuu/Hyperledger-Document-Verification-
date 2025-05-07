@@ -48,11 +48,27 @@ export default function DocumentsPage() {
   }, [currentUser]);
 
   const fetchAlumniProfile = async () => {
-    if (!currentUser || !currentUser._id) return;
+    // Check if currentUser is properly loaded
+    if (!currentUser) {
+      setError('User information is not loaded. Please try logging in again.');
+      setLoading(false);
+      return;
+    }
+    
+    // Use either id or _id, whichever is available
+    const userId = currentUser.id || currentUser._id;
+    
+    if (!userId) {
+      console.error('User ID is undefined:', currentUser);
+      setError('Cannot load alumni profile: User ID is missing. Please try logging out and back in.');
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
-      const response = await alumniService.getAlumniByUserId(currentUser.id);
+      console.log(`Fetching alumni profile for user ID: ${userId}`);
+      const response = await alumniService.getAlumniByUserId(userId);
       setAlumniProfile(response.data);
       
       // Fetch documents
@@ -61,7 +77,11 @@ export default function DocumentsPage() {
       }
     } catch (error) {
       console.error('Error fetching alumni profile:', error);
-      setError('You need to create an alumni profile to view documents.');
+      if (error.response && error.response.status === 404) {
+        setError('You need to create an alumni profile to view documents. Please complete your profile first.');
+      } else {
+        setError(`Failed to load alumni profile: ${error.message || 'Unknown error'}`);
+      }
     } finally {
       setLoading(false);
     }
