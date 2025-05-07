@@ -422,7 +422,12 @@ export default function AdminDashboardPage() {
 
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    // Convert to Philippines timezone (UTC+8)
+    const date = new Date(dateString);
+    // Adjust to Philippines time by adding 8 hours
+    const philippinesDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+    // Use en-US locale but with adjusted time
+    return philippinesDate.toLocaleDateString('en-US', options);
   };
 
   const formatActivityTitle = (activity) => {
