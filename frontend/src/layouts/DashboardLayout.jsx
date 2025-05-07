@@ -41,6 +41,8 @@ export default function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdminUser = isAdmin();
+  // Get user verification status
+  const isVerified = currentUser?.is_verified || false;
 
   const handleLogout = () => {
     logout();
@@ -53,40 +55,46 @@ export default function DashboardLayout() {
       name: 'Dashboard', 
       href: isAdminUser ? '/admin' : '/alumni', 
       icon: HomeIcon, 
-      current: location.pathname === (isAdminUser ? '/admin' : '/alumni')
+      current: location.pathname === (isAdminUser ? '/admin' : '/alumni'),
+      alwaysAccessible: true // Always show this regardless of verification status
     },
     { 
       name: 'Profile', 
       href: isAdminUser ? '/admin/profile' : '/alumni/profile', 
       icon: UserCircleIcon, 
-      current: location.pathname === (isAdminUser ? '/admin/profile' : '/alumni/profile')
+      current: location.pathname === (isAdminUser ? '/admin/profile' : '/alumni/profile'),
+      alwaysAccessible: true // Always show this regardless of verification status
     },
     // Only show Documents for regular alumni users
     ...(isAdminUser ? [] : [{
       name: 'Documents', 
       href: '/alumni/documents', 
       icon: DocumentCheckIcon, 
-      current: location.pathname === '/alumni/documents'
+      current: location.pathname === '/alumni/documents',
+      alwaysAccessible: false // Requires verification
     }]),
     // Only show Upload Documents for regular alumni users
     ...(isAdminUser ? [] : [{
       name: 'Upload Documents',
       href: '/alumni/documents/upload',
       icon: DocumentArrowUpIcon,
-      current: location.pathname === '/alumni/documents/upload'
+      current: location.pathname === '/alumni/documents/upload',
+      alwaysAccessible: false // Requires verification
     }]),
     {
       name: 'Document Requests',
       href: isAdminUser ? '/admin/document-requests' : '/alumni/document-requests',
       icon: DocumentIcon,
-      current: location.pathname === (isAdminUser ? '/admin/document-requests' : '/alumni/document-requests')
+      current: location.pathname === (isAdminUser ? '/admin/document-requests' : '/alumni/document-requests'),
+      alwaysAccessible: false // Requires verification
     },
     // Only show My Registrations for regular alumni users
     ...(isAdminUser ? [] : [{
       name: 'My Registrations', 
       href: '/alumni/registrations', 
       icon: QrCodeIcon, 
-      current: location.pathname === '/alumni/registrations'
+      current: location.pathname === '/alumni/registrations',
+      alwaysAccessible: false // Requires verification
     }]),
   ];
 
@@ -158,6 +166,11 @@ export default function DashboardLayout() {
   const fullNavigation = isAdminUser 
     ? [...commonNavigation, ...adminOnlyNavigation] 
     : commonNavigation;
+
+  // Filter navigation items based on verification status
+  const filteredNavigation = isAdminUser || isVerified 
+    ? fullNavigation // Show all items for admins or verified users
+    : fullNavigation.filter(item => item.alwaysAccessible); // Filter to only show always accessible items for unverified users
 
   // Fetch notifications on component mount
   useEffect(() => {
@@ -346,47 +359,64 @@ export default function DashboardLayout() {
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
                       <li>
                         <ul role="list" className="-mx-2 space-y-1">
-                          {fullNavigation.map((item) => (
-                            <li key={item.name}>
-                              <Link
-                                to={item.href}
-                                className={classNames(
-                                  item.current
-                                    ? 'bg-gray-50 text-cvsu-green'
-                                    : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                  'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                          {fullNavigation.map((item) => {
+                            const isAccessible = item.alwaysAccessible || isVerified || isAdminUser;
+                            return (
+                              <li key={item.name}>
+                                {isAccessible ? (
+                                  <Link
+                                    to={item.href}
+                                    className={classNames(
+                                      item.current
+                                        ? 'bg-gray-50 text-cvsu-green'
+                                        : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                      'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                                    )}
+                                  >
+                                    <item.icon
+                                      className={classNames(
+                                        item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                        'h-6 w-6 shrink-0'
+                                      )}
+                                      aria-hidden="true"
+                                    />
+                                    {item.name}
+                                  </Link>
+                                ) : (
+                                  <div
+                                    className="text-gray-400 cursor-not-allowed flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
+                                    title="Account needs verification to access this feature"
+                                  >
+                                    <item.icon
+                                      className="text-gray-300 h-6 w-6 shrink-0"
+                                      aria-hidden="true"
+                                    />
+                                    {item.name}
+                                    <span className="ml-2 text-xs text-red-400">(Needs verification)</span>
+                                  </div>
                                 )}
-                              >
-                                <item.icon
-                                  className={classNames(
-                                    item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
-                                    'h-6 w-6 shrink-0'
-                                  )}
-                                  aria-hidden="true"
-                                />
-                                {item.name}
-                              </Link>
-                              {item.subItems && (
-                                <ul className="mt-1 pl-8 space-y-1">
-                                  {item.subItems.map((subItem) => (
-                                    <li key={subItem.name}>
-                                      <Link
-                                        to={subItem.href}
-                                        className={classNames(
-                                          subItem.current
-                                            ? 'bg-gray-50 text-cvsu-green'
-                                            : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                          'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
-                                        )}
-                                      >
-                                        {subItem.name}
-                                      </Link>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </li>
-                          ))}
+                                {item.subItems && isAccessible && (
+                                  <ul className="mt-1 pl-8 space-y-1">
+                                    {item.subItems.map((subItem) => (
+                                      <li key={subItem.name}>
+                                        <Link
+                                          to={subItem.href}
+                                          className={classNames(
+                                            subItem.current
+                                              ? 'bg-gray-50 text-cvsu-green'
+                                              : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                            'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
+                                          )}
+                                        >
+                                          {subItem.name}
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </li>
                       <li>
@@ -425,47 +455,64 @@ export default function DashboardLayout() {
               <li>
                 <div className="text-xs font-semibold leading-6 text-gray-400">MENU</div>
                 <ul role="list" className="-mx-2 mt-2 space-y-1">
-                  {fullNavigation.map((item) => (
-                    <li key={item.name}>
-                      <Link
-                        to={item.href}
-                        className={classNames(
-                          item.current
-                            ? 'bg-gray-50 text-cvsu-green'
-                            : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                          'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                  {fullNavigation.map((item) => {
+                    const isAccessible = item.alwaysAccessible || isVerified || isAdminUser;
+                    return (
+                      <li key={item.name}>
+                        {isAccessible ? (
+                          <Link
+                            to={item.href}
+                            className={classNames(
+                              item.current
+                                ? 'bg-gray-50 text-cvsu-green'
+                                : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                              'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                            )}
+                          >
+                            <item.icon
+                              className={classNames(
+                                item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                'h-6 w-6 shrink-0'
+                              )}
+                              aria-hidden="true"
+                            />
+                            {item.name}
+                          </Link>
+                        ) : (
+                          <div
+                            className="text-gray-400 cursor-not-allowed flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
+                            title="Account needs verification to access this feature"
+                          >
+                            <item.icon
+                              className="text-gray-300 h-6 w-6 shrink-0"
+                              aria-hidden="true"
+                            />
+                            {item.name}
+                            <span className="ml-2 text-xs text-red-400">(Needs verification)</span>
+                          </div>
                         )}
-                      >
-                        <item.icon
-                          className={classNames(
-                            item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
-                            'h-6 w-6 shrink-0'
-                          )}
-                          aria-hidden="true"
-                        />
-                        {item.name}
-                      </Link>
-                      {item.subItems && (
-                        <ul className="mt-1 pl-8 space-y-1">
-                          {item.subItems.map((subItem) => (
-                            <li key={subItem.name}>
-                              <Link
-                                to={subItem.href}
-                                className={classNames(
-                                  subItem.current
-                                    ? 'bg-gray-50 text-cvsu-green'
-                                    : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                  'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
-                                )}
-                              >
-                                {subItem.name}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  ))}
+                        {item.subItems && isAccessible && (
+                          <ul className="mt-1 pl-8 space-y-1">
+                            {item.subItems.map((subItem) => (
+                              <li key={subItem.name}>
+                                <Link
+                                  to={subItem.href}
+                                  className={classNames(
+                                    subItem.current
+                                      ? 'bg-gray-50 text-cvsu-green'
+                                      : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                    'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
+                                  )}
+                                >
+                                  {subItem.name}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </li>
               <li className="-mx-2 mt-auto">
@@ -646,6 +693,25 @@ export default function DashboardLayout() {
             </div>
           </div>
         </div>
+
+        {/* Verification warning banner for non-admin, unverified alumni */}
+        {!isAdminUser && !isVerified && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 mx-4 sm:mx-6 lg:mx-8 mt-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  Your account is not yet verified. Some features are disabled until verification is complete.
+                  <span className="font-medium"> Please contact the administrator for verification.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <main className="py-10">
           <div className="px-4 sm:px-6 lg:px-8">

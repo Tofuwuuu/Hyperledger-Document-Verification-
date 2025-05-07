@@ -84,6 +84,33 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// VerifiedRoute component for routes that require account verification
+const VerifiedRoute = ({ children }) => {
+  const { currentUser, loading, isAuthenticated, isAdmin } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated || !currentUser) {
+    // Save the attempted URL for redirecting after login
+    const currentPath = window.location.pathname;
+    sessionStorage.setItem('redirectAfterLogin', currentPath);
+    
+    return <Navigate to="/login" replace />;
+  }
+
+  // Check if the user is verified or an admin
+  const isVerified = currentUser.is_verified || false;
+  
+  // Admins can access all routes, regular users need to be verified
+  if (!isAdmin() && !isVerified) {
+    return <Navigate to="/alumni" replace />;
+  }
+
+  return children;
+};
+
 // Modified AdminRoute component to handle both admin and regular users
 const AdminRoute = ({ children, adminOnly = false }) => {
   const { currentUser, loading, isAuthenticated, isAdmin } = useAuth();
@@ -161,11 +188,28 @@ function App() {
             >
               <Route index element={<AdminDashboardPage />} />
               <Route path="profile" element={<ProfilePage />} />
-              <Route path="documents" element={<DocumentsPage />} />
-              <Route path="documents/upload" element={<DocumentUploadPage />} />
-              <Route path="document-requests" element={<DocumentRequestPage />} />
+              {/* Routes that require verification */}
+              <Route path="documents" element={
+                <VerifiedRoute>
+                  <DocumentsPage />
+                </VerifiedRoute>
+              } />
+              <Route path="documents/upload" element={
+                <VerifiedRoute>
+                  <DocumentUploadPage />
+                </VerifiedRoute>
+              } />
+              <Route path="document-requests" element={
+                <VerifiedRoute>
+                  <DocumentRequestPage />
+                </VerifiedRoute>
+              } />
               <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="registrations" element={<MyRegistrationsPage />} />
+              <Route path="registrations" element={
+                <VerifiedRoute>
+                  <MyRegistrationsPage />
+                </VerifiedRoute>
+              } />
             </Route>
 
             {/* Admin routes - only for administrators */}
