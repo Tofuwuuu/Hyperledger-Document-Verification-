@@ -31,7 +31,12 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "https://cvsu-alumni.vercel.app",
         "https://alumni-frontend-zzr2.onrender.com",  # Add the specific render.com frontend URL
-        "http://alumni-frontend-zzr2.onrender.com"   # Also include HTTP version for completeness
+        "http://alumni-frontend-zzr2.onrender.com",   # Also include HTTP version for completeness
+        "https://final-rkpz.onrender.com",            # Backend URL for same-origin reference
+        "https://alumni-api-klrk.onrender.com",       # Backend API alternative URL
+        "https://alumni-api-klrk.onrender.com/api/v1", # Backend API with path
+        "https://alumni-frontend.onrender.com",       # More general frontend URL pattern
+        "https://alumni-frontend-*"                   # Wildcard for any frontend subdomains
     ]
     
     # Handle CORS origins from environment variable

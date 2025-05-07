@@ -30,6 +30,12 @@ class RegistrationBase(BaseModel):
             return PyObjectId(v)
         return v
     
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
+
 class RegistrationCreate(RegistrationBase):
     pass
 
@@ -37,6 +43,12 @@ class RegistrationUpdate(BaseModel):
     status: Optional[str] = None
     check_in_time: Optional[datetime] = None
     check_in_by: Optional[PyObjectId] = None
+    
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
 
 class RegistrationInDB(RegistrationBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
@@ -48,10 +60,11 @@ class RegistrationInDB(RegistrationBase):
     attendance_time: Optional[datetime] = None
     student_id: Optional[PyObjectId] = None
 
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
         
     def dict(self, **kwargs):
         """Custom dict method that handles ObjectIds properly."""
@@ -81,11 +94,18 @@ class RegistrationInDB(RegistrationBase):
         return doc
 
 class Registration(RegistrationInDB):
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str, PyObjectId: str}
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    }
 
 class RegistrationWithUser(Registration):
     user_name: str
-    user_email: str 
+    user_email: str
+    
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str, PyObjectId: str}
+    } 

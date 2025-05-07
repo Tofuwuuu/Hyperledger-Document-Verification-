@@ -40,57 +40,87 @@ async def register_for_event(
     student_id = None
     user_email = None
     
-    if isinstance(current_user, User):
-        user_id = current_user.id
-        is_verified = current_user.is_verified
-        student_id = current_user.student_id
-        user_email = current_user.email
-        logger.info(f"USER INFO (Model) - ID: {user_id}, Email: {user_email}")
-        logger.info(f"USER DETAILS (Model) - Verified: {is_verified}, Student ID: {student_id}")
-    else:
-        # Dictionary case
-        user_id = current_user.get("_id")
-        is_verified = current_user.get("is_verified", False)
-        student_id = current_user.get("student_id")
-        user_email = current_user.get("email")
-        logger.info(f"USER INFO (Dict) - ID: {user_id}, Email: {user_email}")
-        logger.info(f"USER DETAILS (Dict) - Verified: {is_verified}, Student ID: {student_id}")
-    
-    logger.info(f"USER DATA: {json.dumps(current_user.dict() if isinstance(current_user, User) else current_user, default=str)}")
-    logger.info("=" * 50)
-    
-    # Check if user is verified
-    if not is_verified:
-        logger.warning(f"Registration rejected - User {user_id} is not verified")
+    try:
+        if isinstance(current_user, User):
+            user_id = current_user.id
+            is_verified = current_user.is_verified
+            student_id = current_user.student_id
+            user_email = current_user.email
+            logger.info(f"USER INFO (Model) - ID: {user_id}, Email: {user_email}")
+            logger.info(f"USER DETAILS (Model) - Verified: {is_verified}, Student ID: {student_id}")
+        else:
+            # Dictionary case
+            user_id = current_user.get("_id") or current_user.get("id")
+            is_verified = current_user.get("is_verified", False)
+            student_id = current_user.get("student_id")
+            user_email = current_user.get("email")
+            logger.info(f"USER INFO (Dict) - ID: {user_id}, Email: {user_email}")
+            logger.info(f"USER DETAILS (Dict) - Verified: {is_verified}, Student ID: {student_id}")
+        
+        # Convert the user data to string for logging, handling both model and dict cases safely
+        user_data_str = ""
+        try:
+            if hasattr(current_user, "dict") and callable(getattr(current_user, "dict")):
+                user_data_str = json.dumps(current_user.dict(), default=str)
+            else:
+                user_data_str = json.dumps(current_user, default=str)
+        except Exception as e:
+            user_data_str = f"Error serializing user data: {str(e)}"
+            
+        logger.info(f"USER DATA: {user_data_str}")
+        logger.info("=" * 50)
+        
+        # Check if we have a valid user ID
+        if not user_id:
+            logger.warning("Registration rejected - Missing user ID")
+            raise HTTPException(
+                status_code=422,
+                detail="User identification is missing. Please try logging out and back in."
+            )
+        
+        # Check if user is verified
+        if not is_verified:
+            logger.warning(f"Registration rejected - User {user_id} is not verified")
+            raise HTTPException(
+                status_code=422, 
+                detail="Your account is not verified. Please verify your account before registering for events."
+            )
+        
+        # Check if user has a student ID
+        if not student_id:
+            logger.warning(f"Registration rejected - User {user_id} has no student ID")
+            raise HTTPException(
+                status_code=422, 
+                detail="You must have a student ID in your profile to register for events."
+            )
+        
+        # Ensure the event exists
+        event = await EventRepository.get_event(registration.event_id)
+        if not event:
+            logger.warning(f"Registration rejected - Event {registration.event_id} not found")
+            raise HTTPException(status_code=404, detail="Event not found")
+        
+        # Set the user_id to the current user
+        registration.user_id = user_id
+        
+        # Check if event has reached maximum capacity
+        if event.max_attendees and event.registration_count >= event.max_attendees:
+            logger.warning(f"Registration rejected - Event {registration.event_id} has reached maximum capacity")
+            raise HTTPException(status_code=400, detail="Event has reached maximum capacity")
+        
+        logger.info(f"Registration approved for event {registration.event_id} by user {user_id}")
+        return await RegistrationRepository.create_registration(registration)
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            # Rethrow HTTP exceptions directly
+            raise
+        
+        # Log any other errors
+        logger.error(f"Unexpected error in registration process: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=422, 
-            detail="Your account is not verified. Please verify your account before registering for events."
+            status_code=500,
+            detail=f"Registration failed due to an unexpected error: {str(e)}"
         )
-    
-    # Check if user has a student ID
-    if not student_id:
-        logger.warning(f"Registration rejected - User {user_id} has no student ID")
-        raise HTTPException(
-            status_code=422, 
-            detail="You must have a student ID in your profile to register for events."
-        )
-    
-    # Ensure the event exists
-    event = await EventRepository.get_event(registration.event_id)
-    if not event:
-        logger.warning(f"Registration rejected - Event {registration.event_id} not found")
-        raise HTTPException(status_code=404, detail="Event not found")
-    
-    # Set the user_id to the current user
-    registration.user_id = user_id
-    
-    # Check if event has reached maximum capacity
-    if event.max_attendees and event.registration_count >= event.max_attendees:
-        logger.warning(f"Registration rejected - Event {registration.event_id} has reached maximum capacity")
-        raise HTTPException(status_code=400, detail="Event has reached maximum capacity")
-    
-    logger.info(f"Registration approved for event {registration.event_id} by user {user_id}")
-    return await RegistrationRepository.create_registration(registration)
 
 @router.get("/registrations/all", response_model=List[Dict[str, Any]])
 async def get_all_event_registrations(
