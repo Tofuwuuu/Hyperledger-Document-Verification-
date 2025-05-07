@@ -20,6 +20,7 @@ const DocumentsPage = lazy(() => import('./pages/dashboard/DocumentsPage'));
 const DocumentUploadPage = lazy(() => import('./pages/dashboard/DocumentUploadPage'));
 const NotificationsPage = lazy(() => import('./pages/dashboard/NotificationsPage'));
 const VerifyPage = lazy(() => import('./pages/VerifyPage'));
+const VerifyYourselfPage = lazy(() => import('./pages/dashboard/VerifyYourselfPage'));
 const AlumniDirectoryPage = lazy(() => import('./pages/AlumniDirectoryPage'));
 const AlumniProfilePage = lazy(() => import('./pages/AlumniProfilePage'));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
@@ -166,6 +167,7 @@ function App() {
               <Route path="document-requests" element={<DocumentRequestPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="registrations" element={<MyRegistrationsPage />} />
+              <Route path="verify-yourself" element={<VerifyYourselfPage />} />
             </Route>
 
             {/* Admin routes - only for administrators */}

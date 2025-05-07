@@ -528,4 +528,71 @@ async def get_current_user_activity(
         user_id=current_user["_id"],
         include_uploads=include_uploads,
         limit=limit
-    ) 
+    )
+
+@router.post("/self-verify", response_model=UserOut)
+async def self_verify_account(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Temporary endpoint for testing - Verify your own account (normally requires admin)
+    This should not be used in production.
+    """
+    try:
+        db = get_database()
+        
+        # Get user ID safely
+        user_id = None
+        if isinstance(current_user, dict) and "_id" in current_user:
+            user_id = current_user["_id"]
+        elif hasattr(current_user, "id"):  # User model object
+            user_id = current_user.id
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not determine user ID"
+            )
+            
+        # Update user verification status
+        now = datetime.utcnow()
+        result = await db.users.update_one(
+            {"_id": user_id},
+            {"$set": {
+                "is_verified": True,
+                "verified_by": user_id,  # Self-verified
+                "verification_date": now,
+                "verification_notes": "Self-verified for testing",
+                "updated_at": now
+            }}
+        )
+        
+        if result.modified_count == 0:
+            # If no modification, check if user is already verified
+            user = await db.users.find_one({"_id": user_id})
+            if user and user.get("is_verified"):
+                return user
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update user verification status"
+                )
+        
+        # Log activity in audit log
+        await db.audit_logs.insert_one({
+            "action": "self_verification",
+            "user_id": str(user_id),
+            "notes": "Self-verified for testing purposes",
+            "timestamp": now
+        })
+        
+        # Get updated user
+        updated_user = await db.users.find_one({"_id": user_id})
+        return updated_user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during self-verification: {str(e)}"
+        ) 
