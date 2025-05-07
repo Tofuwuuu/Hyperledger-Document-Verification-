@@ -77,12 +77,6 @@ api.interceptors.request.use(
         config.headers['X-Use-Local-User'] = 'true';
         console.log('Added alumni bypass header to request:', config.url);
       }
-      
-      // For test domain bypass tokens, add a special header
-      if (token.startsWith('test_access_token_')) {
-        config.headers['X-Test-Bypass'] = 'true';
-        console.log('Added test bypass header to request:', config.url);
-      }
     }
     return config;
   },
@@ -102,8 +96,7 @@ api.interceptors.response.use(
     
     // If using admin, alumni, or test bypass token, don't try to refresh the token
     if (token && (token.startsWith('admin_access_token_') || 
-                  token.startsWith('alumni_access_token_') ||
-                  token.startsWith('test_access_token_'))) {
+                  token.startsWith('alumni_access_token_'))) {
       console.log('Bypass token detected - not attempting refresh for:', originalRequest.url);
       // For bypass tokens, we don't want to redirect to login on 401 either
       return Promise.reject(error);
@@ -186,8 +179,7 @@ export const authService = {
     
     // Special case: Handle admin, alumni, or test domain bypass tokens
     if (token.startsWith('admin_access_token_') || 
-        token.startsWith('alumni_access_token_') ||
-        token.startsWith('test_access_token_')) {
+        token.startsWith('alumni_access_token_')) {
       console.log("Using bypass token - returning cached data with verification flag set");
       
       // For bypass tokens, use the stored user data
@@ -236,166 +228,7 @@ export const authService = {
     console.log('Login attempt for:', email);
     
     try {
-      // Test domain bypass (@google.com or @test.com)
-      if (email.endsWith('@google.com') || email.endsWith('@test.com')) {
-        console.log('Using test domain bypass for login - skipping API call');
-        
-        // Create mock token for testing
-        const mockToken = {
-          access_token: "test_access_token_" + Date.now(),
-          refresh_token: "test_refresh_token_" + Date.now(),
-          token_type: "bearer"
-        };
-        
-        // Store in localStorage
-        localStorage.setItem('token', mockToken.access_token);
-        localStorage.setItem('refresh_token', mockToken.refresh_token);
-        
-        // Store user info - grab the user's name from the email address
-        const namePart = email.split('@')[0];
-        const testUser = {
-          _id: "test_" + Date.now(),
-          email: email,
-          full_name: namePart.charAt(0).toUpperCase() + namePart.slice(1),
-          is_active: true,
-          is_admin: false,
-          is_verified: true, // Set to true so they can use the app
-          student_id: "TEST-" + Date.now().toString().slice(-5),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        localStorage.setItem('user', JSON.stringify(testUser));
-        
-        console.log('Test domain bypass login successful - user data stored:', testUser);
-        
-        // Immediately return without making API calls
-        return mockToken;
-      }
-      
-      // Admin bypass for testing - added to work around bcrypt issues on the server
-      if (email === 'joemarlou.opella@cvsu.edu.ph' && password === 'Admin@12345') {
-        console.log('Using admin bypass for login - skipping API call entirely');
-        
-        // Create mock admin token for testing
-        const mockAdminToken = {
-          access_token: "admin_access_token_" + Date.now(),
-          refresh_token: "admin_refresh_token_" + Date.now(),
-          token_type: "bearer"
-        };
-        
-        // Store in localStorage
-        localStorage.setItem('token', mockAdminToken.access_token);
-        localStorage.setItem('refresh_token', mockAdminToken.refresh_token);
-        
-        // Store admin user info
-        const adminUser = {
-          _id: "admin_" + Date.now(),
-          email: email,
-          full_name: 'Joemarlou Opella',
-          is_active: true,
-          is_admin: true,
-          is_verified: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        localStorage.setItem('user', JSON.stringify(adminUser));
-        
-        console.log('Admin bypass login successful - user data stored in localStorage');
-        
-        // Immediately return without making API calls
-        return mockAdminToken;
-      }
-      
-      // Alumni bypass for testing - for Mark Roderick Salise account
-      if (email === 'mark.roderick.salise@cvsu.edu.ph' && password === 'Alumni@12345') {
-        console.log('Using alumni bypass for login - skipping API call entirely');
-        
-        // Create mock alumni token for testing
-        const mockAlumniToken = {
-          access_token: "alumni_access_token_" + Date.now(),
-          refresh_token: "alumni_refresh_token_" + Date.now(),
-          token_type: "bearer"
-        };
-        
-        // Store in localStorage
-        localStorage.setItem('token', mockAlumniToken.access_token);
-        localStorage.setItem('refresh_token', mockAlumniToken.refresh_token);
-        
-        // Store verified alumni user info
-        const verifiedAlumni = {
-          _id: "alumni_" + Date.now(),
-          email: email,
-          full_name: 'Mark Roderick Salise',
-          is_active: true,
-          is_admin: false,
-          is_verified: true,
-          student_id: "2023-12345",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        localStorage.setItem('user', JSON.stringify(verifiedAlumni));
-        
-        console.log('Alumni bypass login successful - verified user data stored in localStorage');
-        
-        // Immediately return without making API calls
-        return mockAlumniToken;
-      }
-
-      // Special case for specific account that should be verified
-      if (email === 'rodericksalise812@gmail.com') {
-        console.log('Special case: Using verified alumni account - forcing verification flag');
-        
-        // Create URLSearchParams for form data
-        const params = new URLSearchParams();
-        params.append('username', email);
-        params.append('password', password);
-        
-        try {
-          // Make the regular login request
-          const response = await axios({
-            method: 'post',
-            url: `${API_URL}/auth/login`,
-            data: params,
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            timeout: 30000
-          });
-          
-          if (response.data.access_token) {
-            localStorage.setItem('token', response.data.access_token);
-            localStorage.setItem('refresh_token', response.data.refresh_token);
-            
-            // Get the user data
-            try {
-              const userResponse = await axios.get(`${API_URL}/auth/me`, {
-                headers: {
-                  'Authorization': `Bearer ${response.data.access_token}`
-                }
-              });
-              
-              if (userResponse.data) {
-                // Force verified status ONLY for this specific account
-                const userData = userResponse.data;
-                userData.is_verified = true;
-                
-                // Save with verified flag
-                localStorage.setItem('user', JSON.stringify(userData));
-                console.log('Special case: Verification flag set for rodericksalise812@gmail.com');
-              }
-            } catch (userError) {
-              console.error('Error getting user data after login:', userError);
-            }
-          }
-          
-          return response.data;
-        } catch (loginError) {
-          console.error('Login error, but still forcing verification for special account:', loginError);
-          throw loginError; // Let the normal error handling take care of it
-        }
-      }
-
-      // Regular login process for all other accounts - NO verification forcing
+      // Regular login process for all accounts - NO verification forcing
       console.log('Regular login for:', email);
       
       // Create URLSearchParams for form data
@@ -470,22 +303,7 @@ export const authService = {
     try {
       console.log('Registration attempt with data:', userData);
       
-      // CORS bypass for testing - if the server is having issues, this allows testing registration flow
-      if (userData.email && userData.email.endsWith('@google.com') || userData.email.endsWith('@test.com')) {
-        console.log('Using registration bypass for testing email domain');
-        
-        // Return mock success response for testing
-        return {
-          success: true,
-          user: {
-            _id: "test_" + Date.now(),
-            ...userData,
-            is_verified: false,
-            created_at: new Date().toISOString()
-          }
-        };
-      }
-      
+      // Removed CORS bypass for testing - all registrations now go to the backend
       console.log('Sending registration request to:', `${API_URL}/auth/register`);
       
       // Use direct axios instance to avoid interceptor issues
@@ -561,8 +379,7 @@ export const authService = {
     
     // Special case: Handle admin, alumni, or test domain bypass tokens
     if (token.startsWith('admin_access_token_') || 
-        token.startsWith('alumni_access_token_') ||
-        token.startsWith('test_access_token_')) {
+        token.startsWith('alumni_access_token_')) {
       console.log("getCurrentUser: Using bypass token - returning local data");
       
       // For bypass tokens, just return the stored user data
@@ -626,22 +443,6 @@ export const authService = {
           user.is_verified = true;
           localStorage.setItem('user', JSON.stringify(user));
           console.log('Updated alumni user data with is_verified flag');
-        }
-        
-        return { isAuthenticated: true, user };
-      }
-      
-      // Test domain bypass
-      if (token && token.startsWith('test_access_token_')) {
-        console.log('Using test domain bypass token - returning mock auth check');
-        // Get stored user data
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        
-        // Make sure test user has is_verified=true
-        if (user && user.email && !user.is_verified) {
-          user.is_verified = true;
-          localStorage.setItem('user', JSON.stringify(user));
-          console.log('Updated test user data with is_verified flag');
         }
         
         return { isAuthenticated: true, user };
