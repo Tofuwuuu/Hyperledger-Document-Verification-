@@ -41,24 +41,46 @@ export default function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdminUser = isAdmin();
-  // Get user verification status with additional debugging
-  const isVerified = (currentUser?.is_verified || false);
   
-  // Debug the verification status and user data
+  // Get user verification status - more robust check using multiple sources
+  const [isVerified, setIsVerified] = useState(false);
+  
+  // Function to get the correct verification status
   useEffect(() => {
-    console.log('Current User Data:', currentUser);
-    console.log('Is Verified:', isVerified);
-    console.log('Is Admin:', isAdminUser);
+    const checkVerificationStatus = () => {
+      // 1. First check if we already know user is admin (admins are always verified)
+      if (isAdminUser) {
+        console.log('User is admin, automatically verified');
+        setIsVerified(true);
+        return;
+      }
+      
+      // 2. Check currentUser data from auth context
+      if (currentUser?.is_verified) {
+        console.log('User verified based on currentUser data');
+        setIsVerified(true);
+        return;
+      }
+      
+      // 3. Fallback to localStorage user data
+      try {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        if (userData && userData.is_verified) {
+          console.log('User verified based on localStorage user data');
+          setIsVerified(true);
+          return;
+        }
+      } catch (e) {
+        console.error('Error parsing user data from localStorage:', e);
+      }
+      
+      // Default to not verified if none of the above checks passed
+      console.log('User is not verified based on available data');
+      setIsVerified(false);
+    };
     
-    // Check localStorage directly as a fallback
-    try {
-      const userDataFromStorage = JSON.parse(localStorage.getItem('user') || '{}');
-      console.log('User data from localStorage:', userDataFromStorage);
-      console.log('Verification status from localStorage:', userDataFromStorage.is_verified);
-    } catch (e) {
-      console.error('Error parsing user data from localStorage:', e);
-    }
-  }, [currentUser, isVerified, isAdminUser]);
+    checkVerificationStatus();
+  }, [currentUser, isAdminUser]);
 
   const handleLogout = () => {
     logout();
@@ -725,17 +747,32 @@ export default function DashboardLayout() {
                   <span className="font-medium"> Please contact the administrator for verification.</span>
                 </p>
                 <div className="mt-2 text-xs">
-                  <span className="text-gray-500">
-                    API: {import.meta.env.VITE_API_URL || 'Not set'} | 
-                    Auth: {localStorage.getItem('token') ? 'Token exists' : 'No token'} | 
-                    <Link to="/debug-auth" className="text-blue-500 hover:underline ml-1">Debug Auth</Link> | 
-                    <button 
-                      onClick={() => window.location.reload()} 
-                      className="text-blue-500 hover:underline ml-1"
-                    >
-                      Force Refresh
-                    </button>
-                  </span>
+                  <div className="flex flex-col space-y-1 text-gray-500">
+                    <p>Having trouble with verification? Try these steps:</p>
+                    <ul className="list-disc pl-5">
+                      <li>Ensure you have filled out your profile information</li>
+                      <li>Check if you've been verified but need to refresh your login</li>
+                      <li>Contact your administrator at admin@cvsu.edu.ph for assistance</li>
+                    </ul>
+                    <div className="mt-1">
+                      <Link to="/debug-auth" className="text-blue-500 hover:underline mr-2">Auth Debug</Link> | 
+                      <button 
+                        onClick={() => {
+                          localStorage.clear();
+                          window.location.href = '/login';
+                        }} 
+                        className="text-blue-500 hover:underline mx-2"
+                      >
+                        Logout & Clear Data
+                      </button> | 
+                      <button 
+                        onClick={() => window.location.reload()} 
+                        className="text-blue-500 hover:underline ml-2"
+                      >
+                        Force Refresh
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

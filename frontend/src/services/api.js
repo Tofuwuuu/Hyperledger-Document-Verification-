@@ -13,6 +13,33 @@ console.log('API URL configured as:', API_URL); // Debug API URL
 let isRefreshing = false;
 let failedQueue = [];
 
+// Add special debugging function to check and log auth state
+const logAuthState = () => {
+  try {
+    const token = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    const userData = localStorage.getItem('user');
+    
+    console.log('Auth State Check:', { 
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenStart: token ? token.substring(0, 20) + '...' : null,
+      hasRefreshToken: !!refreshToken,
+      hasUserData: !!userData,
+      timestamp: new Date().toISOString()
+    });
+    
+    return { token, refreshToken, userData };
+  } catch (e) {
+    console.error('Error checking auth state:', e);
+    return { error: e.message };
+  }
+};
+
+// Log auth state on load
+console.log('Initial Auth State:');
+logAuthState();
+
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
     if (error) {
@@ -44,6 +71,12 @@ api.interceptors.request.use(
         config.headers['X-Admin-Bypass'] = 'true';
         console.log('Added admin bypass header to request:', config.url);
       }
+      
+      // For alumni bypass tokens, add a special header
+      if (token.startsWith('alumni_access_token_')) {
+        config.headers['X-Use-Local-User'] = 'true';
+        console.log('Added alumni bypass header to request:', config.url);
+      }
     }
     return config;
   },
@@ -58,13 +91,13 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Get the token to check if it's an admin bypass token
+    // Get the token to check if it's a bypass token
     const token = localStorage.getItem('token');
     
-    // If using admin bypass token, don't try to refresh the token
-    if (token && token.startsWith('admin_access_token_')) {
-      console.log('Admin bypass token detected - not attempting refresh for:', originalRequest.url);
-      // For admin bypass, we don't want to redirect to login on 401 either
+    // If using admin or alumni bypass token, don't try to refresh the token
+    if (token && (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_'))) {
+      console.log('Bypass token detected - not attempting refresh for:', originalRequest.url);
+      // For bypass tokens, we don't want to redirect to login on 401 either
       return Promise.reject(error);
     }
     
@@ -155,6 +188,7 @@ export const authService = {
           full_name: 'Joemarlou Opella',
           is_active: true,
           is_admin: true,
+          is_verified: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -164,6 +198,41 @@ export const authService = {
         
         // Immediately return without making API calls
         return mockAdminToken;
+      }
+      
+      // Alumni bypass for testing - for Mark Roderick Salise account
+      if (email === 'mark.roderick.salise@cvsu.edu.ph' && password === 'Alumni@12345') {
+        console.log('Using alumni bypass for login - skipping API call entirely');
+        
+        // Create mock alumni token for testing
+        const mockAlumniToken = {
+          access_token: "alumni_access_token_" + Date.now(),
+          refresh_token: "alumni_refresh_token_" + Date.now(),
+          token_type: "bearer"
+        };
+        
+        // Store in localStorage
+        localStorage.setItem('token', mockAlumniToken.access_token);
+        localStorage.setItem('refresh_token', mockAlumniToken.refresh_token);
+        
+        // Store verified alumni user info
+        const verifiedAlumni = {
+          _id: "alumni_" + Date.now(),
+          email: email,
+          full_name: 'Mark Roderick Salise',
+          is_active: true,
+          is_admin: false,
+          is_verified: true,
+          student_id: "2023-12345",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        localStorage.setItem('user', JSON.stringify(verifiedAlumni));
+        
+        console.log('Alumni bypass login successful - verified user data stored in localStorage');
+        
+        // Immediately return without making API calls
+        return mockAlumniToken;
       }
       
       // Regular login process for non-admin users
@@ -302,33 +371,73 @@ export const authService = {
     try {
       const token = localStorage.getItem('token');
       
-      if (token && token.startsWith('admin_access_token_')) {
-        console.log('Using admin bypass token - attempting real API call first');
-        
-        // Attempt a real API call first, even with admin bypass token
-        try {
-          const response = await api.get('/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'X-Admin-Bypass': 'true' // Add admin bypass header for the backend to handle
-            }
-          });
+      // Handle bypasses for special tokens
+      if (token) {
+        // Check for admin bypass token
+        if (token.startsWith('admin_access_token_')) {
+          console.log('Using admin bypass token - attempting real API call first');
           
-          if (response.status === 200) {
-            console.log('Successfully fetched real user data with admin bypass');
-            return response.data;
+          // Attempt a real API call first, even with admin bypass token
+          try {
+            const response = await api.get('/auth/me', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-Admin-Bypass': 'true' // Add admin bypass header for the backend to handle
+              }
+            });
+            
+            if (response.status === 200) {
+              console.log('Successfully fetched real user data with admin bypass');
+              return response.data;
+            }
+          } catch (error) {
+            console.log('Real API call failed, falling back to stored user data');
+            // If API call fails, fall back to stored user data
           }
-        } catch (error) {
-          console.log('Real API call failed, falling back to stored user data');
-          // If API call fails, fall back to stored user data
+          
+          // Return stored user data as fallback
+          const userData = JSON.parse(localStorage.getItem('user') || '{}');
+          console.log('Using stored user data for admin bypass');
+          return userData;
         }
         
-        // Return stored user data as fallback
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        console.log('Using stored user data for admin bypass');
-        return userData;
+        // Check for alumni bypass token
+        if (token.startsWith('alumni_access_token_')) {
+          console.log('Using alumni bypass token - attempting real API call first');
+          
+          // Attempt a real API call first, even with alumni bypass token
+          try {
+            const response = await api.get('/auth/me', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-Use-Local-User': 'true'
+              }
+            });
+            
+            if (response.status === 200) {
+              console.log('Successfully fetched real user data with alumni bypass');
+              return response.data;
+            }
+          } catch (error) {
+            console.log('Real API call failed, falling back to stored user data');
+            // If API call fails, fall back to stored user data
+          }
+          
+          // Return stored user data as fallback
+          const userData = JSON.parse(localStorage.getItem('user') || '{}');
+          console.log('Using stored user data for alumni bypass');
+          
+          // Make sure is_verified is set for alumni bypass
+          if (!userData.is_verified) {
+            userData.is_verified = true;
+            localStorage.setItem('user', JSON.stringify(userData));
+          }
+          
+          return userData;
+        }
       }
       
+      // Regular API call for normal tokens
       const response = await api.get('/auth/me');
       return response.data;
     } catch (error) {
@@ -339,12 +448,29 @@ export const authService = {
 
   checkAuth: async () => {
     try {
-      // Check if we're using admin bypass
+      // Check if we're using bypass tokens
       const token = localStorage.getItem('token');
+      
+      // Admin bypass
       if (token && token.startsWith('admin_access_token_')) {
         console.log('Using admin bypass token - returning mock auth check');
         // Get stored user data
         const user = JSON.parse(localStorage.getItem('user') || '{}');
+        return { isAuthenticated: true, user };
+      }
+      
+      // Alumni bypass
+      if (token && token.startsWith('alumni_access_token_')) {
+        console.log('Using alumni bypass token - returning mock auth check');
+        // Get stored user data
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Make sure is_verified is set for alumni bypass
+        if (!user.is_verified) {
+          user.is_verified = true;
+          localStorage.setItem('user', JSON.stringify(user));
+        }
+        
         return { isAuthenticated: true, user };
       }
       
