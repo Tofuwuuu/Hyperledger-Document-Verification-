@@ -38,8 +38,8 @@ class UserCreate(UserBase):
         return v
     
     @field_validator('confirm_password')
-    def passwords_match(cls, v, values):
-        if 'password' in values and v != values['password']:
+    def passwords_match(cls, v, info):
+        if hasattr(info, 'data') and 'password' in info.data and v != info.data['password']:
             raise ValueError('Passwords do not match')
         return v
     
@@ -88,7 +88,7 @@ class UserUpdate(BaseModel):
         return v.strip()
     
     @field_validator('password')
-    def validate_password_strength(cls, v, values):
+    def validate_password_strength(cls, v):
         if v is None:
             return v
         if len(v) < 8:
@@ -102,10 +102,10 @@ class UserUpdate(BaseModel):
         return v
     
     @field_validator('confirm_password')
-    def passwords_match(cls, v, values):
+    def passwords_match(cls, v, info):
         if v is None:
             return v
-        if 'password' in values and v != values['password']:
+        if hasattr(info, 'data') and 'password' in info.data and v != info.data['password']:
             raise ValueError('Passwords do not match')
         return v
     
@@ -138,8 +138,8 @@ class PasswordChange(BaseModel):
         return v
     
     @field_validator('confirm_password')
-    def passwords_match(cls, v, values):
-        if 'new_password' in values and v != values['new_password']:
+    def passwords_match(cls, v, info):
+        if hasattr(info, 'data') and 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
         return v
     
