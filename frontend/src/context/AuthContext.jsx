@@ -36,9 +36,28 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       console.log('Loading user data from API or local storage');
-      // Attempt to get current user - will automatically handle admin bypass fallback
+      
+      // Check for admin or alumni bypass tokens that should use localStorage data instead of API calls
+      if (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_')) {
+        console.log('Using bypass token - skipping API call and using localStorage data');
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (userData && userData.email) {
+          console.log('User data loaded from localStorage:', userData);
+          setCurrentUser(userData);
+          setIsAuthenticated(true);
+          return userData;
+        } else {
+          console.error('No valid user data found in localStorage for bypass token');
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+          return null;
+        }
+      }
+      
+      // For regular tokens, use API call
       const userData = await authService.getCurrentUser();
-      console.log('User data loaded:', userData);
+      console.log('User data loaded from API:', userData);
       
       if (userData) {
         setCurrentUser(userData);
@@ -71,7 +90,31 @@ export const AuthProvider = ({ children }) => {
   const forceRefreshUserData = useCallback(async () => {
     console.log('Force refreshing user data from API');
     try {
-      // Use the more aggressive reload function that bypasses all caches
+      const token = localStorage.getItem('token');
+      
+      // Check for admin or alumni bypass tokens that should use localStorage data
+      if (token && (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_'))) {
+        console.log('Using bypass token - skipping API call for force refresh');
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (userData && userData.email) {
+          console.log('Ensuring bypass user data has verified flag set to true');
+          // Make sure is_verified is set to true for bypass tokens
+          if (!userData.is_verified) {
+            userData.is_verified = true;
+            localStorage.setItem('user', JSON.stringify(userData));
+          }
+          
+          setCurrentUser(userData);
+          setIsAuthenticated(true);
+          return userData;
+        } else {
+          console.error('No valid user data found in localStorage for bypass token');
+          return null;
+        }
+      }
+      
+      // For regular tokens, use the aggressive reload
       const userData = await authService.reloadUserWithFreshData();
       
       if (userData) {

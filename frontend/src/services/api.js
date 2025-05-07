@@ -166,7 +166,6 @@ export const authService = {
     console.log("Performing complete user data reload...");
     
     // Clear all caches related to user data
-    localStorage.removeItem('user');
     localStorage.removeItem('user_verification');
     
     // Get the token
@@ -175,6 +174,27 @@ export const authService = {
     if (!token) {
       console.log("No authentication token found");
       return null;
+    }
+    
+    // Special case: Handle admin or alumni bypass tokens
+    if (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_')) {
+      console.log("Using bypass token - returning cached data with verification flag set");
+      
+      // For bypass tokens, use the stored user data
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      // Make sure is_verified is set to true for bypass tokens
+      if (userData && userData.email) {
+        if (!userData.is_verified) {
+          userData.is_verified = true;
+          localStorage.setItem('user', JSON.stringify(userData));
+          console.log("Updated user data with is_verified flag");
+        }
+        return userData;
+      } else {
+        console.error("No valid user data found in localStorage for bypass token");
+        return null;
+      }
     }
     
     try {
@@ -414,6 +434,26 @@ export const authService = {
       return null;
     }
     
+    // Special case: Handle admin or alumni bypass tokens consistently
+    if (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_')) {
+      console.log("getCurrentUser: Using bypass token - returning local data");
+      
+      // For bypass tokens, just return the stored user data
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      if (userData && userData.email) {
+        // Make sure is_verified flag is set
+        if (!userData.is_verified) {
+          userData.is_verified = true;
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
+        return userData;
+      } else {
+        console.error("No valid user data found in localStorage for bypass token");
+        return null;
+      }
+    }
+    
+    // For regular tokens, make the API call
     try {
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: {
@@ -437,6 +477,14 @@ export const authService = {
         console.log('Using admin bypass token - returning mock auth check');
         // Get stored user data
         const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Make sure admin user has is_verified=true
+        if (user && user.email && !user.is_verified) {
+          user.is_verified = true;
+          localStorage.setItem('user', JSON.stringify(user));
+          console.log('Updated admin user data with is_verified flag');
+        }
+        
         return { isAuthenticated: true, user };
       }
       
@@ -446,10 +494,11 @@ export const authService = {
         // Get stored user data
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         
-        // Make sure is_verified is set for alumni bypass
-        if (!user.is_verified) {
+        // Make sure alumni user has is_verified=true
+        if (user && user.email && !user.is_verified) {
           user.is_verified = true;
           localStorage.setItem('user', JSON.stringify(user));
+          console.log('Updated alumni user data with is_verified flag');
         }
         
         return { isAuthenticated: true, user };
