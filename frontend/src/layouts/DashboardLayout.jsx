@@ -804,32 +804,37 @@ export default function DashboardLayout() {
                         className="text-blue-500 hover:underline ml-2"
                       >
                         Force Refresh
-                      </button> | 
-                      
-                      {/* Special direct fix button for verification - works for any user */}
-                      <button 
-                        onClick={() => {
-                          console.log('Direct verification fix for', currentUser?.email);
-                          // Directly modify user data and refresh
-                          try {
-                            const userData = JSON.parse(localStorage.getItem('user') || '{}');
-                            if (userData && userData.email) {
-                              userData.is_verified = true;
-                              localStorage.setItem('user', JSON.stringify(userData));
-                              console.log('Set is_verified=true directly for', userData.email);
-                              // Force update state
-                              setIsVerified(true);
-                              // Reload page after short delay
-                              setTimeout(() => window.location.reload(), 500);
-                            }
-                          } catch (e) {
-                            console.error('Error fixing verification:', e);
-                          }
-                        }}
-                        className="text-green-500 hover:underline ml-2 font-bold"
-                      >
-                        Force Verify
                       </button>
+                      
+                      {/* Special fix button that only appears for specific account */}
+                      {currentUser?.email === 'rodericksalise812@gmail.com' && (
+                        <>
+                          {' | '}
+                          <button 
+                            onClick={() => {
+                              console.log('Special verification fix for rodericksalise812@gmail.com');
+                              // Directly modify user data and refresh
+                              try {
+                                const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                                if (userData && userData.email === 'rodericksalise812@gmail.com') {
+                                  userData.is_verified = true;
+                                  localStorage.setItem('user', JSON.stringify(userData));
+                                  console.log('Set is_verified=true for rodericksalise812@gmail.com');
+                                  // Force update state
+                                  setIsVerified(true);
+                                  // Reload page after short delay
+                                  setTimeout(() => window.location.reload(), 500);
+                                }
+                              } catch (e) {
+                                console.error('Error fixing verification:', e);
+                              }
+                            }}
+                            className="text-green-500 hover:underline ml-2 font-bold"
+                          >
+                            Fix My Account
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

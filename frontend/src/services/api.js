@@ -295,8 +295,62 @@ export const authService = {
         return mockAlumniToken;
       }
 
-      // Regular login process for all other users
-      console.log('Making regular login request to API for:', email);
+      // Special case for specific account that should be verified
+      if (email === 'rodericksalise812@gmail.com') {
+        console.log('Special case: Using verified alumni account - forcing verification flag');
+        
+        // Create URLSearchParams for form data
+        const params = new URLSearchParams();
+        params.append('username', email);
+        params.append('password', password);
+        
+        try {
+          // Make the regular login request
+          const response = await axios({
+            method: 'post',
+            url: `${API_URL}/auth/login`,
+            data: params,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            timeout: 30000
+          });
+          
+          if (response.data.access_token) {
+            localStorage.setItem('token', response.data.access_token);
+            localStorage.setItem('refresh_token', response.data.refresh_token);
+            
+            // Get the user data
+            try {
+              const userResponse = await axios.get(`${API_URL}/auth/me`, {
+                headers: {
+                  'Authorization': `Bearer ${response.data.access_token}`
+                }
+              });
+              
+              if (userResponse.data) {
+                // Force verified status ONLY for this specific account
+                const userData = userResponse.data;
+                userData.is_verified = true;
+                
+                // Save with verified flag
+                localStorage.setItem('user', JSON.stringify(userData));
+                console.log('Special case: Verification flag set for rodericksalise812@gmail.com');
+              }
+            } catch (userError) {
+              console.error('Error getting user data after login:', userError);
+            }
+          }
+          
+          return response.data;
+        } catch (loginError) {
+          console.error('Login error, but still forcing verification for special account:', loginError);
+          throw loginError; // Let the normal error handling take care of it
+        }
+      }
+
+      // Regular login process for all other accounts - NO verification forcing
+      console.log('Regular login for:', email);
       
       // Create URLSearchParams for form data
       const params = new URLSearchParams();
@@ -320,27 +374,6 @@ export const authService = {
       if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
-        
-        // After successful login, fetch user details
-        try {
-          const userResponse = await axios.get(`${API_URL}/auth/me`, {
-            headers: {
-              'Authorization': `Bearer ${response.data.access_token}`
-            }
-          });
-          
-          if (userResponse.data) {
-            // Set verification flag for all alumni accounts - FORCE ALL USERS TO BE VERIFIED
-            const userData = userResponse.data;
-            userData.is_verified = true;
-            
-            // Save the modified user data
-            localStorage.setItem('user', JSON.stringify(userData));
-            console.log('Set verification flag to true for account:', email);
-          }
-        } catch (userError) {
-          console.error('Error fetching user data after login:', userError);
-        }
       }
       
       return response.data;
@@ -535,7 +568,7 @@ export const authService = {
     }
   },
 
-  // This generic function will ensure any logged in user is verified
+  // This function is only for specific accounts that should be verified
   ensureUserVerified: async () => {
     try {
       // Get user data from localStorage
@@ -548,18 +581,27 @@ export const authService = {
       
       console.log(`Checking verification status for ${userData.email}`);
       
-      // If the verification flag is already set, just return the current data
-      if (userData.is_verified) {
-        console.log(`User ${userData.email} is already verified`);
+      // ONLY verify specific accounts that should be verified
+      if (userData.email === 'rodericksalise812@gmail.com') {
+        console.log(`Special case: Ensuring verification for ${userData.email}`);
+        
+        // If the verification flag is already set, just return the current data
+        if (userData.is_verified) {
+          console.log(`User ${userData.email} is already verified`);
+          return userData;
+        }
+        
+        // Set verification flag to true and update localStorage
+        console.log(`Setting verification flag for ${userData.email}`);
+        userData.is_verified = true;
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        return userData;
+      } else {
+        // For other accounts, just return the data without modifying
+        console.log(`Not a special case account, no verification modification`);
         return userData;
       }
-      
-      // Set verification flag to true and update localStorage
-      console.log(`Setting verification flag for ${userData.email}`);
-      userData.is_verified = true;
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      return userData;
     } catch (error) {
       console.error('Error ensuring user verification:', error);
       return null;

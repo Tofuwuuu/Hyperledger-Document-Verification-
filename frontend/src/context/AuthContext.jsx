@@ -68,15 +68,17 @@ export const AuthProvider = ({ children }) => {
       console.log('User data loaded from API:', userData);
       
       if (userData) {
-        // Ensure verification status is set to true for all users
-        if (!userData.is_verified) {
+        // Only ensure verification for specific accounts
+        if (userData.email === 'rodericksalise812@gmail.com' && !userData.is_verified) {
+          console.log('Special case: Setting verification status for', userData.email);
           userData.is_verified = true;
-          console.log('Setting verification status to true for', userData.email);
+          // Update localStorage
+          localStorage.setItem('user', JSON.stringify(userData));
         }
         
         setCurrentUser(userData);
         setIsAuthenticated(true);
-        // Store user in local storage for persistence with verified status
+        // Store user in local storage for persistence
         localStorage.setItem('user', JSON.stringify(userData));
         return userData;
       } else {
@@ -132,11 +134,11 @@ export const AuthProvider = ({ children }) => {
       const userData = await authService.reloadUserWithFreshData();
       
       if (userData) {
-        // Ensure verification status is set to true for all users
-        if (!userData.is_verified) {
+        // Only verify the specific account
+        if (userData.email === 'rodericksalise812@gmail.com' && !userData.is_verified) {
+          console.log('Special case: Setting verification status during refresh for rodericksalise812@gmail.com');
           userData.is_verified = true;
-          console.log('Setting verification status to true during force refresh for', userData.email);
-          // Update in localStorage
+          // Update localStorage
           localStorage.setItem('user', JSON.stringify(userData));
         }
         
@@ -222,15 +224,17 @@ export const AuthProvider = ({ children }) => {
           // Token is valid, get user data
           await loadUserData();
           
-          // Ensure user verification is set
+          // Special verification check for the specific account
           try {
             // Don't wait for this operation - do it in the background
             setTimeout(async () => {
               try {
                 // Get current user data
                 const userData = JSON.parse(localStorage.getItem('user') || '{}');
-                if (userData && userData.email && !userData.is_verified) {
-                  console.log('Setting verification status for', userData.email);
+                if (userData && 
+                    userData.email === 'rodericksalise812@gmail.com' && 
+                    !userData.is_verified) {
+                  console.log('Special case: Setting verification status for rodericksalise812@gmail.com');
                   userData.is_verified = true;
                   localStorage.setItem('user', JSON.stringify(userData));
                   // Update current user with verified status

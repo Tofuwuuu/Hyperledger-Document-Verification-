@@ -1,4 +1,5 @@
 // Utility script to check user state and force verification if needed
+// IMPORTANT: This script ONLY handles a specific account that needs verification
 
 function checkAndFixUserVerification() {
   console.log('Checking user verification status...');
@@ -19,25 +20,37 @@ function checkAndFixUserVerification() {
       };
     }
     
-    // Set verification status to true for any account
-    if (!userData.is_verified) {
-      userData.is_verified = true;
-      localStorage.setItem('user', JSON.stringify(userData));
-      console.log('Updated is_verified to true for ' + userData.email);
+    // ONLY target the specific account
+    if (userData.email === 'rodericksalise812@gmail.com') {
+      console.log('Found target account - ensuring verification is set');
       
-      // Return the updated user
-      return {
-        success: true,
-        message: 'Account verification status updated for ' + userData.email,
-        verified: true,
-        user: userData
-      };
+      // Set verification status to true for this specific account
+      if (!userData.is_verified) {
+        userData.is_verified = true;
+        localStorage.setItem('user', JSON.stringify(userData));
+        console.log('Updated is_verified to true for rodericksalise812@gmail.com');
+        
+        // Return the updated user
+        return {
+          success: true,
+          message: 'Account verification status updated for rodericksalise812@gmail.com',
+          verified: true,
+          user: userData
+        };
+      } else {
+        console.log('User already verified in localStorage');
+        return {
+          success: true,
+          message: 'User already verified',
+          verified: true,
+          user: userData
+        };
+      }
     } else {
-      console.log('User already verified in localStorage');
+      console.log('Not the target account - no modifications made');
       return {
-        success: true,
-        message: 'User already verified',
-        verified: true,
+        success: false,
+        message: 'This tool is only for specific accounts that need to be verified',
         user: userData
       };
     }
@@ -58,7 +71,7 @@ console.log('Check result:', result);
 // If in browser environment, show alert
 if (typeof window !== 'undefined') {
   if (result.success) {
-    alert('Verification status updated successfully for ' + (result.user?.email || 'unknown user') + '! Please refresh the page.');
+    alert('Verification status updated successfully for rodericksalise812@gmail.com! Please refresh the page.');
   } else {
     alert('Unable to update verification status: ' + result.message);
   }
