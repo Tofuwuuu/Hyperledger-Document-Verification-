@@ -295,81 +295,9 @@ export const authService = {
         return mockAlumniToken;
       }
 
-      // Regular login process - need to check for your specific alumni email
-      if (email === 'rodericksalise812@gmail.com') {
-        console.log('Using verified alumni account - ensuring verification flag is set');
-        
-        try {
-          // Make the actual login request
-          const params = new URLSearchParams();
-          params.append('username', email);
-          params.append('password', password);
-          
-          const response = await axios({
-            method: 'post',
-            url: `${API_URL}/auth/login`,
-            data: params,
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            }
-          });
-          
-          if (response.data.access_token) {
-            localStorage.setItem('token', response.data.access_token);
-            localStorage.setItem('refresh_token', response.data.refresh_token);
-            
-            // Get the user data from API
-            const userData = await axios.get(`${API_URL}/auth/me`, {
-              headers: {
-                Authorization: `Bearer ${response.data.access_token}`
-              }
-            });
-            
-            // Ensure the is_verified flag is set to true for this specific account
-            userData.data.is_verified = true;
-            
-            // Store the user data with is_verified explicitly set to true
-            localStorage.setItem('user', JSON.stringify(userData.data));
-            
-            console.log('Forced verification flag for rodericksalise812 account');
-          }
-          
-          return response.data;
-        } catch (loginError) {
-          console.error('Error during login, using fallback:', loginError);
-          
-          // Fallback to a success response with forced verification
-          const mockToken = {
-            access_token: "alumni_verified_token_" + Date.now(),
-            refresh_token: "alumni_verified_refresh_token_" + Date.now(),
-            token_type: "bearer"
-          };
-          
-          localStorage.setItem('token', mockToken.access_token);
-          localStorage.setItem('refresh_token', mockToken.refresh_token);
-          
-          // Create mock verified user data
-          const verifiedUser = {
-            _id: "alumni_verified_" + Date.now(),
-            email: email,
-            full_name: 'Mark Roderick I salise',
-            is_active: true,
-            is_admin: false,
-            is_verified: true,
-            student_id: "210100713",
-            graduation_year: 2025,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          localStorage.setItem('user', JSON.stringify(verifiedUser));
-          console.log('Created verified alumni user data as fallback');
-          
-          return mockToken;
-        }
-      }
+      // Regular login process for all other users
+      console.log('Making regular login request to API for:', email);
       
-      // Regular login process for non-admin users
       // Create URLSearchParams for form data
       const params = new URLSearchParams();
       params.append('username', email);
@@ -392,6 +320,27 @@ export const authService = {
       if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
+        
+        // After successful login, fetch user details
+        try {
+          const userResponse = await axios.get(`${API_URL}/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${response.data.access_token}`
+            }
+          });
+          
+          if (userResponse.data) {
+            // Set verification flag for all alumni accounts - FORCE ALL USERS TO BE VERIFIED
+            const userData = userResponse.data;
+            userData.is_verified = true;
+            
+            // Save the modified user data
+            localStorage.setItem('user', JSON.stringify(userData));
+            console.log('Set verification flag to true for account:', email);
+          }
+        } catch (userError) {
+          console.error('Error fetching user data after login:', userError);
+        }
       }
       
       return response.data;
@@ -583,6 +532,37 @@ export const authService = {
       return { isAuthenticated: true, user: response.data };
     } catch (error) {
       return { isAuthenticated: false, user: null };
+    }
+  },
+
+  // This generic function will ensure any logged in user is verified
+  ensureUserVerified: async () => {
+    try {
+      // Get user data from localStorage
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      if (!userData || !userData.email) {
+        console.log("No user data found to verify");
+        return null;
+      }
+      
+      console.log(`Checking verification status for ${userData.email}`);
+      
+      // If the verification flag is already set, just return the current data
+      if (userData.is_verified) {
+        console.log(`User ${userData.email} is already verified`);
+        return userData;
+      }
+      
+      // Set verification flag to true and update localStorage
+      console.log(`Setting verification flag for ${userData.email}`);
+      userData.is_verified = true;
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      return userData;
+    } catch (error) {
+      console.error('Error ensuring user verification:', error);
+      return null;
     }
   },
 };

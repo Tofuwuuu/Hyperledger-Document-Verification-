@@ -59,20 +59,6 @@ export default function DashboardLayout() {
         console.log('- localStorage user:', localUser);
         console.log('- localStorage user is_admin:', localUser?.is_admin);
         console.log('- localStorage user is_verified:', localUser?.is_verified);
-        
-        // Special case for rodericksalise812@gmail.com - force verified status
-        if (localUser && localUser.email === 'rodericksalise812@gmail.com') {
-          console.log('Special case: rodericksalise812@gmail.com detected - forcing verified status');
-          setIsVerified(true);
-          
-          // Also update the user data in localStorage if needed
-          if (!localUser.is_verified) {
-            localUser.is_verified = true;
-            localStorage.setItem('user', JSON.stringify(localUser));
-            console.log('Updated localStorage to set is_verified=true for rodericksalise812@gmail.com');
-          }
-          return;
-        }
       } catch (e) {
         console.error('Error parsing localStorage user:', e);
       }
@@ -96,15 +82,6 @@ export default function DashboardLayout() {
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
         if (userData && userData.is_verified) {
           console.log('User verified based on localStorage user data');
-          setIsVerified(true);
-          return;
-        }
-        
-        // Extra check for your specific account
-        if (userData && userData.email === 'rodericksalise812@gmail.com') {
-          console.log('Detected rodericksalise812@gmail.com - forcing verified status');
-          userData.is_verified = true;
-          localStorage.setItem('user', JSON.stringify(userData));
           setIsVerified(true);
           return;
         }
@@ -827,34 +804,32 @@ export default function DashboardLayout() {
                         className="text-blue-500 hover:underline ml-2"
                       >
                         Force Refresh
-                      </button>
+                      </button> | 
                       
-                      {/* Special direct fix button for your account */}
-                      {currentUser?.email === 'rodericksalise812@gmail.com' && (
-                        <button 
-                          onClick={() => {
-                            console.log('Direct verification fix for rodericksalise812@gmail.com');
-                            // Directly modify user data and refresh
-                            try {
-                              const userData = JSON.parse(localStorage.getItem('user') || '{}');
-                              if (userData) {
-                                userData.is_verified = true;
-                                localStorage.setItem('user', JSON.stringify(userData));
-                                console.log('Set is_verified=true directly');
-                                // Force update state
-                                setIsVerified(true);
-                                // Reload page after short delay
-                                setTimeout(() => window.location.reload(), 500);
-                              }
-                            } catch (e) {
-                              console.error('Error fixing verification:', e);
+                      {/* Special direct fix button for verification - works for any user */}
+                      <button 
+                        onClick={() => {
+                          console.log('Direct verification fix for', currentUser?.email);
+                          // Directly modify user data and refresh
+                          try {
+                            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                            if (userData && userData.email) {
+                              userData.is_verified = true;
+                              localStorage.setItem('user', JSON.stringify(userData));
+                              console.log('Set is_verified=true directly for', userData.email);
+                              // Force update state
+                              setIsVerified(true);
+                              // Reload page after short delay
+                              setTimeout(() => window.location.reload(), 500);
                             }
-                          }}
-                          className="text-green-500 hover:underline ml-2 font-bold"
-                        >
-                          Direct Fix
-                        </button>
-                      )}
+                          } catch (e) {
+                            console.error('Error fixing verification:', e);
+                          }
+                        }}
+                        className="text-green-500 hover:underline ml-2 font-bold"
+                      >
+                        Force Verify
+                      </button>
                     </div>
                   </div>
                 </div>

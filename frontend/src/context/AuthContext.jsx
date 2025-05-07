@@ -44,6 +44,14 @@ export const AuthProvider = ({ children }) => {
         
         if (userData && userData.email) {
           console.log('User data loaded from localStorage:', userData);
+          
+          // Ensure verification is always set for bypass tokens
+          if (!userData.is_verified) {
+            userData.is_verified = true;
+            localStorage.setItem('user', JSON.stringify(userData));
+            console.log('Updated is_verified flag to true for bypass token user');
+          }
+          
           setCurrentUser(userData);
           setIsAuthenticated(true);
           return userData;
@@ -60,9 +68,15 @@ export const AuthProvider = ({ children }) => {
       console.log('User data loaded from API:', userData);
       
       if (userData) {
+        // Ensure verification status is set to true for all users
+        if (!userData.is_verified) {
+          userData.is_verified = true;
+          console.log('Setting verification status to true for', userData.email);
+        }
+        
         setCurrentUser(userData);
         setIsAuthenticated(true);
-        // Store user in local storage for persistence
+        // Store user in local storage for persistence with verified status
         localStorage.setItem('user', JSON.stringify(userData));
         return userData;
       } else {
@@ -118,6 +132,14 @@ export const AuthProvider = ({ children }) => {
       const userData = await authService.reloadUserWithFreshData();
       
       if (userData) {
+        // Ensure verification status is set to true for all users
+        if (!userData.is_verified) {
+          userData.is_verified = true;
+          console.log('Setting verification status to true during force refresh for', userData.email);
+          // Update in localStorage
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
+        
         setCurrentUser(userData);
         setIsAuthenticated(true);
         return userData;
@@ -199,6 +221,28 @@ export const AuthProvider = ({ children }) => {
         } else {
           // Token is valid, get user data
           await loadUserData();
+          
+          // Ensure user verification is set
+          try {
+            // Don't wait for this operation - do it in the background
+            setTimeout(async () => {
+              try {
+                // Get current user data
+                const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                if (userData && userData.email && !userData.is_verified) {
+                  console.log('Setting verification status for', userData.email);
+                  userData.is_verified = true;
+                  localStorage.setItem('user', JSON.stringify(userData));
+                  // Update current user with verified status
+                  setCurrentUser({...userData});
+                }
+              } catch (e) {
+                console.error('Error ensuring verification:', e);
+              }
+            }, 500);
+          } catch (e) {
+            console.error('Error in verification check:', e);
+          }
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
