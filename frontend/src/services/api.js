@@ -893,6 +893,20 @@ export const alumniService = {
       return api.get('/alumni', { params });
     } catch (error) {
       console.error('Error fetching alumni list:', error);
+      
+      // Return a fallback empty response to prevent UI errors
+      if (error.isNetworkError || error.response?.status >= 500) {
+        console.log('Returning fallback empty alumni list due to server error');
+        return {
+          data: {
+            results: [],
+            total: 0,
+            limit: params.limit || 10,
+            offset: params.offset || 0
+          }
+        };
+      }
+      
       throw error;
     }
   },
