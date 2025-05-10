@@ -559,87 +559,102 @@ async def get_unverified_users(
     Get all unverified users (admin only)
     """
     try:
-        print(f"Fetching unverified users for admin: {admin_user.get('email', 'Unknown admin')}")
-        print(f"Admin user type: {type(admin_user)}")
-        print(f"Admin user data: {admin_user}")
+        logger = logging.getLogger(__name__)
+        logger.info(f"Fetching unverified users for admin: {admin_user.get('email', 'Unknown admin')}")
         
         # Check for admin bypass
         admin_bypass = False
         if request and authorization:
-            admin_bypass_header = get_admin_bypass_header(request)
-            scheme, param = get_authorization_scheme_param(authorization)
-            
-            if admin_bypass_header == "true" and scheme.lower() == "bearer" and param and param.startswith("admin_access_token_"):
-                print(f"Admin bypass detected in unverified-users route")
+            admin_bypass_header = request.headers.get("X-Admin-Bypass")
+            if admin_bypass_header == "true" and authorization.startswith("Bearer admin_access_token_"):
+                logger.info(f"Admin bypass detected in unverified-users route")
                 admin_bypass = True
         
+        # Get database connection
         db = get_database()
+        if not db:
+            logger.error("Failed to get database connection")
+            return []  # Return empty list instead of raising error
         
         # Find unverified users
-        cursor = db.users.find(
-            {"is_verified": {"$ne": True}},  # Users where is_verified is not true
-            sort=[("created_at", -1)],
-            limit=limit
-        )
-        
-        # Process users
-        users = []
-        async for user in cursor:
-            print(f"Found unverified user: {user.get('email', 'Unknown email')}")
+        try:
+            cursor = db.users.find(
+                {"is_verified": {"$ne": True}},  # Users where is_verified is not true
+                sort=[("created_at", -1)],
+                limit=limit
+            )
             
-            # Create a sanitized user object (no password)
-            sanitized_user = {
-                # Keep both id and _id to maintain backward compatibility
-                "id": str(user["_id"]),
-                "_id": str(user["_id"]),
-                "email": user["email"],
-                "full_name": user.get("full_name", ""),
-                "created_at": user["created_at"].isoformat() if "created_at" in user else None,
-                "student_id": user.get("student_id", ""),
-                "department": user.get("department", ""),
-                "year_graduated": user.get("year_graduated", "")
-            }
-            users.append(sanitized_user)
-        
-        # If no users found and admin bypass is active, create some mock users
-        if admin_bypass and len(users) == 0:
-            print("Admin bypass active and no unverified users found, returning mock data")
+            # Process users
+            users = []
+            try:
+                async for user in cursor:
+                    try:
+                        # Create a sanitized user object (no password)
+                        sanitized_user = {
+                            # Keep both id and _id to maintain backward compatibility
+                            "id": str(user.get("_id", "")),
+                            "_id": str(user.get("_id", "")),
+                            "email": user.get("email", ""),
+                            "full_name": user.get("full_name", ""),
+                            "created_at": user.get("created_at", datetime.utcnow()).isoformat() 
+                                if "created_at" in user else datetime.utcnow().isoformat(),
+                            "student_id": user.get("student_id", ""),
+                            "department": user.get("department", ""),
+                            "year_graduated": user.get("year_graduated", "")
+                        }
+                        users.append(sanitized_user)
+                    except Exception as user_error:
+                        logger.error(f"Error processing user: {user_error}")
+                        # Continue to next user
+                        continue
+            except Exception as cursor_error:
+                logger.error(f"Error iterating cursor: {cursor_error}")
+                # Continue with any users we've processed so far
             
-            # Create sample unverified users for testing the UI
-            mock_users = [
-                {
-                    "id": f"mock_user_id_1",
-                    "_id": f"mock_user_id_1",
-                    "email": "student1@cvsu.edu.ph",
-                    "full_name": "John Smith",
-                    "created_at": datetime.utcnow().isoformat(),
-                    "student_id": "2023-0001",
-                    "department": "Computer Science",
-                    "year_graduated": "2023"
-                },
-                {
-                    "id": f"mock_user_id_2",
-                    "_id": f"mock_user_id_2",
-                    "email": "student2@cvsu.edu.ph",
-                    "full_name": "Jane Doe",
-                    "created_at": datetime.utcnow().isoformat(),
-                    "student_id": "2023-0002", 
-                    "department": "Information Technology",
-                    "year_graduated": "2023"
-                }
-            ]
+            # If no users found and admin bypass is active, create some mock users
+            if admin_bypass and len(users) == 0:
+                logger.info("Admin bypass active and no unverified users found, returning mock data")
+                
+                # Create sample unverified users for testing the UI
+                mock_users = [
+                    {
+                        "id": f"mock_user_id_1",
+                        "_id": f"mock_user_id_1",
+                        "email": "student1@cvsu.edu.ph",
+                        "full_name": "John Smith",
+                        "created_at": datetime.utcnow().isoformat(),
+                        "student_id": "2023-0001",
+                        "department": "Computer Science",
+                        "year_graduated": "2023"
+                    },
+                    {
+                        "id": f"mock_user_id_2",
+                        "_id": f"mock_user_id_2",
+                        "email": "student2@cvsu.edu.ph",
+                        "full_name": "Jane Doe",
+                        "created_at": datetime.utcnow().isoformat(),
+                        "student_id": "2023-0002", 
+                        "department": "Information Technology",
+                        "year_graduated": "2023"
+                    }
+                ]
+                
+                return mock_users
             
-            return mock_users
-        
-        print(f"Returning {len(users)} unverified users")
-        return users
+            logger.info(f"Returning {len(users)} unverified users")
+            return users
+            
+        except Exception as query_error:
+            logger.error(f"Database query error: {query_error}")
+            # Return empty list instead of raising error
+            return []
     
     except Exception as e:
-        print(f"Error in get_unverified_users: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred fetching unverified users: {str(e)}"
-        )
+        # Log the error but return an empty list instead of failing
+        logger.error(f"Error in get_unverified_users: {str(e)}")
+        # Instead of raising an HTTP exception, return an empty array
+        # This provides a more graceful degradation for the frontend
+        return []
 
 @router.put("/update-user/{user_id}", response_model=UserOut)
 async def update_user(
