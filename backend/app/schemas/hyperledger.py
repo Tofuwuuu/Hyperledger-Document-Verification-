@@ -48,13 +48,14 @@ class HyperledgerNetworkBase(BaseModel):
             raise ValueError('Connection profile must be a dictionary')
         return v
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
         }
+    }
 
 
 class HyperledgerNetworkCreate(HyperledgerNetworkBase):
@@ -79,14 +80,15 @@ class HyperledgerNetworkUpdate(BaseModel):
             raise ValueError('Connection profile must be a dictionary')
         return v
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
-        }
-        extra = "forbid"  # Forbid extra fields that would be ignored
+        },
+        "extra": "forbid"  # Forbid extra fields that would be ignored
+    }
 
 
 class HyperledgerNetworkOut(HyperledgerNetworkBase):
@@ -102,13 +104,14 @@ class HyperledgerNetworkOut(HyperledgerNetworkBase):
         """Alias for _id."""
         return self._id
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
         }
+    }
 
 
 class HyperledgerChannelBase(BaseModel):
@@ -126,13 +129,14 @@ class HyperledgerChannelBase(BaseModel):
             raise ValueError('Invalid network_id format')
         return v
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
         }
+    }
 
 
 class HyperledgerChannelCreate(HyperledgerChannelBase):
@@ -147,14 +151,15 @@ class HyperledgerChannelUpdate(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
-        }
-        extra = "forbid"  # Forbid extra fields that would be ignored
+        },
+        "extra": "forbid"  # Forbid extra fields that would be ignored
+    }
 
 
 class HyperledgerChannelOut(HyperledgerChannelBase):
@@ -169,13 +174,14 @@ class HyperledgerChannelOut(HyperledgerChannelBase):
         """Alias for _id."""
         return self._id
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
         }
+    }
 
 
 class HyperledgerChaincodeBase(BaseModel):
@@ -203,13 +209,14 @@ class HyperledgerChaincodeBase(BaseModel):
             raise ValueError('Invalid channel_id format')
         return v
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
         }
+    }
 
 
 class HyperledgerChaincodeCreate(HyperledgerChaincodeBase):
@@ -234,14 +241,15 @@ class HyperledgerChaincodeUpdate(BaseModel):
                 raise ValueError('Version must be in semantic versioning format (e.g., 1.0.0)')
         return v
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
-        }
-        extra = "forbid"  # Forbid extra fields that would be ignored
+        },
+        "extra": "forbid"  # Forbid extra fields that would be ignored
+    }
 
 
 class HyperledgerChaincodeOut(HyperledgerChaincodeBase):
@@ -257,10 +265,11 @@ class HyperledgerChaincodeOut(HyperledgerChaincodeBase):
         """Alias for _id."""
         return self._id
     
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        validate_assignment = True
-        json_encoders = {
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+        "json_encoders": {
             ObjectId: str
-        } 
+        }
+    } 

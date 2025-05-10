@@ -349,14 +349,16 @@ class AlumniInDB(AlumniBase):
     created_at: datetime = Field(..., description="Profile creation timestamp")
     updated_at: datetime = Field(..., description="Profile last update timestamp")
     
-    class Config:
-        allow_population_by_field_name = True
+    model_config = {
+        "populate_by_name": True
+    }
 
 class AlumniOut(AlumniInDB):
     verified_documents: Optional[List[str]] = Field(None, description="List of verified document IDs")
     
-    class Config:
-        allow_population_by_field_name = True
+    model_config = {
+        "populate_by_name": True
+    }
 
 class AlumniSearchParams(BaseModel):
     name: Optional[str] = Field(None, description="Search by name")
