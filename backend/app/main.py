@@ -35,22 +35,28 @@ app = FastAPI(
     swagger_ui_parameters={"tryItOutEnabled": True},
 )
 
-# Get CORS origins from environment or use defaults
-cors_origins = [
-    "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
-    "http://localhost:3000",  # Local development
-    "http://localhost:5173",  # Vite development
-    "http://127.0.0.1:5173",   # Alternative local
-]
-
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,  # Use specific origins instead of wildcard
+    allow_origins=[
+        "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
+        "http://localhost:3000",  # Local development
+        "http://localhost:5173",  # Vite development
+        "http://127.0.0.1:5173",   # Alternative local
+        "*"  # Temporarily allow all origins for debugging
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["Content-Length", "Content-Range"],
+    allow_headers=[
+        "Content-Type", 
+        "Authorization", 
+        "Accept", 
+        "X-CSRF-Token", 
+        "X-Requested-With",
+        "X-Admin-Bypass",
+        "X-Use-Local-User"
+    ],
+    expose_headers=["Content-Length", "Content-Range", "X-CSRF-Token"],
     max_age=86400,  # 1 day in seconds
 )
 

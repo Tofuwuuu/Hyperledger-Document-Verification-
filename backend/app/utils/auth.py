@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 import os
 from dotenv import load_dotenv
 import logging
+from pydantic import BaseModel
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -16,6 +17,10 @@ logger = logging.getLogger(__name__)
 from app.config.database import get_database
 from app.models.user import User
 import hashlib
+
+# Define TokenData class
+class TokenData(BaseModel):
+    user_id: str
 
 load_dotenv()
 
