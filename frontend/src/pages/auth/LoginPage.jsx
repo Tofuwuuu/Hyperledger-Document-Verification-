@@ -96,7 +96,7 @@ export default function LoginPage() {
       }
       // If login is successful but no MFA, the useEffect will redirect
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login error:', error);
       
       // Enhanced error messages based on error types
       if (error.response) {
@@ -104,24 +104,31 @@ export default function LoginPage() {
         const errorDetail = error.response.data?.detail || '';
         
         if (status === 401) {
-          if (errorDetail.includes('Inactive user')) {
-            setGeneralError('Your account has been deactivated. Please contact support for assistance.');
+          // Handle authentication errors
+          if (errorDetail.includes('email or password you entered is incorrect')) {
+            setGeneralError(errorDetail);
+          } else if (errorDetail.includes('deactivated')) {
+            setGeneralError(errorDetail);
           } else if (errorDetail.includes('verification')) {
             setGeneralError('Your account email has not been verified. Please check your inbox for a verification link.');
           } else {
-            setGeneralError('Invalid email or password. Please check your credentials and try again.');
+            // Fallback for other authentication errors
+            setGeneralError('Invalid credentials. Please double-check your email and password.');
           }
         } else if (status === 429) {
           setGeneralError('Too many failed login attempts. Please try again later or reset your password.');
         } else if (status === 503) {
           setGeneralError('The service is temporarily unavailable. Please try again later.');
         } else {
+          // Use the error message from the server if available
           setGeneralError(errorDetail || 'Login failed. Please try again later.');
         }
-      } else if (error.message?.includes('Network Error')) {
+      } else if (error.request) {
+        // Network error - the request was made but no response was received
         setGeneralError('Cannot connect to the server. Please check your internet connection and try again.');
       } else {
-        setGeneralError('Login failed. Please check your credentials and try again.');
+        // Something else caused the error
+        setGeneralError('Login failed. Please try again later.');
       }
     } finally {
       setIsLoading(false);
@@ -176,12 +183,27 @@ export default function LoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {generalError && (
-            <div className="rounded-md bg-red-50 p-4 mb-4">
+            <div className="rounded-md bg-red-50 p-4 mb-4 border border-red-300">
               <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Error</h3>
+                  <h3 className="text-sm font-medium text-red-800">
+                    Login Failed
+                  </h3>
                   <div className="mt-2 text-sm text-red-700">
                     <p>{generalError}</p>
+                    {generalError.includes('email or password') && (
+                      <ul className="list-disc pl-5 mt-1 space-y-1">
+                        <li>Make sure you are using the correct email address</li>
+                        <li>Check that your password is entered correctly</li>
+                        <li>If you're new, please <Link to="/register" className="font-medium underline">register here</Link></li>
+                        <li>Forgot your password? <Link to="/reset-password" className="font-medium underline">Reset it here</Link></li>
+                      </ul>
+                    )}
                   </div>
                 </div>
               </div>

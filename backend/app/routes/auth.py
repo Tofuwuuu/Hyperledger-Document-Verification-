@@ -156,10 +156,18 @@ async def login(
         
         # Check if user exists and password is correct
         if not user or not verify_password(form_data.password, user["hashed_password"]):
+            # Use a consistent error message for both non-existent users and wrong passwords
             logging.warning(f"Failed login attempt for user: {form_data.username}")
+            
+            # If user exists but password is wrong, log this separately without exposing in response
+            if user:
+                logging.info(f"User exists but password is incorrect: {form_data.username}")
+            else:
+                logging.info(f"User does not exist: {form_data.username}")
+                
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
+                detail="The email or password you entered is incorrect. Please try again.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
@@ -168,7 +176,7 @@ async def login(
             logging.warning(f"Login attempt for inactive user: {form_data.username}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user"
+                detail="Your account has been deactivated. Please contact support for assistance."
             )
         
         # Create access and refresh tokens
@@ -935,11 +943,28 @@ async def check_mfa_status(data: UserLogin, response: Response):
         
         # Check if user exists and password is correct
         if not user or not verify_password(data.password, user["hashed_password"]):
+            # Use a consistent error message for both non-existent users and wrong passwords
+            logging.warning(f"Failed login attempt for user: {data.email}")
+            
+            # If user exists but password is wrong, log this separately without exposing in response
+            if user:
+                logging.info(f"User exists but password is incorrect: {data.email}")
+            else:
+                logging.info(f"User does not exist: {data.email}")
+                
             # Return generic error for security
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
+                detail="The email or password you entered is incorrect. Please try again.",
                 headers={"WWW-Authenticate": "Bearer"},
+            )
+            
+        # Check if user is active
+        if not user.get("is_active", True):
+            logging.warning(f"Login attempt for inactive user: {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your account has been deactivated. Please contact support for assistance."
             )
         
         # If MFA is not enabled, proceed with regular login
