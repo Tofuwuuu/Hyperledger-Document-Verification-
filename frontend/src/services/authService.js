@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL } from '../config';
+import { api } from './api';  // Import the pre-configured axios instance
 
 // Configure axios defaults
 axios.defaults.withCredentials = true;
@@ -14,22 +15,15 @@ const getAuthHeader = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
-});
+// No need to create a new axios instance since we're importing api
+// Instead we'll use the imported api instance
 
-// Add request interceptor
+// Add request interceptor (keeping these for backwards compatibility)
 api.interceptors.request.use(
   (config) => {
     // Add auth header if token exists
     const token = getToken();
-    if (token) {
+    if (token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -39,22 +33,12 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Clear stored tokens on unauthorized
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+// We're removing the response interceptor here since it's already defined in api.js
+// This prevents conflicts with the token refresh logic
 
 export const register = async (userData) => {
   try {
-    const response = await axios.post(`${API_URL}/auth/register`, userData);
+    const response = await api.post(`/auth/register`, userData);
     return response.data;
   } catch (error) {
     console.error('Registration error:', error);

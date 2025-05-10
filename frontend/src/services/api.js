@@ -34,7 +34,7 @@ const processQueue = (error, token = null) => {
 };
 
 // Create axios instance with default configuration
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_URL,
   timeout: 30000, // 30 seconds
   withCredentials: true, // Important for cookies

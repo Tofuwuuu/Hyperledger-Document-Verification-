@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { authService } from '../services/api';
+import axios from 'axios';
 import { 
   validateToken, 
   getAuthTokens, 
@@ -10,6 +10,59 @@ import {
   isUserAdmin,
   needsTokenRefresh
 } from '../utils/authUtils';
+import { API_URL } from '../config';
+
+// Create direct service functions instead of importing (to avoid circular dependencies)
+const authService = {
+  async getCurrentUser() {
+    try {
+      const { accessToken } = getAuthTokens();
+      if (!accessToken) return null;
+      
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      throw error;
+    }
+  },
+  
+  async reloadUserWithFreshData() {
+    try {
+      const { accessToken } = getAuthTokens();
+      if (!accessToken) return null;
+      
+      const response = await axios.get(`${API_URL}/auth/me?_force_refresh=true`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error reloading user data:', error);
+      throw error;
+    }
+  },
+  
+  async refreshToken() {
+    try {
+      const { refreshToken } = getAuthTokens();
+      if (!refreshToken) throw new Error('No refresh token available');
+      
+      const response = await axios.post(`${API_URL}/auth/refresh`, {
+        refresh_token: refreshToken
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      throw error;
+    }
+  }
+};
 
 // Create the auth context
 const AuthContext = createContext();
