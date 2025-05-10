@@ -576,10 +576,14 @@ async def get_unverified_users(
             logger.error("Failed to get database connection")
             return []  # Return empty list instead of raising error
         
-        # Find unverified users
+        # Find unverified users - explicitly check for users where is_verified is either false or missing
         try:
+            # Use $or to handle both false and missing field cases
             cursor = db.users.find(
-                {"is_verified": {"$ne": True}},  # Users where is_verified is not true
+                {"$or": [
+                    {"is_verified": False},  # Explicitly false
+                    {"is_verified": {"$exists": False}}  # Field doesn't exist
+                ]},
                 sort=[("created_at", -1)],
                 limit=limit
             )
@@ -1451,4 +1455,77 @@ async def get_security_questions(email: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred retrieving security questions"
-        ) 
+        )
+
+@router.post("/test-mongo-query", tags=["Debug"])
+async def test_mongo_query(
+    query_data: Dict[str, Any],
+    admin_user: Dict[str, Any] = Depends(get_admin_user)
+):
+    """Test endpoint to verify MongoDB query behavior, for debugging only"""
+    try:
+        db = get_database()
+        logger = logging.getLogger(__name__)
+        
+        # Extract data from request
+        user_id = query_data.get("user_id")
+        query = query_data.get("query", {})
+        collection_name = query_data.get("collection", "users")
+        
+        # Safety checks
+        if not user_id:
+            return {"error": "user_id is required"}
+        if not query:
+            return {"error": "query is required"}
+            
+        # Get the collection
+        collection = getattr(db, collection_name, None)
+        if not collection:
+            return {"error": f"Collection {collection_name} not found"}
+            
+        # First get the user document to check
+        user = await collection.find_one({"_id": user_id})
+        
+        if not user:
+            return {
+                "exists": False,
+                "would_match": False,
+                "reason": "User not found in database"
+            }
+            
+        # Now test if this user would match the query
+        would_match = False
+        reason = "Would not match query"
+        
+        # Test specifically for {"is_verified": {"$ne": True}} query
+        if "$ne" in query.get("is_verified", {}):
+            ne_value = query["is_verified"]["$ne"]
+            
+            # Get the actual value from the user document
+            actual_value = user.get("is_verified")
+            
+            # Check if the value is present and its type
+            value_present = "is_verified" in user
+            value_type = type(actual_value).__name__
+            
+            # Check if the user would match this query
+            would_match = actual_value != ne_value
+            
+            reason = f"is_verified = {actual_value} (type: {value_type}), query is '$ne: {ne_value}'. Value present: {value_present}"
+        
+        # Return the results
+        return {
+            "exists": True,
+            "would_match": would_match,
+            "reason": reason,
+            "user_fields": {
+                key: {
+                    "value": value,
+                    "type": type(value).__name__
+                } for key, value in user.items() if key in ["is_verified", "is_active", "verification_pending"]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in test-mongo-query endpoint: {str(e)}")
+        return {"error": str(e)} 
