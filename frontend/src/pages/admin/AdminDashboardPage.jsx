@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import pollingService from '../../services/polling';
+import DiagnosticPanel from '../../components/DiagnosticPanel';
 
 export default function AdminDashboardPage() {
   const { currentUser, isAdmin } = useAuth();
@@ -705,72 +706,32 @@ export default function AdminDashboardPage() {
 
   // Admin dashboard (original content)
   return (
-    <div className="p-6 w-full max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold mb-1">Admin Dashboard</h1>
-          <p className="text-gray-600">Welcome back, Admin {currentUser?.full_name || 'User'}! Here's an overview of the system.</p>
-        </div>
-        
-        <div className="flex flex-col items-end">
-          <button 
-            onClick={() => fetchDashboardData()}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded flex items-center"
-            disabled={loading}
-          >
-            {loading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Refreshing...
-              </span>
-            ) : (
-              <span className="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh Data
-              </span>
-            )}
-          </button>
-          {lastUpdated && (
-            <p className="text-sm text-gray-500 mt-1">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </p>
-          )}
-        </div>
+    <div className="space-y-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Welcome to the CVSU-Carmona Alumni Document Verification System admin panel.
+        </p>
       </div>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Diagnostics Panel - only for admins */}
+      {isAdminUser && (
+        <DiagnosticPanel />
+      )}
+      
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
-                <UsersIcon className="h-6 w-6 text-white" />
+              <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
+                <UsersIcon className="h-6 w-6 text-green-600" aria-hidden="true" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Alumni</dt>
                   <dd>
-                    {loading ? (
-                      <div className="h-7 flex items-center">
-                        <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="text-lg font-semibold text-gray-900">{stats.totalAlumni}</div>
-                    )}
+                    <div className="text-lg font-medium text-gray-900">{loading ? '...' : stats.totalAlumni}</div>
                   </dd>
                 </dl>
               </div>
@@ -778,8 +739,8 @@ export default function AdminDashboardPage() {
           </div>
           <div className="bg-gray-50 px-5 py-3">
             <div className="text-sm">
-              <Link to="/admin/alumni" className="font-medium text-blue-600 hover:text-blue-900">
-                View all alumni
+              <Link to="/admin/alumni" className="font-medium text-cvsu-green hover:text-cvsu-green">
+                View all
               </Link>
             </div>
           </div>

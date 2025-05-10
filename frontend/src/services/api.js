@@ -1445,4 +1445,82 @@ export const adminDocumentService = {
   }
 };
 
+// API Health Check
+export const apiHealthCheck = {
+  checkAPIConnection: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/healthcheck/health`, {
+        headers: {
+          'Origin': window.location.origin
+        }
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('API health check failed:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  },
+  
+  checkDBConnection: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/healthcheck/health/db`, {
+        headers: {
+          'Origin': window.location.origin
+        }
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Database health check failed:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  },
+  
+  checkAlumniConnection: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/healthcheck/health/alumni`, {
+        headers: {
+          'Origin': window.location.origin
+        }
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Alumni health check failed:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  },
+  
+  // Run all health checks and return a comprehensive report
+  runAllHealthChecks: async () => {
+    const apiCheck = await apiHealthCheck.checkAPIConnection();
+    const dbCheck = await apiHealthCheck.checkDBConnection();
+    const alumniCheck = await apiHealthCheck.checkAlumniConnection();
+    
+    return {
+      api: apiCheck,
+      database: dbCheck,
+      alumni: alumniCheck,
+      success: apiCheck.success && dbCheck.success && alumniCheck.success,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
 export default api; 
