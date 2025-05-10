@@ -61,6 +61,23 @@ const authService = {
       console.error('Error refreshing token:', error);
       throw error;
     }
+  },
+  
+  async logout() {
+    try {
+      const { accessToken } = getAuthTokens();
+      if (!accessToken) return;
+      
+      // Try to call the logout endpoint
+      await axios.post(`${API_URL}/auth/logout`, {}, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+    } catch (error) {
+      // Continue even if the API call fails
+      console.error('Error calling logout API:', error);
+    }
   }
 };
 
@@ -164,6 +181,23 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Define the logout function before it's used
+  const logout = useCallback(async () => {
+    try {
+      setLoading(true);
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear all auth data using utility function
+      clearAuthTokens();
+      
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setLoading(false);
+    }
+  }, []);
+
   // New function: Force refresh user data
   const forceRefreshUserData = useCallback(async () => {
     console.log('Force refreshing user data from API');
@@ -219,11 +253,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Load user data on initial render
-  useEffect(() => {
-    loadUserData();
-  }, [loadUserData]);
-
   // Memoized function to refresh token
   const refreshToken = useCallback(async () => {
     try {
@@ -260,7 +289,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [loadUserData]);
+  }, [loadUserData, logout]);
 
   // Check authentication status on initial load
   useEffect(() => {
@@ -523,22 +552,6 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
-  const logout = useCallback(async () => {
-    try {
-      setLoading(true);
-      await authService.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // Clear all auth data using utility function
-      clearAuthTokens();
-      
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-      setLoading(false);
-    }
-  }, []);
 
   // Check if user has a specific role
   const hasRole = useCallback((role) => {
