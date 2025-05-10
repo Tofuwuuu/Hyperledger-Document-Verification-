@@ -97,25 +97,6 @@ export default function DashboardLayout() {
     checkVerificationStatus();
   }, [currentUser, isAdminUser]);
 
-  // Function to handle the Force Refresh button click
-  const handleForceRefresh = async () => {
-    try {
-      console.log('Force refreshing user data...');
-      
-      // Show a loading message
-      alert("Refreshing your account data... page will reload in a moment.");
-      
-      // Use the enhanced force refresh function from AuthContext
-      await forceRefreshUserData();
-      
-      // Hard reload the page to ensure all components update
-      window.location.reload(true); // true forces a reload from server, not cache
-    } catch (err) {
-      console.error('Error during force refresh:', err);
-      alert("Error refreshing data. Please try logging out and back in.");
-    }
-  };
-
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -788,54 +769,35 @@ export default function DashboardLayout() {
                       <li>Check if you've been verified but need to refresh your login</li>
                       <li>Contact your administrator at admin@cvsu.edu.ph for assistance</li>
                     </ul>
-                    <div className="mt-1">
-                      <Link to="/debug-auth" className="text-blue-500 hover:underline mr-2">Auth Debug</Link> | 
-                      <button 
-                        onClick={() => {
-                          localStorage.clear();
-                          window.location.href = '/login';
-                        }} 
-                        className="text-blue-500 hover:underline mx-2"
-                      >
-                        Logout & Clear Data
-                      </button> | 
-                      <button 
-                        onClick={handleForceRefresh} 
-                        className="text-blue-500 hover:underline ml-2"
-                      >
-                        Force Refresh
-                      </button>
-                      
-                      {/* Special fix button that only appears for specific account */}
-                      {currentUser?.email === 'rodericksalise812@gmail.com' && (
-                        <>
-                          {' | '}
-                          <button 
-                            onClick={() => {
-                              console.log('Special verification fix for rodericksalise812@gmail.com');
-                              // Directly modify user data and refresh
-                              try {
-                                const userData = JSON.parse(localStorage.getItem('user') || '{}');
-                                if (userData && userData.email === 'rodericksalise812@gmail.com') {
-                                  userData.is_verified = true;
-                                  localStorage.setItem('user', JSON.stringify(userData));
-                                  console.log('Set is_verified=true for rodericksalise812@gmail.com');
-                                  // Force update state
-                                  setIsVerified(true);
-                                  // Reload page after short delay
-                                  setTimeout(() => window.location.reload(), 500);
-                                }
-                              } catch (e) {
-                                console.error('Error fixing verification:', e);
+                    {/* Debug buttons removed */}
+                    {/* Special fix button that only appears for specific account */}
+                    {currentUser?.email === 'rodericksalise812@gmail.com' && (
+                      <div className="mt-1">
+                        <button 
+                          onClick={() => {
+                            console.log('Special verification fix for rodericksalise812@gmail.com');
+                            // Directly modify user data and refresh
+                            try {
+                              const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                              if (userData && userData.email === 'rodericksalise812@gmail.com') {
+                                userData.is_verified = true;
+                                localStorage.setItem('user', JSON.stringify(userData));
+                                console.log('Set is_verified=true for rodericksalise812@gmail.com');
+                                // Force update state
+                                setIsVerified(true);
+                                // Reload page after short delay
+                                setTimeout(() => window.location.reload(), 500);
                               }
-                            }}
-                            className="text-green-500 hover:underline ml-2 font-bold"
-                          >
-                            Fix My Account
-                          </button>
-                        </>
-                      )}
-                    </div>
+                            } catch (e) {
+                              console.error('Error fixing verification:', e);
+                            }
+                          }}
+                          className="text-green-500 hover:underline font-bold"
+                        >
+                          Fix My Account
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
