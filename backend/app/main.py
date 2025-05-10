@@ -65,33 +65,75 @@ app.add_middleware(
 
 # MongoDB heartbeat function
 async def mongo_heartbeat():
-    """Send periodic pings to MongoDB to keep connection alive."""
+    """
+    Send periodic pings to MongoDB to keep connection alive.
+    This function also handles reconnection attempts if the connection is lost.
+    """
+    retry_interval = 60  # Start with 60 seconds between retries
+    max_retry_interval = 300  # Maximum 5 minutes between retries
+    
     while True:
         try:
             if client is not None:
-                await client.admin.command('ping')
-                logger.debug("MongoDB heartbeat ping successful")
+                try:
+                    await client.admin.command('ping')
+                    logger.debug("MongoDB heartbeat ping successful")
+                    # Reset retry interval on success
+                    retry_interval = 60
+                except Exception as e:
+                    logger.error(f"MongoDB heartbeat ping failed: {e}")
+                    logger.info("Attempting to reconnect to MongoDB...")
+                    await connect_to_mongo()
             else:
-                logger.warning("MongoDB client is None, reconnecting...")
-                await connect_to_mongo()
+                logger.warning("MongoDB client is None, attempting to reconnect...")
+                connection_success = await connect_to_mongo()
+                
+                if connection_success:
+                    logger.info("Successfully reconnected to MongoDB")
+                    retry_interval = 60  # Reset retry interval on successful reconnection
+                else:
+                    # Use exponential backoff with a maximum
+                    retry_interval = min(retry_interval * 1.5, max_retry_interval)
+                    logger.warning(f"Reconnection failed, will retry in {int(retry_interval)} seconds")
         except Exception as e:
-            logger.error(f"Error in MongoDB heartbeat: {e}")
-            await connect_to_mongo()
+            logger.error(f"Error in MongoDB heartbeat task: {e}")
+            # Increase retry interval on errors
+            retry_interval = min(retry_interval * 1.5, max_retry_interval)
         finally:
-            await asyncio.sleep(60)  # Ping every 60 seconds
+            await asyncio.sleep(retry_interval)  # Wait before next ping/reconnection attempt
 
 # Setup events
 @app.on_event("startup")
 async def startup_db_client():
-    await connect_to_mongo()
-    # Initialize database structure
-    await initialize_database()
-    # Create database indexes for performance
-    await create_indexes()
-    await init_permissions()  # Initialize roles and permissions
-    # Start the heartbeat task
-    asyncio.create_task(mongo_heartbeat())
+    """
+    Connect to the database and initialize startup services.
+    This function handles database connection, database initialization,
+    and starts background tasks.
+    """
     logger.info("Application starting up...")
+    
+    # Attempt to connect to MongoDB
+    connection_success = await connect_to_mongo()
+    
+    if connection_success:
+        try:
+            # Initialize database structure
+            await initialize_database()
+            # Create database indexes for performance
+            await create_indexes()
+            # Initialize roles and permissions
+            await init_permissions()
+            logger.info("Database initialization completed successfully")
+        except Exception as e:
+            logger.error(f"Error during database initialization: {e}")
+            logger.warning("Continuing with limited functionality")
+    else:
+        logger.warning("Database connection failed, starting with limited functionality")
+        
+    # Start the heartbeat task - this will try to reconnect if needed
+    asyncio.create_task(mongo_heartbeat())
+    
+    logger.info("Application startup completed")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
