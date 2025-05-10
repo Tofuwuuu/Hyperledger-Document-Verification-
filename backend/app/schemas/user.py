@@ -47,8 +47,8 @@ class UserCreate(UserBase):
     def validate_student_id(cls, v):
         if v is None:
             return v
-        if not re.match(r'^[A-Za-z0-9-]+$', v):
-            raise ValueError('Student ID can only contain alphanumeric characters and hyphens')
+        if not re.match(r'^[0-9-]+$', v):
+            raise ValueError('Student ID can only contain numbers and hyphens')
         return v
     
     @field_validator('graduation_year')
@@ -113,8 +113,8 @@ class UserUpdate(BaseModel):
     def validate_student_id(cls, v):
         if v is None:
             return v
-        if not re.match(r'^[A-Za-z0-9-]+$', v):
-            raise ValueError('Student ID can only contain alphanumeric characters and hyphens')
+        if not re.match(r'^[0-9-]+$', v):
+            raise ValueError('Student ID can only contain numbers and hyphens')
         return v
     
 class PasswordReset(BaseModel):

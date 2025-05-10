@@ -326,13 +326,6 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
       
-      // Make sure confirm_password exactly matches password
-      if (userData.password !== userData.confirm_password) {
-        const passwordError = 'Password and confirmation password must match exactly';
-        setError(passwordError);
-        throw new Error(passwordError);
-      }
-      
       console.log('Registering user with data:', { 
         ...userData, 
         password: '***REDACTED***', 

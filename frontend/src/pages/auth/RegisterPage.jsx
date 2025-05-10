@@ -49,15 +49,6 @@ export default function RegisterPage() {
     setGeneralError('');
     setIsLoading(true);
     
-    // Extra validation to ensure passwords match
-    if (values.password !== values.confirmPassword) {
-      setFieldError('confirmPassword', 'Passwords do not match');
-      setGeneralError('Password and confirmation password must match exactly.');
-      setIsLoading(false);
-      setSubmitting(false);
-      return;
-    }
-    
     const userData = {
       email: values.email,
       full_name: values.full_name,
