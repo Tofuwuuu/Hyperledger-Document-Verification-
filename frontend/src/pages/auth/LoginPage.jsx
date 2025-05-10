@@ -30,23 +30,9 @@ export default function LoginPage() {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaData, setMfaData] = useState(null);
 
-  // Check for error message in session storage on initial load
-  useEffect(() => {
-    // Check for stored error from previous login attempt
-    const storedError = sessionStorage.getItem('loginError');
-    if (storedError) {
-      setGeneralError(storedError);
-      // Clear the stored error after displaying it
-      sessionStorage.removeItem('loginError');
-    }
-  }, []);
-
   // Clear errors when component mounts or when location changes
   useEffect(() => {
-    // Don't clear the error if it was just loaded from session storage
-    if (!sessionStorage.getItem('loginError')) {
-      setGeneralError('');
-    }
+    setGeneralError('');
     if (clearError) clearError();
     
     // Check if there's a redirect path in the URL or session storage
@@ -86,7 +72,7 @@ export default function LoginPage() {
     }
   }, [authError, clearError]);
 
-  const handleSubmit = async (values, { setSubmitting }) => {
+  const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
     setGeneralError('');
     setIsLoading(true);
     
@@ -152,12 +138,15 @@ export default function LoginPage() {
         errorMessage = 'Login failed. Please try again later.';
       }
       
-      // Set error in state and store in session to persist through page reloads
+      // Set error in state only - don't store in sessionStorage to prevent refresh issues
       setGeneralError(errorMessage);
-      sessionStorage.setItem('loginError', errorMessage);
       
-      // Also store the attempted email to help with debugging
-      sessionStorage.setItem('lastLoginAttempt', values.email);
+      // Handle specific error types with field-level errors
+      if (errorMessage.includes('password')) {
+        setFieldError('password', 'Incorrect password');
+      }
+      
+      // No longer storing in sessionStorage here to avoid refresh-related issues
     } finally {
       setIsLoading(false);
       setSubmitting(false);
