@@ -139,7 +139,7 @@ def create_mock_db():
 
 async def connect_to_mongo():
     """Connect to MongoDB."""
-    global client, db, MONGODB_DB
+    global client, db, MONGODB_DB, mock_db
     try:
         logger.info(f"Attempting to connect to MongoDB at {MONGODB_URL.split('@')[-1] if '@' in MONGODB_URL else 'localhost'}")
         
@@ -187,7 +187,6 @@ async def connect_to_mongo():
         logger.error("MongoDB connection failed but service will continue running with limited functionality")
         # Create mock database for development/testing if allowed
         if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
-            global mock_db
             mock_db = create_mock_db()
         return False
     except ConnectionFailure as e:
@@ -196,7 +195,6 @@ async def connect_to_mongo():
         logger.error("MongoDB connection failed but service will continue running with limited functionality")
         # Create mock database for development/testing if allowed
         if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
-            global mock_db
             mock_db = create_mock_db()
         return False
     except Exception as e:
@@ -205,7 +203,6 @@ async def connect_to_mongo():
         logger.error("MongoDB connection failed but service will continue running with limited functionality")
         # Create mock database for development/testing if allowed
         if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
-            global mock_db
             mock_db = create_mock_db()
         return False
 
@@ -249,7 +246,6 @@ def get_database():
     
     # Create and return a mock database for development/testing if configured
     if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
-        global mock_db
         mock_db = create_mock_db()
         return mock_db
         
@@ -273,7 +269,6 @@ async def get_database_async():
     
     # Create and return a mock database for development/testing if configured
     if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
-        global mock_db
         mock_db = create_mock_db()
         return mock_db
     
