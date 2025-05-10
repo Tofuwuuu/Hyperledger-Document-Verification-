@@ -24,7 +24,7 @@ class PermissionInDB(PermissionBase):
     updated_at: datetime = Field(..., description="Last update timestamp")
     
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True
 
 class PermissionOut(PermissionBase):
     id: str = Field(..., description="Permission ID")
@@ -65,7 +65,7 @@ class RoleInDB(RoleBase):
     updated_at: datetime = Field(..., description="Last update timestamp")
     
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True
 
 class RoleOut(RoleBase):
     id: str = Field(..., description="Role ID")

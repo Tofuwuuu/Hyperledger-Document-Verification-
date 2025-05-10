@@ -249,6 +249,7 @@ def get_database():
     
     # Create and return a mock database for development/testing if configured
     if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+        global mock_db
         mock_db = create_mock_db()
         return mock_db
         
@@ -272,6 +273,7 @@ async def get_database_async():
     
     # Create and return a mock database for development/testing if configured
     if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+        global mock_db
         mock_db = create_mock_db()
         return mock_db
     
