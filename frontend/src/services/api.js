@@ -6,14 +6,16 @@ import {
   clearAuthTokens,
   isRememberedSession 
 } from '../utils/authUtils';
-import { API_URL } from '../config';
+import { API_URL as CONFIG_API_URL } from '../config';
 
 // Base URL for the API - either from config import or environment
 const baseApiUrl = process.env.REACT_APP_API_URL || 'https://alumni-api-klrk.onrender.com';
 // Clean up URL format (remove trailing slash if present)
 const baseApiUrl_clean = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 // Add /api/v1 only if it's not already included
-export const API_URL = baseApiUrl_clean.includes('/api/v1') ? baseApiUrl_clean : `${baseApiUrl_clean}/api/v1`;
+const API_BASE_URL = baseApiUrl_clean.includes('/api/v1') ? baseApiUrl_clean : `${baseApiUrl_clean}/api/v1`;
+// Use imported config URL or fallback to locally defined URL
+export const API_URL = CONFIG_API_URL || API_BASE_URL;
 console.log('API URL configured as:', API_URL); // Debug API URL
 
 // Flag to prevent multiple refresh token requests

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL } from './api';  // Import API_URL from api.js instead of config
 import { api, apiService } from './api';  // Import the pre-configured axios instance and API service
 
 // Configure axios defaults
