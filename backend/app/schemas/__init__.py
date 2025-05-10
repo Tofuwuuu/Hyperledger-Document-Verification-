@@ -20,6 +20,15 @@ from .password_reset import (
     PasswordResetConfirm
 )
 
+# Import MFA schemas
+from .mfa import (
+    MFASetupRequest,
+    MFAEnableRequest,
+    MFALoginRequest,
+    MFAStatusResponse,
+    MFASetupResponse
+)
+
 from .alumni import (
     SocialMedia,
     Education,

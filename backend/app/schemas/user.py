@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, validator
 from datetime import datetime
 import re
 
@@ -9,8 +9,7 @@ class UserBase(BaseModel):
     is_active: bool = Field(True, description="Whether the user account is active")
     is_admin: bool = Field(False, description="Whether the user has admin privileges")
     
-    @field_validator('full_name')
-    @classmethod
+    @validator('full_name')
     def validate_full_name(cls, v):
         if not v or not v.strip():
             raise ValueError('Full name cannot be empty')
@@ -25,7 +24,7 @@ class UserCreate(UserBase):
     graduation_year: Optional[int] = Field(None, ge=1948, le=datetime.now().year, description="Year of graduation")
     role_id: Optional[str] = Field(None, description="Role ID for the user")
     
-    @field_validator('password')
+    @validator('password')
     def validate_password_strength(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters')
@@ -37,13 +36,13 @@ class UserCreate(UserBase):
             raise ValueError('Password must contain at least one lowercase letter')
         return v
     
-    @field_validator('confirm_password')
+    @validator('confirm_password')
     def passwords_match(cls, v, info):
         if hasattr(info, 'data') and 'password' in info.data and v != info.data['password']:
             raise ValueError('Passwords do not match')
         return v
     
-    @field_validator('student_id')
+    @validator('student_id')
     def validate_student_id(cls, v):
         if v is None:
             return v
@@ -51,7 +50,7 @@ class UserCreate(UserBase):
             raise ValueError('Student ID can only contain numbers and hyphens')
         return v
     
-    @field_validator('graduation_year')
+    @validator('graduation_year')
     def validate_graduation_year(cls, v):
         if v is None:
             return v
@@ -77,7 +76,7 @@ class UserUpdate(BaseModel):
     graduation_year: Optional[int] = Field(None, ge=1948, le=datetime.now().year, description="Year of graduation")
     role_id: Optional[str] = Field(None, description="Role ID for the user")
     
-    @field_validator('full_name')
+    @validator('full_name')
     def validate_full_name(cls, v):
         if v is None:
             return v
@@ -87,7 +86,7 @@ class UserUpdate(BaseModel):
             raise ValueError('Full name must be at least 2 characters')
         return v.strip()
     
-    @field_validator('password')
+    @validator('password')
     def validate_password_strength(cls, v):
         if v is None:
             return v
@@ -101,7 +100,7 @@ class UserUpdate(BaseModel):
             raise ValueError('Password must contain at least one lowercase letter')
         return v
     
-    @field_validator('confirm_password')
+    @validator('confirm_password')
     def passwords_match(cls, v, info):
         if v is None:
             return v
@@ -109,7 +108,7 @@ class UserUpdate(BaseModel):
             raise ValueError('Passwords do not match')
         return v
     
-    @field_validator('student_id')
+    @validator('student_id')
     def validate_student_id(cls, v):
         if v is None:
             return v
@@ -128,7 +127,7 @@ class PasswordResetConfirm(BaseModel):
     password: str = Field(..., min_length=8, description="New password")
     confirm_password: str = Field(..., description="Confirm new password")
     
-    @field_validator('password')
+    @validator('password')
     def validate_password_strength(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters')
@@ -140,7 +139,7 @@ class PasswordResetConfirm(BaseModel):
             raise ValueError('Password must contain at least one lowercase letter')
         return v
     
-    @field_validator('confirm_password')
+    @validator('confirm_password')
     def passwords_match(cls, v, info):
         if hasattr(info, 'data') and 'password' in info.data and v != info.data['password']:
             raise ValueError('Passwords do not match')
@@ -151,7 +150,7 @@ class PasswordChange(BaseModel):
     new_password: str = Field(..., min_length=8, description="New password")
     confirm_password: str = Field(..., description="Confirm new password")
     
-    @field_validator('new_password')
+    @validator('new_password')
     def validate_password_strength(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters')
@@ -163,7 +162,7 @@ class PasswordChange(BaseModel):
             raise ValueError('Password must contain at least one lowercase letter')
         return v
     
-    @field_validator('confirm_password')
+    @validator('confirm_password')
     def passwords_match(cls, v, info):
         if hasattr(info, 'data') and 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
