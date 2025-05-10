@@ -422,3 +422,59 @@ async def delete_alumni_profile(
         except Exception:
             # Ignore errors when deleting files
             pass 
+
+# Simple alumni list endpoint for improved reliability
+@router.get("/list", response_model=Dict[str, Any])
+async def get_simple_alumni_list(
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Pagination offset")
+):
+    """
+    Simplified endpoint to get a list of alumni with basic pagination.
+    This endpoint prioritizes reliability over features.
+    """
+    try:
+        db = get_database()
+        
+        # Get total count
+        total = await db.alumni.count_documents({})
+        
+        # Get alumni with pagination but minimal fields
+        alumni_cursor = db.alumni.find(
+            {},
+            projection={
+                "_id": 1, 
+                "full_name": 1, 
+                "email": 1,
+                "student_id": 1,
+                "department": 1,
+                "course": 1,
+                "graduation_year": 1,
+                "profile_picture": 1
+            }
+        ).skip(offset).limit(limit)
+        
+        # Convert to list of dictionaries
+        alumni_list = await alumni_cursor.to_list(length=limit)
+        
+        # Convert ObjectId to string for serialization
+        for alumni in alumni_list:
+            alumni["_id"] = str(alumni["_id"])
+        
+        return {
+            "results": alumni_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        # Log the error and return a more helpful error response
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in get_simple_alumni_list: {str(e)}\n{error_details}")
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching alumni data: {str(e)}"
+        ) 

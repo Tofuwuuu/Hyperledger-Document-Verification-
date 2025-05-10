@@ -894,17 +894,26 @@ export const alumniService = {
     } catch (error) {
       console.error('Error fetching alumni list:', error);
       
-      // Return a fallback empty response to prevent UI errors
+      // Try using the simplified endpoint as a fallback
       if (error.isNetworkError || error.response?.status >= 500) {
-        console.log('Returning fallback empty alumni list due to server error');
-        return {
-          data: {
-            results: [],
-            total: 0,
-            limit: params.limit || 10,
-            offset: params.offset || 0
-          }
-        };
+        console.log('Primary alumni endpoint failed, trying simplified endpoint as fallback');
+        try {
+          // Use the simpler alumni/list endpoint
+          const simplifiedResponse = await api.get('/alumni/list', { params });
+          console.log('Simplified alumni endpoint succeeded');
+          return simplifiedResponse;
+        } catch (fallbackError) {
+          console.error('Fallback endpoint also failed:', fallbackError);
+          // Return empty results if both endpoints fail
+          return {
+            data: {
+              results: [],
+              total: 0,
+              limit: params.limit || 10,
+              offset: params.offset || 0
+            }
+          };
+        }
       }
       
       throw error;
