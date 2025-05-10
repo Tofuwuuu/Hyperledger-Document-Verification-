@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import MFAVerification from '../../components/MFAVerification';
+import axios from 'axios';
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
@@ -77,6 +78,26 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
+      // First, check if the user exists using the MFA check endpoint
+      try {
+        // This try-catch specifically handles MFA check errors
+        const mfaCheckResponse = await axios.post(`${import.meta.env.VITE_API_URL || ''}/auth/login/mfa-check`, {
+          email: values.email
+        });
+        
+        // If we get here, user exists, proceed with normal login
+      } catch (mfaError) {
+        // If mfaCheck fails with 401, user doesn't exist
+        if (mfaError.response && mfaError.response.status === 401) {
+          setGeneralError('This account does not exist. Please register first.');
+          setIsLoading(false);
+          setSubmitting(false);
+          return; // Stop the login process here
+        }
+        // For other MFA check errors, continue with normal login attempt
+      }
+      
+      // Normal login flow continues
       const result = await login({ 
         email: values.email, 
         password: values.password,
