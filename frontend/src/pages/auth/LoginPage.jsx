@@ -6,7 +6,7 @@ import * as Yup from 'yup';
 import MFAVerification from '../../components/MFAVerification';
 import axios from 'axios';
 import { API_URL } from '../../config';
-import * as authService from '../../services/authService'; // Import the authService directly
+import { authService } from '../../services/api'; // Import authService from api.js, not authService.js
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
