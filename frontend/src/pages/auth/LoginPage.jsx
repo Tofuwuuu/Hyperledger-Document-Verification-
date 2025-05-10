@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
+import MFAVerification from '../../components/MFAVerification';
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
@@ -19,12 +20,14 @@ const LoginSchema = Yup.object().shape({
 });
 
 export default function LoginPage() {
-  const { login, error: authError, clearError } = useAuth();
+  const { login, isAuthenticated, error: authError, clearError } = useAuth();
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
   const navigate = useNavigate();
   const location = useLocation();
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaData, setMfaData] = useState(null);
 
   // Clear errors when component mounts or when location changes
   useEffect(() => {
@@ -42,70 +45,89 @@ export default function LoginPage() {
       setRedirectPath(storedRedirect);
     }
 
+    // Redirect if already authenticated
+    if (isAuthenticated) {
+      // Check if there's a saved redirect path
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        navigate(redirectPath);
+      } else {
+        navigate('/alumni');
+      }
+    }
+
     return () => {
       // Clean up
       if (clearError) clearError();
     };
-  }, [location, clearError]);
+  }, [location, clearError, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    // Set login error from context
+    if (authError) {
+      setGeneralError(authError);
+      clearError();
+    }
+  }, [authError, clearError]);
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setGeneralError('');
     setIsLoading(true);
     
     try {
-      await login(values.email, values.password);
+      const result = await login({ 
+        email: values.email, 
+        password: values.password 
+      });
       
-      // Clear the stored redirect path
-      sessionStorage.removeItem('redirectAfterLogin');
-      
-      // Navigate to the redirect path
-      navigate(redirectPath);
+      // Check if MFA is required
+      if (result.mfa_required) {
+        setMfaRequired(true);
+        setMfaData({
+          email: values.email,
+          setup_id: result.setup_id,
+          mfa_type: result.mfa_type,
+          masked_email: result.email
+        });
+      }
+      // If login is successful but no MFA, the useEffect will redirect
     } catch (error) {
       console.error('Login failed:', error);
       
-      // Enhanced error handling with more detailed logging and fallbacks
-      let errorMessage = 'Failed to login. Please check your credentials and try again.';
-      
-      // Try to extract error message from response data
-      if (error.response) {
-        console.log('Error response status:', error.response.status);
-        console.log('Error response data:', error.response.data);
-        
-        // Check various possible error message locations
-        if (error.response.data) {
-          if (typeof error.response.data === 'string') {
-            errorMessage = error.response.data;
-          } else if (error.response.data.detail) {
-            errorMessage = error.response.data.detail;
-          } else if (error.response.data.message) {
-            errorMessage = error.response.data.message;
-          } else if (error.response.data.error) {
-            errorMessage = error.response.data.error;
-          }
-        }
-      }
-      
-      // If the AuthContext has an error message, use that as a fallback
-      if (authError && errorMessage === 'Failed to login. Please check your credentials and try again.') {
-        errorMessage = authError;
-      }
-      
-      // Handle network errors
-      if (error.message === 'Network Error') {
-        errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
-      }
-      
-      // Handle timeout errors
-      if (error.code === 'ECONNABORTED') {
-        errorMessage = 'The request timed out. Please try again later.';
-      }
-      
-      setGeneralError(errorMessage);
+      setGeneralError(
+        error.response?.data?.detail || 
+        'Login failed. Please check your credentials and try again.'
+      );
     } finally {
       setIsLoading(false);
       setSubmitting(false);
     }
   };
+
+  const handleMfaVerified = (result) => {
+    // No need to do anything here, the auth context will handle it
+    // and the useEffect for isAuthenticated will redirect
+    setMfaRequired(false);
+    setMfaData(null);
+  };
+  
+  const handleMfaCancel = () => {
+    setMfaRequired(false);
+    setMfaData(null);
+  };
+
+  if (mfaRequired && mfaData) {
+    return (
+      <MFAVerification 
+        email={mfaData.email}
+        setup_id={mfaData.setup_id}
+        mfa_type={mfaData.mfa_type}
+        onVerified={handleMfaVerified}
+        onCancel={handleMfaCancel}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -142,11 +164,16 @@ export default function LoginPage() {
           )}
           
           <Formik
-            initialValues={{ email: '', password: '' }}
+            initialValues={{
+              email: '',
+              password: ''
+            }}
             validationSchema={LoginSchema}
-            onSubmit={handleSubmit}
+            onSubmit={async (values, { setSubmitting }) => {
+              await handleSubmit(values, { setSubmitting });
+            }}
           >
-            {({ isSubmitting, errors, touched }) => (
+            {({ isSubmitting }) => (
               <Form className="space-y-6">
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700">

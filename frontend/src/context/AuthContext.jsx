@@ -260,66 +260,47 @@ export const AuthProvider = ({ children }) => {
     checkAuthStatus();
   }, [loadUserData, refreshToken]);
 
-  const login = async (email, password) => {
+  // Login a user
+  const login = useCallback(async (credentials) => {
     try {
-      setError(null);
       setLoading(true);
-      const data = await authService.login(email, password);
-      const userData = await loadUserData();
+      setError(null);
+      
+      const response = await authService.login(credentials);
+      
+      // If MFA is required, return the MFA data
+      if (response.mfa_required) {
+        return response;
+      }
+      
+      // Check if we have user data in the response
+      if (response.user) {
+        setCurrentUser(response.user);
+      } else {
+        // If not, load user data separately
+        await loadUserData();
+      }
+      
       setIsAuthenticated(true);
-      return { success: true, data, user: userData };
+      
+      return response;
     } catch (error) {
       console.error('Login error:', error);
       
-      // Enhanced error handling
-      let errorMessage = 'An error occurred during login';
-      
-      // Check for response data
-      if (error.response) {
-        console.log('Error response status:', error.response.status);
-        console.log('Error response data:', error.response.data);
-        
-        // Handle different error formats
-        if (error.response.data) {
-          if (typeof error.response.data === 'string') {
-            errorMessage = error.response.data;
-          } else if (error.response.data.detail) {
-            errorMessage = error.response.data.detail;
-          } else if (error.response.data.message) {
-            errorMessage = error.response.data.message;
-          } else if (error.response.data.error) {
-            errorMessage = error.response.data.error;
-          } else if (error.response.data.non_field_errors) {
-            // Django REST framework often returns errors this way
-            errorMessage = error.response.data.non_field_errors[0];
-          }
-        }
-        
-        // Specific status code handling
-        if (error.response.status === 401) {
-          errorMessage = 'Invalid email or password';
-        } else if (error.response.status === 403) {
-          errorMessage = 'Account is inactive or blocked';
-        }
-      } else if (error.request) {
-        // Request was made but no response received
-        errorMessage = 'No response from server. Please check your connection.';
+      // Format error message for display
+      let errorMessage = 'Login failed. Please try again.';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
       } else if (error.message) {
-        // Something else happened while setting up the request
         errorMessage = error.message;
       }
       
       setError(errorMessage);
-      
-      // Rethrow with enhanced error object
-      const enhancedError = new Error(errorMessage);
-      enhancedError.originalError = error;
-      enhancedError.response = error.response;
-      throw enhancedError;
+      throw error;
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadUserData]);
 
   const register = async (userData) => {
     try {

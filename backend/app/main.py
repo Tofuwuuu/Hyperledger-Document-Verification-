@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from dotenv import load_dotenv
 import logging
 import asyncio
+from fastapi.responses import JSONResponse
 
 from app.routes import auth, alumni, documents, verification, references, events, registrations, meetings, document_requests
 from app.config.database import connect_to_mongo, close_mongo_connection, client
@@ -14,6 +15,7 @@ from app.api.api import api_router
 from app.api.routes.notifications import router as notifications_router
 from app.core.config import settings
 from app.config.init_permissions import init_permissions
+from app.utils.csrf import csrf_protect
 
 # Load environment variables
 load_dotenv()
@@ -62,10 +64,46 @@ app.add_middleware(
     allow_origin_regex=r"https://alumni-frontend.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Admin-Bypass", "X-Requested-With"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Admin-Bypass", "X-Requested-With", "X-CSRF-Token"],
     expose_headers=["Content-Length", "Content-Range"],
     max_age=86400,  # 1 day in seconds
 )
+
+# Add CSRF middleware
+async def csrf_middleware(request: Request, call_next):
+    """Middleware to handle CSRF protection for non-GET methods"""
+    # Skip CSRF check for safe methods
+    if request.method.upper() in ("GET", "HEAD", "OPTIONS"):
+        return await call_next(request)
+    
+    # Skip CSRF for specified paths (like login, which can't have CSRF yet)
+    skip_paths = [
+        "/api/v1/auth/login", 
+        "/api/v1/auth/register", 
+        "/api/v1/auth/reset-password",
+        "/api/v1/auth/verify-reset-token",
+        "/api/v1/auth/reset-password-confirm"
+    ]
+    
+    for path in skip_paths:
+        if request.url.path.startswith(path):
+            return await call_next(request)
+    
+    # Get CSRF token from header and cookie
+    csrf_header = request.headers.get("X-CSRF-Token")
+    csrf_cookie = request.cookies.get("csrf_token")
+    
+    # If token is missing, return 403
+    if not csrf_header or not csrf_cookie or csrf_header != csrf_cookie:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "CSRF token missing or invalid"}
+        )
+    
+    # Continue with the request
+    return await call_next(request)
+
+app.middleware("http")(csrf_middleware)
 
 # MongoDB heartbeat function
 async def mongo_heartbeat():

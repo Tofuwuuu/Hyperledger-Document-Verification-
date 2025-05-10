@@ -34,6 +34,8 @@ const DocumentVerificationPage = lazy(() => import('./pages/dashboard/DocumentVe
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const QuickRegisterPage = lazy(() => import('./pages/QuickRegisterPage'));
+const ProfileEditPage = lazy(() => import('./pages/profile/ProfileEditPage'));
+const SecuritySettingsPage = lazy(() => import('./pages/profile/SecuritySettingsPage'));
 
 // Event pages
 const EventsPage = lazy(() => import('./pages/EventsPage'));
@@ -225,7 +227,11 @@ function App() {
               }
             >
               <Route index element={<AdminDashboardPage />} />
-              <Route path="profile" element={<ProfilePage />} />
+              <Route path="profile">
+                <Route index element={<ProfilePage />} />
+                <Route path="edit" element={<ProfileEditPage />} />
+                <Route path="security" element={<SecuritySettingsPage />} />
+              </Route>
               {/* Routes that require verification */}
               <Route path="documents" element={
                 <VerifiedRoute>

@@ -85,7 +85,14 @@ def get_admin_bypass_header(request: Request) -> Optional[str]:
     return request.headers.get("X-Admin-Bypass")
 
 async def get_current_user(request: Request = None, authorization: str = Header(None), token: str = Depends(oauth2_scheme)):
-    """Get current user from token"""
+    """
+    Get current user from token
+    
+    This function will check from different sources in this order:
+    1. Admin bypass header if present
+    2. Authorization header (Bearer token)
+    3. HttpOnly cookies
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -156,26 +163,51 @@ async def get_current_user(request: Request = None, authorization: str = Header(
                 }
                 return mock_admin
     
-    # Standard JWT validation for non-admin-bypass cases
-    try:
-        # Decode JWT
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        token_type: str = payload.get("type", "")
-        
-        if user_id is None or token_type != "access":
+    # Try using Oauth2 token from Authorization header (backward compatibility)
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: str = payload.get("sub")
+            if user_id is None:
+                raise credentials_exception
+            token_data = TokenData(user_id=user_id)
+        except JWTError:
             raise credentials_exception
+    # Otherwise, try to get token from cookies
+    elif request:
+        cookies = request.cookies
+        access_token = cookies.get("access_token")
         
-        # Get user from database
+        if access_token:
+            # Remove "Bearer " prefix if present
+            if access_token.startswith("Bearer "):
+                access_token = access_token[7:]
+                
+            try:
+                payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id: str = payload.get("sub")
+                if user_id is None:
+                    raise credentials_exception
+                token_data = TokenData(user_id=user_id)
+            except JWTError:
+                raise credentials_exception
+        else:
+            raise credentials_exception
+    else:
+        raise credentials_exception
+    
+    try:
         db = get_database()
-        user = await db.users.find_one({"_id": user_id})
-        
+        user = await db.users.find_one({"_id": token_data.user_id})
         if user is None:
             raise credentials_exception
         
-        # Return user data
+        # Convert _id to string
+        user["_id"] = str(user["_id"])
+        
         return user
-    except JWTError:
+    except Exception as e:
+        logging.error(f"Error fetching user: {str(e)}")
         raise credentials_exception
 
 async def get_current_active_user(current_user: Dict[str, Any] = Depends(get_current_user)):

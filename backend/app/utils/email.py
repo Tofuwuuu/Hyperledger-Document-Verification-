@@ -161,4 +161,54 @@ def get_password_reset_email(username: str, token: str, reset_url: str) -> Dict[
     return {
         "html": html,
         "text": text
+    }
+
+def get_mfa_verification_email(username: str, verification_code: str) -> Dict[str, str]:
+    """
+    Generate email content for MFA verification
+    """
+    html_content = f"""
+    <html>
+    <body>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #38a89d; padding: 20px; text-align: center; color: white;">
+                <h1>CVSU Alumni Authentication Code</h1>
+            </div>
+            <div style="padding: 20px; border: 1px solid #ddd; border-top: none;">
+                <p>Hello {username},</p>
+                <p>We received a request to access your CVSU Alumni account. Use the verification code below to complete the login process:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <div style="font-size: 24px; font-weight: bold; letter-spacing: 8px; padding: 15px; background-color: #f5f5f5; border-radius: 5px; display: inline-block;">
+                        {verification_code}
+                    </div>
+                </div>
+                <p>This code will expire in 10 minutes. If you didn't request this code, please ignore this email or contact support if you believe your account security may be at risk.</p>
+                <p>Best regards,<br>CVSU Alumni Portal Team</p>
+            </div>
+            <div style="padding: 10px; background-color: #f5f5f5; text-align: center; font-size: 12px; color: #666;">
+                <p>This is an automated message, please do not reply directly to this email.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    CVSU Alumni Authentication Code
+    
+    Hello {username},
+    
+    We received a request to access your CVSU Alumni account. Use the verification code below to complete the login process:
+    
+    {verification_code}
+    
+    This code will expire in 10 minutes. If you didn't request this code, please ignore this email or contact support if you believe your account security may be at risk.
+    
+    Best regards,
+    CVSU Alumni Portal Team
+    """
+    
+    return {
+        "html": html_content,
+        "text": text_content
     } 

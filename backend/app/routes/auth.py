@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Query, Request, Header
+from fastapi import APIRouter, HTTPException, Depends, status, Query, Request, Header, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 import logging
 import uuid
 import secrets
+import jwt
 
 from app.schemas import (
     UserCreate, 
@@ -15,7 +16,12 @@ from app.schemas import (
     PasswordReset, 
     PasswordChange,
     PasswordResetToken,
-    PasswordResetConfirm
+    PasswordResetConfirm,
+    MFASetupRequest,
+    MFAEnableRequest,
+    MFALoginRequest,
+    MFAStatusResponse,
+    MFASetupResponse
 )
 from app.utils.auth import (
     verify_password, 
@@ -25,10 +31,24 @@ from app.utils.auth import (
     get_current_user,
     get_admin_user,
     get_admin_bypass_header,
-    get_authorization_scheme_param
+    get_authorization_scheme_param,
+    SECRET_KEY,
+    ALGORITHM
 )
 from app.config.database import get_database, get_transaction_session
-from app.utils.email import send_email, get_password_reset_email
+from app.utils.email import send_email, get_password_reset_email, get_mfa_verification_email
+from app.utils.csrf import (
+    generate_csrf_token, 
+    CSRF_COOKIE_NAME, 
+    csrf_protect
+)
+from app.utils.mfa import (
+    store_verification_code,
+    verify_code,
+    create_mfa_session,
+    verify_mfa_session,
+    mask_email
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -120,7 +140,7 @@ async def register(user_data: UserCreate):
         )
 
 @router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), response: Response = None):
     try:
         db = get_database()
         
@@ -152,12 +172,42 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         access_token = create_access_token(data={"sub": user_id})
         refresh_token = create_refresh_token(data={"sub": user_id})
         
+        # Set tokens as HttpOnly cookies
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            secure=True,  # Only sent over HTTPS
+            samesite="lax",  # CSRF protection
+            max_age=60 * 60,  # 1 hour in seconds
+            path="/"
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,  # 7 days in seconds
+            path="/"
+        )
+        
         logging.info(f"Successful login for user: {form_data.username}")
         
+        # Still return tokens in response for backward compatibility
+        # In production, you might want to remove this later
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "user": {
+                "id": user_id,
+                "email": user["email"],
+                "is_admin": user.get("is_admin", False),
+                "is_verified": user.get("is_verified", False),
+                "full_name": user.get("full_name", "")
+            }
         }
     except ConnectionError as e:
         logging.error(f"Database connection error during login: {str(e)}")
@@ -177,19 +227,76 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         )
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Create a new access token using refresh token"""
-    user_id = current_user["_id"]
+async def refresh_token(request: Request, response: Response):
+    """Create a new access token using refresh token from cookie"""
+    # Try to get refresh token from cookie
+    refresh_token = request.cookies.get("refresh_token")
     
-    # Create new tokens
-    access_token = create_access_token(data={"sub": user_id})
-    refresh_token = create_refresh_token(data={"sub": user_id})
+    # If no cookie, fall back to request body for backward compatibility
+    if not refresh_token:
+        try:
+            data = await request.json()
+            refresh_token = data.get("refresh_token")
+        except:
+            refresh_token = None
     
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    try:
+        # Verify the refresh token
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        token_type: str = payload.get("type", "")
+        
+        if user_id is None or token_type != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Create new tokens
+        new_access_token = create_access_token(data={"sub": user_id})
+        new_refresh_token = create_refresh_token(data={"sub": user_id})
+        
+        # Set cookies
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {new_access_token}",
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=60 * 60,  # 1 hour
+            path="/"
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,  # 7 days
+            path="/"
+        )
+        
+        # Return tokens in body for backward compatibility
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 @router.get("/me", response_model=UserOut)
 async def get_user_me(current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -771,4 +878,333 @@ async def test_cors():
         "status": "success",
         "message": "CORS is configured correctly if you can see this message",
         "timestamp": datetime.utcnow().isoformat()
+    }
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response):
+    """Logout the user by clearing auth cookies"""
+    # Clear the cookies
+    response.delete_cookie(key="access_token", path="/")
+    response.delete_cookie(key="refresh_token", path="/")
+    
+    return None
+
+@router.get("/csrf-token")
+async def get_csrf_token(response: Response):
+    """Get a new CSRF token"""
+    # Generate a new CSRF token
+    token = generate_csrf_token()
+    
+    # Set the token in a cookie
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=token.value,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=86400,  # 24 hours
+        path="/"
+    )
+    
+    # Return the token value to be used in the header
+    return {"csrf_token": token.value}
+
+@router.post("/login/mfa-check")
+async def check_mfa_status(data: UserLogin, response: Response):
+    """Check if MFA is required for a user and start MFA flow if needed"""
+    try:
+        db = get_database()
+        
+        # Find user by email
+        user = await db.users.find_one({"email": data.email})
+        
+        # Check if user exists and password is correct
+        if not user or not verify_password(data.password, user["hashed_password"]):
+            # Return generic error for security
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # If MFA is not enabled, proceed with regular login
+        if not user.get("mfa_enabled", False):
+            # Proceed with regular login
+            user_id = str(user["_id"])
+            access_token = create_access_token(data={"sub": user_id})
+            refresh_token = create_refresh_token(data={"sub": user_id})
+            
+            # Set tokens as HttpOnly cookies
+            response.set_cookie(
+                key="access_token",
+                value=f"Bearer {access_token}",
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                max_age=60 * 60,
+                path="/"
+            )
+            
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                max_age=7 * 24 * 60 * 60,
+                path="/"
+            )
+            
+            return {
+                "mfa_required": False,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": user_id,
+                    "email": user["email"],
+                    "is_admin": user.get("is_admin", False),
+                    "is_verified": user.get("is_verified", False),
+                    "full_name": user.get("full_name", "")
+                }
+            }
+        
+        # If MFA is enabled, start MFA flow
+        user_id = str(user["_id"])
+        mfa_type = user.get("mfa_type", "email")
+        
+        if mfa_type == "email":
+            # Generate MFA code and send email
+            setup_id, code = store_verification_code(email=user["email"], user_id=user_id)
+            
+            # Send verification email
+            email_content = get_mfa_verification_email(
+                username=user.get("full_name", "User"),
+                verification_code=code
+            )
+            
+            await send_email(
+                recipients=[user["email"]],
+                subject="CVSU Alumni System - Authentication Code",
+                html_content=email_content["html"],
+                text_content=email_content["text"]
+            )
+            
+            # Return info for MFA step
+            return {
+                "mfa_required": True,
+                "setup_id": setup_id,
+                "mfa_type": mfa_type,
+                "email": mask_email(user["email"])
+            }
+        
+        # Fallback for unsupported MFA types
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported MFA type: {mfa_type}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error during MFA check: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred. Please try again later."
+        )
+
+@router.post("/login/mfa-verify", response_model=Token)
+async def verify_mfa_login(data: MFALoginRequest, response: Response):
+    """Verify MFA code and complete login"""
+    try:
+        db = get_database()
+        
+        # Find user by email
+        user = await db.users.find_one({"email": data.email})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid verification"
+            )
+        
+        # Find verification code
+        setup_id = None
+        for sid, stored_data in list(mfa_verification_codes.items()):
+            if stored_data["email"] == data.email:
+                setup_id = sid
+                break
+        
+        if not setup_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No pending verification found for this email"
+            )
+        
+        # Verify the code
+        if not verify_code(setup_id, data.verification_code):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code"
+            )
+        
+        # Code is verified, proceed with login
+        user_id = str(user["_id"])
+        access_token = create_access_token(data={"sub": user_id})
+        refresh_token = create_refresh_token(data={"sub": user_id})
+        
+        # Set tokens as HttpOnly cookies
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=60 * 60,
+            path="/"
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,
+            path="/"
+        )
+        
+        # Return success response
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error during MFA verification: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred. Please try again later."
+        )
+
+@router.get("/mfa/status", response_model=MFAStatusResponse)
+async def get_mfa_status(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get MFA status for the current user"""
+    is_enabled = current_user.get("mfa_enabled", False)
+    mfa_type = current_user.get("mfa_type")
+    email = current_user.get("email")
+    
+    if email:
+        email = mask_email(email)
+    
+    return {
+        "is_enabled": is_enabled,
+        "type": mfa_type,
+        "email": email if is_enabled else None
+    }
+
+@router.post("/mfa/setup", response_model=MFASetupResponse)
+async def setup_mfa(
+    data: MFASetupRequest, 
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Set up MFA for the current user"""
+    if data.type != "email":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only email-based MFA is currently supported"
+        )
+    
+    email = current_user.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User email is required for MFA setup"
+        )
+    
+    # Generate and store verification code
+    setup_id, code = store_verification_code(email=email, user_id=str(current_user["_id"]))
+    
+    # Send verification email
+    email_content = get_mfa_verification_email(
+        username=current_user.get("full_name", "User"),
+        verification_code=code
+    )
+    
+    await send_email(
+        recipients=[email],
+        subject="CVSU Alumni System - MFA Setup Verification",
+        html_content=email_content["html"],
+        text_content=email_content["text"]
+    )
+    
+    return {
+        "setup_id": setup_id,
+        "message": f"Verification code sent to {mask_email(email)}"
+    }
+
+@router.post("/mfa/enable")
+async def enable_mfa(
+    data: MFAEnableRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Enable MFA after verifying the code"""
+    db = get_database()
+    
+    # Find any pending setup for this user
+    setup_id = None
+    for sid, stored_data in list(mfa_verification_codes.items()):
+        if stored_data.get("user_id") == str(current_user["_id"]):
+            setup_id = sid
+            break
+    
+    if not setup_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending MFA setup found"
+        )
+    
+    # Verify the code
+    if not verify_code(setup_id, data.verification_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code"
+        )
+    
+    # Update user's MFA settings
+    await db.users.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {
+            "mfa_enabled": True,
+            "mfa_type": "email",
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    
+    return {
+        "success": True,
+        "message": "MFA enabled successfully"
+    }
+
+@router.post("/mfa/disable")
+async def disable_mfa(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Disable MFA for the current user"""
+    db = get_database()
+    
+    await db.users.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {
+            "mfa_enabled": False,
+            "updated_at": datetime.utcnow()
+        },
+        "$unset": {
+            "mfa_type": ""
+        }}
+    )
+    
+    return {
+        "success": True,
+        "message": "MFA disabled successfully"
     } 

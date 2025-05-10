@@ -52,37 +52,46 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+// Update axios instance to include CSRF token and withCredentials
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 30000, // 30 seconds
+  withCredentials: true, // Important for cookies
   headers: {
     'Content-Type': 'application/json',
-  },
+  }
 });
 
-// Request interceptor for adding the auth token
+// Add interceptors to include CSRF token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // Get the stored CSRF token from localStorage and add it to the headers
+    const token = localStorage.getItem('csrf_token');
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers['X-CSRF-Token'] = token;
+    }
+    
+    // If we have an auth token, include that too (backwards compatibility)
+    const authToken = localStorage.getItem('token');
+    if (authToken && !config.headers['Authorization']) {
+      config.headers['Authorization'] = `Bearer ${authToken}`;
       
       // For admin bypass tokens, add a special header
-      if (token.startsWith('admin_access_token_')) {
+      if (authToken.startsWith('admin_access_token_')) {
         config.headers['X-Admin-Bypass'] = 'true';
         console.log('Added admin bypass header to request:', config.url);
       }
       
       // For alumni bypass tokens, add a special header
-      if (token.startsWith('alumni_access_token_')) {
+      if (authToken.startsWith('alumni_access_token_')) {
         config.headers['X-Use-Local-User'] = 'true';
         console.log('Added alumni bypass header to request:', config.url);
       }
     }
+    
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor for handling errors
@@ -224,77 +233,84 @@ export const authService = {
     }
   },
   
-  login: async (email, password) => {
-    console.log('Login attempt for:', email);
-    
+  getCsrfToken: async () => {
     try {
-      // Regular login process for all accounts - NO verification forcing
-      console.log('Regular login for:', email);
+      const response = await api.get('/auth/csrf-token');
+      if (response.data && response.data.csrf_token) {
+        // Store the CSRF token for later use
+        localStorage.setItem('csrf_token', response.data.csrf_token);
+        return response.data.csrf_token;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting CSRF token:', error);
+      return null;
+    }
+  },
+  
+  login: async (credentials) => {
+    try {
+      // First get a CSRF token
+      await authService.getCsrfToken();
       
-      // Create URLSearchParams for form data
-      const params = new URLSearchParams();
-      params.append('username', email);
-      params.append('password', password);
+      // Now use the MFA check endpoint which may return direct login or MFA challenge
+      const response = await api.post('/auth/login/mfa-check', credentials);
       
-      console.log('Sending login request to:', `${API_URL}/auth/login`);
+      // If MFA is required, return the MFA challenge
+      if (response.data.mfa_required) {
+        return {
+          mfa_required: true,
+          setup_id: response.data.setup_id,
+          mfa_type: response.data.mfa_type,
+          email: response.data.email
+        };
+      }
       
-      // Use direct axios instance without interceptors to bypass any potential issues
-      const response = await axios({
-        method: 'post',
-        url: `${API_URL}/auth/login`,
-        data: params,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        timeout: 30000 // 30 second timeout (increased from 10s)
-      });
-      
-      console.log('Login response:', response.data);
+      // No MFA required, process regular login
       if (response.data.access_token) {
+        // Still store tokens in localStorage for backward compatibility
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Login request failed:', error.message);
-      
-      // Enhanced error logging
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        console.error('Error status:', error.response.status);
-        console.error('Error headers:', error.response.headers);
-        console.error('Error data:', error.response.data);
         
-        // Log specific error details based on status
-        if (error.response.status === 401) {
-          console.error('Authentication failed: Invalid credentials');
-        } else if (error.response.status === 400) {
-          console.error('Bad request: Validation failed');
-        } else if (error.response.status === 500) {
-          console.error('Server error: Something went wrong on the server');
+        // Store user data in localStorage
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
         }
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.error('No response received from server:', error.request);
-        console.error('Request config:', error.config);
-        if (error.code === 'ECONNABORTED') {
-          console.error('The connection to the server timed out. Possible MongoDB connection issues.');
-        }
+        
+        return response.data;
       } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error('Error message:', error.message);
-        console.error('Error config:', error.config);
+        throw new Error('No access token received');
       }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  },
+  
+  verifyMfa: async (email, code) => {
+    try {
+      const response = await api.post('/auth/login/mfa-verify', {
+        email,
+        verification_code: code
+      });
       
-      // Check for connection issues
-      if (error.code === 'ECONNABORTED') {
-        console.error('Request timed out - The server might be having database connection issues.');
-      } else if (error.message.includes('Network Error')) {
-        console.error('Network error: Unable to reach the server');
+      if (response.data.access_token) {
+        // Store tokens in localStorage for backward compatibility
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+        
+        // Fetch user data
+        const userData = await authService.reloadUserWithFreshData();
+        
+        return {
+          ...response.data,
+          user: userData
+        };
+      } else {
+        throw new Error('No access token received after MFA verification');
       }
-      
+    } catch (error) {
+      console.error('MFA verification error:', error);
       throw error;
     }
   },
@@ -344,9 +360,7 @@ export const authService = {
       return Promise.reject('No refresh token available');
     }
     
-    const response = await axios.post(`${API_URL}/auth/refresh`, {
-      refresh_token: refreshToken
-    });
+    const response = await axios.post(`${API_URL}/auth/refresh`);
     
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token);
@@ -358,7 +372,7 @@ export const authService = {
   
   logout: async () => {
     try {
-      // Call logout endpoint if available
+      // Call logout endpoint to clear cookies
       await api.post('/auth/logout');
     } catch (error) {
       console.error('Logout API call failed:', error);
@@ -367,6 +381,7 @@ export const authService = {
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
+      localStorage.removeItem('csrf_token');
     }
   },
   
@@ -495,6 +510,47 @@ export const authService = {
       return null;
     }
   },
+
+  // MFA methods
+  getMFAStatus: async () => {
+    try {
+      const response = await api.get('/auth/mfa/status');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting MFA status:', error);
+      throw error;
+    }
+  },
+  
+  setupMFA: async (type = 'email') => {
+    try {
+      const response = await api.post('/auth/mfa/setup', { type });
+      return response.data;
+    } catch (error) {
+      console.error('Error setting up MFA:', error);
+      throw error;
+    }
+  },
+  
+  enableMFA: async (verificationCode) => {
+    try {
+      const response = await api.post('/auth/mfa/enable', { verification_code: verificationCode });
+      return response.data;
+    } catch (error) {
+      console.error('Error enabling MFA:', error);
+      throw error;
+    }
+  },
+  
+  disableMFA: async () => {
+    try {
+      const response = await api.post('/auth/mfa/disable');
+      return response.data;
+    } catch (error) {
+      console.error('Error disabling MFA:', error);
+      throw error;
+    }
+  }
 };
 
 // Alumni services
