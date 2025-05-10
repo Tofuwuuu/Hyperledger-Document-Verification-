@@ -96,14 +96,30 @@ export default function LoginPage() {
         // If we get here, user exists, proceed with normal login
         console.log('MFA check success:', mfaCheckResponse.data);
       } catch (mfaError) {
-        console.error('MFA check error:', mfaError);
-        // If mfaCheck fails with 401, user doesn't exist
-        if (mfaError.response && mfaError.response.status === 401) {
-          console.log('User does not exist:', values.email);
-          setGeneralError('This account does not exist. Please register first.');
-          setIsLoading(false);
-          setSubmitting(false);
-          return; // Stop the login process here
+        console.error('MFA check error:', mfaError.response?.data || mfaError.message || mfaError);
+        
+        // Handle various error conditions from MFA check
+        if (mfaError.response) {
+          const status = mfaError.response.status;
+          const errorData = mfaError.response.data;
+          
+          // Handle 422 validation errors
+          if (status === 422) {
+            const errorMessage = errorData?.detail || 'Invalid email format or validation error';
+            setGeneralError(errorMessage);
+            setIsLoading(false);
+            setSubmitting(false);
+            return; // Stop the login process here
+          }
+          
+          // If mfaCheck fails with 401, user doesn't exist
+          if (status === 401) {
+            console.log('User does not exist:', values.email);
+            setGeneralError('This account does not exist. Please register first.');
+            setIsLoading(false);
+            setSubmitting(false);
+            return; // Stop the login process here
+          }
         }
         // For other MFA check errors, continue with normal login attempt
       }
@@ -128,7 +144,7 @@ export default function LoginPage() {
       }
       // If login is successful but no MFA, the useEffect will redirect
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login error:', error.response?.data || error.message || error);
       
       // Enhanced error messages based on error types
       let errorMessage = '';
@@ -154,6 +170,8 @@ export default function LoginPage() {
             // Fallback for other authentication errors
             errorMessage = errorDetail || 'Invalid credentials. Please try again.';
           }
+        } else if (status === 422) {
+          errorMessage = errorDetail || 'Validation error. Please check your input and try again.';
         } else if (status === 429) {
           errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
         } else if (status === 503) {
@@ -167,7 +185,7 @@ export default function LoginPage() {
         errorMessage = 'Cannot connect to the server. Please check your internet connection and try again.';
       } else {
         // Something else caused the error
-        errorMessage = 'Login failed. Please try again later.';
+        errorMessage = error.message || 'Login failed. Please try again later.';
       }
       
       // Set error in state only - don't store in sessionStorage to prevent refresh issues

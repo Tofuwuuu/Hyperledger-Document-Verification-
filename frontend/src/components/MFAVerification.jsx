@@ -94,10 +94,22 @@ const MFAVerification = ({ email, setup_id, mfa_type, remember = false, onVerifi
       
       if (err.message) {
         errorMessage = err.message;
-      } else if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
+      } else if (err.response) {
+        const status = err.response.status;
+        const errorData = err.response.data;
+        
+        if (status === 422) {
+          // Handle validation errors from backend
+          errorMessage = errorData.detail || 'Validation error with verification code';
+        } else if (status === 401) {
+          // Handle invalid code errors
+          errorMessage = 'Invalid verification code. Please try again.';
+        } else if (errorData?.detail) {
+          errorMessage = errorData.detail;
+        }
       }
       
+      console.error('MFA verification error:', errorMessage);
       setError(errorMessage);
       setVerificationCode(''); // Clear code field on error
     } finally {

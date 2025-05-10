@@ -85,9 +85,13 @@ const authService = {
             return mfaCheck.data;
           }
         } catch (error) {
-          console.error('MFA check error:', error);
-          // Continue with normal login if MFA check fails
-          // This is a fallback in case the MFA endpoint is not available
+          console.error('MFA check error:', error.response?.data || error.message || error);
+          
+          // If we get a 422 validation error, handle it properly
+          if (error.response?.status === 422) {
+            throw error; // Re-throw to be caught by the main login error handler
+          }
+          // Continue with normal login if MFA check fails with other errors
         }
       }
       
@@ -95,7 +99,7 @@ const authService = {
       const response = await axios.post(`${API_URL}/auth/login`, credentials);
       return response.data;
     } catch (error) {
-      console.error('Login service error:', error);
+      console.error('Login service error:', error.response?.data || error.message || error);
       throw error;
     }
   },
