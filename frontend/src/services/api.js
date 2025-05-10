@@ -318,7 +318,15 @@ export const authService = {
         throw new Error('No access token received');
       }
     } catch (error) {
-      return handleApiError(error, 'login');
+      // Preserve the original error details, including headers and response data
+      const enhancedError = new Error(error.response?.data?.detail || error.message || 'Login failed');
+      enhancedError.originalError = error;
+      enhancedError.response = error.response;
+      enhancedError.status = error.response?.status;
+      enhancedError.headers = error.response?.headers;
+      
+      console.error('Login error:', enhancedError);
+      throw enhancedError; // Throw the enhanced error to be caught by the LoginPage
     }
   },
   

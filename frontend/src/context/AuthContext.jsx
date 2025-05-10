@@ -309,6 +309,10 @@ export const AuthProvider = ({ children }) => {
         await loadUserData();
       }
       
+      // Clear any stored login errors
+      sessionStorage.removeItem('loginError');
+      sessionStorage.removeItem('lastLoginAttempt');
+      
       return response;
     } catch (error) {
       console.error('Login error:', error);
@@ -321,7 +325,10 @@ export const AuthProvider = ({ children }) => {
         errorMessage = error.message;
       }
       
+      // Store error for state and also in session storage for persistence
       setError(errorMessage);
+      sessionStorage.setItem('loginError', errorMessage);
+      
       throw error;
     } finally {
       setLoading(false);

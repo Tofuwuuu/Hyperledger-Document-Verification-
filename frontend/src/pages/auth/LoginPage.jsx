@@ -30,9 +30,23 @@ export default function LoginPage() {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaData, setMfaData] = useState(null);
 
+  // Check for error message in session storage on initial load
+  useEffect(() => {
+    // Check for stored error from previous login attempt
+    const storedError = sessionStorage.getItem('loginError');
+    if (storedError) {
+      setGeneralError(storedError);
+      // Clear the stored error after displaying it
+      sessionStorage.removeItem('loginError');
+    }
+  }, []);
+
   // Clear errors when component mounts or when location changes
   useEffect(() => {
-    setGeneralError('');
+    // Don't clear the error if it was just loaded from session storage
+    if (!sessionStorage.getItem('loginError')) {
+      setGeneralError('');
+    }
     if (clearError) clearError();
     
     // Check if there's a redirect path in the URL or session storage
@@ -99,6 +113,8 @@ export default function LoginPage() {
       console.error('Login error:', error);
       
       // Enhanced error messages based on error types
+      let errorMessage = '';
+      
       if (error.response) {
         const status = error.response.status;
         const errorDetail = error.response.data?.detail || '';
@@ -107,34 +123,41 @@ export default function LoginPage() {
         if (status === 401) {
           // Check for specific error type headers
           if (errorType === 'account_not_found') {
-            setGeneralError('This account does not exist. Please register first.');
+            errorMessage = 'This account does not exist. Please register first.';
           } else if (errorType === 'wrong_password') {
-            setGeneralError('Incorrect password. Please try again.');
+            errorMessage = 'Incorrect password. Please try again.';
           } else if (errorDetail.includes("account with this email address doesn't exist")) {
-            setGeneralError('This account does not exist. Please register first.');
+            errorMessage = 'This account does not exist. Please register first.';
           } else if (errorDetail.includes('deactivated')) {
-            setGeneralError(errorDetail);
+            errorMessage = errorDetail;
           } else if (errorDetail.includes('verification')) {
-            setGeneralError('Your account email has not been verified. Please check your inbox for a verification link.');
+            errorMessage = 'Your account email has not been verified. Please check your inbox for a verification link.';
           } else {
             // Fallback for other authentication errors
-            setGeneralError(errorDetail || 'Invalid credentials. Please try again.');
+            errorMessage = errorDetail || 'Invalid credentials. Please try again.';
           }
         } else if (status === 429) {
-          setGeneralError('Too many failed login attempts. Please try again later or reset your password.');
+          errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
         } else if (status === 503) {
-          setGeneralError('The service is temporarily unavailable. Please try again later.');
+          errorMessage = 'The service is temporarily unavailable. Please try again later.';
         } else {
           // Use the error message from the server if available
-          setGeneralError(errorDetail || 'Login failed. Please try again later.');
+          errorMessage = errorDetail || 'Login failed. Please try again later.';
         }
       } else if (error.request) {
         // Network error - the request was made but no response was received
-        setGeneralError('Cannot connect to the server. Please check your internet connection and try again.');
+        errorMessage = 'Cannot connect to the server. Please check your internet connection and try again.';
       } else {
         // Something else caused the error
-        setGeneralError('Login failed. Please try again later.');
+        errorMessage = 'Login failed. Please try again later.';
       }
+      
+      // Set error in state and store in session to persist through page reloads
+      setGeneralError(errorMessage);
+      sessionStorage.setItem('loginError', errorMessage);
+      
+      // Also store the attempted email to help with debugging
+      sessionStorage.setItem('lastLoginAttempt', values.email);
     } finally {
       setIsLoading(false);
       setSubmitting(false);
