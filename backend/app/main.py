@@ -24,6 +24,17 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Create FastAPI app
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description=settings.PROJECT_DESCRIPTION,
+    version=settings.PROJECT_VERSION,
+    openapi_url=f"{settings.API_PREFIX}/openapi.json",
+    docs_url=f"{settings.API_PREFIX}/docs",
+    redoc_url=f"{settings.API_PREFIX}/redoc",
+    swagger_ui_parameters={"tryItOutEnabled": True},
+)
+
 # Get CORS origins from environment or use defaults
 cors_origins = [
     "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
@@ -54,6 +65,7 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 # Add CSRF middleware
+@app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
     """Middleware to handle CSRF protection for non-GET methods"""
     # Skip CSRF check for safe methods
@@ -86,8 +98,6 @@ async def csrf_middleware(request: Request, call_next):
     
     # Continue with the request
     return await call_next(request)
-
-app.middleware("http")(csrf_middleware)
 
 # MongoDB heartbeat function
 async def mongo_heartbeat():
