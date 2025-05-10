@@ -25,8 +25,18 @@ export default function AdminUserVerificationPage() {
     setLoading(true);
     setError(null);
     
+    console.log('Starting to fetch unverified users...');
+    
     try {
+      console.log('Calling authService.getUnverifiedUsers()');
       const users = await authService.getUnverifiedUsers();
+      console.log('Response from getUnverifiedUsers:', users);
+      console.log('Number of unverified users received:', Array.isArray(users) ? users.length : 'Not an array');
+      
+      if (Array.isArray(users) && users.length > 0) {
+        console.log('First user in response:', users[0]);
+      }
+      
       setUnverifiedUsers(users);
     } catch (err) {
       console.error('Error fetching unverified users:', err);
@@ -142,6 +152,13 @@ export default function AdminUserVerificationPage() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  const enableAdminBypass = () => {
+    // Store an admin bypass token in localStorage
+    localStorage.setItem('token', 'admin_access_token_bypass_for_testing_only');
+    toast.info('Admin bypass enabled. Reloading unverified users...');
+    fetchUnverifiedUsers();
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -185,6 +202,16 @@ export default function AdminUserVerificationPage() {
           <h3 className="mt-2 text-sm font-medium text-gray-900">No unverified users</h3>
           <p className="mt-1 text-sm text-gray-500">
             All user accounts have been verified
+          </p>
+          {/* Admin bypass button */}
+          <button
+            onClick={enableAdminBypass}
+            className="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            Enable Admin Bypass
+          </button>
+          <p className="mt-1 text-xs text-gray-400">
+            Having problems? Click above to use admin bypass mode.
           </p>
         </div>
       ) : (

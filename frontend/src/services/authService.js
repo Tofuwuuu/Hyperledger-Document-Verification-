@@ -149,10 +149,9 @@ export const getUnverifiedUsers = async () => {
       console.log('Adding admin bypass header for unverified users request');
     }
     
-    // Add more verbose debugging
+    // Add verbose debugging
     console.log('Starting request to unverified-users');
     console.log('Request headers:', headers);
-    console.log(`API URL: ${API_URL}/auth/unverified-users`);
     
     try {
       // Use the special withCORS method from apiService for better CORS handling
@@ -165,7 +164,19 @@ export const getUnverifiedUsers = async () => {
       );
       
       console.log('Unverified users response received:', response.status);
-      return Array.isArray(response.data) ? response.data : [];
+      console.log('Response data type:', typeof response.data);
+      console.log('Is response.data an array?', Array.isArray(response.data));
+      
+      if (Array.isArray(response.data)) {
+        console.log('Number of users in response:', response.data.length);
+        if (response.data.length > 0) {
+          console.log('Sample user:', JSON.stringify(response.data[0]));
+        }
+        return response.data; // Return the array directly
+      } else {
+        console.error('Unexpected response format (not an array):', response.data);
+        return []; // Return empty array if response is not an array
+      }
     } catch (apiError) {
       console.error('API Error fetching unverified users:', apiError);
       
@@ -183,7 +194,7 @@ export const getUnverifiedUsers = async () => {
       // If we got a server error but have an admin bypass token, return mock data
       if (isAdminBypass && (apiError.isServerError || apiError.isNetworkError)) {
         console.log('Returning mock data for admin bypass due to API error');
-        return [
+        const mockData = [
           {
             id: '681fa5ae8d75ad66fa728ae7',  // Use the real ID from the query
             _id: '681fa5ae8d75ad66fa728ae7',
@@ -205,15 +216,14 @@ export const getUnverifiedUsers = async () => {
             year_graduated: '2023'
           }
         ];
+        return mockData;
       }
       
-      // Always return an array, even on error
-      return [];
+      return []; // Always return an empty array on error
     }
   } catch (error) {
-    console.error('Get unverified users error:', error);
-    // Return empty array instead of throwing
-    return [];
+    console.error('Get unverified users general error:', error);
+    return []; // Return empty array for any other errors
   }
 };
 
