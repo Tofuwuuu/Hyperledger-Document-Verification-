@@ -1,24 +1,113 @@
 import requests
+import json
 
-# Test the backend CORS configuration
-api_url = "https://alumni-api-klrk.onrender.com/api/v1/auth/test-cors"
+# Base URL for the API
+base_url = 'https://alumni-api-klrk.onrender.com'
 
-# Add origin header to simulate browser request
-headers = {
-    "Origin": "https://alumni-frontend-zzr2.onrender.com"
-}
-
-try:
-    # First test with OPTIONS request (preflight)
-    options_response = requests.options(api_url, headers=headers)
-    print(f"OPTIONS Status Code: {options_response.status_code}")
-    print(f"OPTIONS Headers: {dict(options_response.headers)}")
+# Test OPTIONS request for CORS preflight
+def test_options():
+    url = f'{base_url}/api/v1/auth/unverified-users'
+    headers = {
+        'Origin': 'https://alumni-frontend-zzr2.onrender.com',
+        'Access-Control-Request-Method': 'GET',
+        'Access-Control-Request-Headers': 'Authorization, X-Admin-Bypass'
+    }
     
-    # Then test with GET request
-    response = requests.get(api_url, headers=headers)
-    print(f"GET Status Code: {response.status_code}")
-    print(f"GET Headers: {dict(response.headers)}")
-    print(f"Response Body: {response.text}")
+    print(f"Making OPTIONS request to: {url}")
+    print(f"Headers: {json.dumps(headers)}")
     
-except Exception as e:
-    print(f"Error: {e}") 
+    try:
+        r = requests.options(url, headers=headers)
+        print(f"Status: {r.status_code}")
+        print("Response Headers:")
+        for k, v in r.headers.items():
+            print(f"  {k}: {v}")
+        
+        # Check for CORS headers
+        cors_headers = [
+            'Access-Control-Allow-Origin',
+            'Access-Control-Allow-Methods',
+            'Access-Control-Allow-Headers',
+            'Access-Control-Allow-Credentials'
+        ]
+        
+        print("\nCORS Header Check:")
+        for header in cors_headers:
+            value = r.headers.get(header)
+            print(f"  {header}: {'✅ ' + value if value else '❌ Missing'}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+
+# Test actual GET request
+def test_get():
+    url = f'{base_url}/api/v1/auth/unverified-users'
+    headers = {
+        'Origin': 'https://alumni-frontend-zzr2.onrender.com',
+        'Authorization': 'Bearer admin_access_token_bypass_for_testing_only',
+        'X-Admin-Bypass': 'true'
+    }
+    
+    print(f"\nMaking GET request to: {url}")
+    print(f"Headers: {json.dumps({k:v for k,v in headers.items() if k != 'Authorization'})}")
+    
+    try:
+        r = requests.get(url, headers=headers)
+        print(f"Status: {r.status_code}")
+        print("Response Headers:")
+        for k, v in r.headers.items():
+            print(f"  {k}: {v}")
+        
+        # Check for CORS headers
+        cors_headers = [
+            'Access-Control-Allow-Origin',
+            'Access-Control-Allow-Credentials',
+            'Access-Control-Expose-Headers'
+        ]
+        
+        print("\nCORS Header Check:")
+        for header in cors_headers:
+            value = r.headers.get(header)
+            print(f"  {header}: {'✅ ' + value if value else '❌ Missing'}")
+            
+        # Print response content
+        print("\nResponse Content:")
+        try:
+            print(json.dumps(r.json(), indent=2))
+        except:
+            print(r.text[:500] if r.text else '(No content)')
+            
+    except Exception as e:
+        print(f"Error: {e}")
+
+# Test the test-cors endpoint
+def test_cors_endpoint():
+    url = f'{base_url}/api/v1/auth/test-cors'
+    headers = {
+        'Origin': 'https://alumni-frontend-zzr2.onrender.com'
+    }
+    
+    print(f"\nTesting CORS test endpoint: {url}")
+    print(f"Headers: {json.dumps(headers)}")
+    
+    try:
+        r = requests.get(url, headers=headers)
+        print(f"Status: {r.status_code}")
+        print("Response Headers:")
+        for k, v in r.headers.items():
+            print(f"  {k}: {v}")
+        
+        # Print response content
+        try:
+            print(json.dumps(r.json(), indent=2))
+        except:
+            print(r.text[:500] if r.text else '(No content)')
+            
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    print("=== CORS Test for Unverified Users Endpoint ===\n")
+    test_options()
+    test_get()
+    test_cors_endpoint() 

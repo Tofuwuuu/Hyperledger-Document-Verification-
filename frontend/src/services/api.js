@@ -6,14 +6,14 @@ import {
   clearAuthTokens,
   isRememberedSession 
 } from '../utils/authUtils';
+import { API_URL } from '../config';
 
-// Get API URL from environment or use fallback
-// First try to get from environment variable
-let baseApiUrl = import.meta.env.VITE_API_URL || 'https://alumni-api-klrk.onrender.com';
-// Remove trailing slash if present
-baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
+// Base URL for the API - either from config import or environment
+const baseApiUrl = process.env.REACT_APP_API_URL || 'https://alumni-api-klrk.onrender.com';
+// Clean up URL format (remove trailing slash if present)
+const baseApiUrl_clean = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 // Add /api/v1 only if it's not already included
-const API_URL = baseApiUrl.includes('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
+export const API_URL = baseApiUrl_clean.includes('/api/v1') ? baseApiUrl_clean : `${baseApiUrl_clean}/api/v1`;
 console.log('API URL configured as:', API_URL); // Debug API URL
 
 // Flag to prevent multiple refresh token requests
@@ -33,197 +33,178 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Create axios instance with default configuration
+// Create axios instance with default config
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000, // 30 seconds
-  withCredentials: true, // Important for cookies
+  timeout: 30000,
+  withCredentials: true,  // Important for CORS with credentials
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'  // Help prevent CSRF attacks
   }
 });
 
-// Request interceptor to include auth tokens and CSRF token
+// Add request interceptor for authentication
 api.interceptors.request.use(
   (config) => {
-    // Get the stored CSRF token from localStorage and add it to the headers
-    const csrfToken = localStorage.getItem('csrf_token');
-    if (csrfToken) {
-      config.headers['X-CSRF-Token'] = csrfToken;
+    // Ensure withCredentials is always set for cross-origin requests
+    config.withCredentials = true;
+    
+    // Debug current request in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🚀 API Request [${config.method?.toUpperCase()}] ${config.url}`, { 
+        headers: config.headers, 
+        data: config.data,
+        withCredentials: config.withCredentials
+      });
     }
-    
-    // Get auth tokens
-    const { accessToken } = getAuthTokens();
-    
-    // If we have an auth token, include that too (backwards compatibility)
-    if (accessToken && !config.headers['Authorization']) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`;
-      
-      // For admin bypass tokens, add a special header
-      if (accessToken.startsWith('admin_access_token_')) {
-        config.headers['X-Admin-Bypass'] = 'true';
-        console.log('Added admin bypass header to request:', config.url);
-      }
-      
-      // For alumni bypass tokens, add a special header
-      if (accessToken.startsWith('alumni_access_token_')) {
-        config.headers['X-Use-Local-User'] = 'true';
-        console.log('Added alumni bypass header to request:', config.url);
-      }
+
+    // Add auth header if token exists
+    const token = localStorage.getItem('token');
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
 );
 
-// Response interceptor for handling token refresh
+// Add response interceptor to handle common errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Debug response in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ API Response [${response.status}] ${response.config.url}`, { 
+        headers: response.headers,
+        data: response.data
+      });
+    }
+    return response;
+  },
   async (error) => {
-    // If there's no error response (network error), handle specially
-    if (!error.response) {
-      console.error('Network error detected in API call:', error.message || 'Unknown error');
+    // Debug error in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`❌ API Error [${error.response?.status || 'Network Error'}]`, { 
+        message: error.message,
+        response: error.response,
+        config: error.config
+      });
+    }
+
+    if (error.response) {
+      // Handle CORS errors more gracefully
+      const statusCode = error.response.status;
+      const requestUrl = error.config.url;
       
-      // Create a standardized network error
-      const networkError = {
-        isNetworkError: true,
-        message: 'Unable to connect to the server. Please check your internet connection.',
-        original: error
-      };
-      
-      // Don't redirect to login for network errors
-      // This allows the app to continue functioning offline
-      return Promise.reject(networkError);
+      // If we get a 401, check if the token is expired
+      if (statusCode === 401) {
+        // Handle token expiration (add refresh token logic if needed)
+        console.log('Authentication error - check token validity');
+      }
+
+      // Add more specific error details
+      error.isNetworkError = false;
+      error.statusCode = statusCode;
+      error.isAuthError = statusCode === 401;
+      error.isForbidden = statusCode === 403;
+      error.isServerError = statusCode >= 500;
+    } else if (error.request) {
+      // Network error - no response received
+      console.error('Network error - no response received');
+      error.isNetworkError = true;
+      error.message = 'Unable to connect to the server. Please check your internet connection.';
     }
-    
-    const originalRequest = error.config;
-    
-    // Get the token to check if it's a bypass token
-    const { accessToken } = getAuthTokens();
-    
-    // If using admin, alumni, or test bypass token, don't try to refresh the token
-    if (accessToken && (
-      accessToken.startsWith('admin_access_token_') || 
-      accessToken.startsWith('alumni_access_token_')
-    )) {
-      console.log('Bypass token detected - not attempting refresh for:', originalRequest.url);
-      // For bypass tokens, we don't want to redirect to login on 401 either
-      return Promise.reject(error);
+
+    return Promise.reject(error);
+  }
+);
+
+// Generic API methods
+export const apiService = {
+  // Wrap api functions with more descriptive error handling
+  get: async (url, config = {}) => {
+    try {
+      return await api.get(url, config);
+    } catch (error) {
+      // Transform the error for better user experience
+      handleApiError(error, 'GET', url);
+      throw error;
     }
-    
-    // If the error is not 401 or the request was already retried, reject
-    if (error.response?.status !== 401 || originalRequest._retry) {
-      return Promise.reject(error);
+  },
+  post: async (url, data, config = {}) => {
+    try {
+      return await api.post(url, data, config);
+    } catch (error) {
+      handleApiError(error, 'POST', url);
+      throw error;
     }
-    
-    // If we are already refreshing, queue the request
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      })
-        .then(token => {
-          originalRequest.headers['Authorization'] = `Bearer ${token}`;
-          return api(originalRequest);
-        })
-        .catch(err => {
-          return Promise.reject(err);
-        });
+  },
+  put: async (url, data, config = {}) => {
+    try {
+      return await api.put(url, data, config);
+    } catch (error) {
+      handleApiError(error, 'PUT', url);
+      throw error;
     }
-    
-    originalRequest._retry = true;
-    isRefreshing = true;
+  },
+  delete: async (url, config = {}) => {
+    try {
+      return await api.delete(url, config);
+    } catch (error) {
+      handleApiError(error, 'DELETE', url);
+      throw error;
+    }
+  },
+  // Specific method for CORS-sensitive endpoints
+  withCORS: async (method, url, data = null, config = {}) => {
+    // Ensure CORS headers are set
+    const corsConfig = {
+      ...config,
+      withCredentials: true,
+      headers: {
+        ...config.headers,
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    };
     
     try {
-      // Try to refresh the token
-      const { refreshToken } = getAuthTokens();
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
+      if (method.toLowerCase() === 'get') {
+        return await api.get(url, corsConfig);
+      } else if (method.toLowerCase() === 'post') {
+        return await api.post(url, data, corsConfig);
+      } else if (method.toLowerCase() === 'put') {
+        return await api.put(url, data, corsConfig);
+      } else if (method.toLowerCase() === 'delete') {
+        return await api.delete(url, corsConfig);
       }
-      
-      const response = await axios.post(`${API_URL}/auth/refresh`, {
-        refresh_token: refreshToken
-      });
-      
-      if (!response.data || !response.data.access_token) {
-        throw new Error('Invalid refresh response');
-      }
-      
-      const { access_token, refresh_token } = response.data;
-      
-      // Store the new tokens
-      storeAuthTokens(
-        { accessToken: access_token, refreshToken: refresh_token },
-        isRememberedSession()
-      );
-      
-      // Update authorization header for originalRequest
-      originalRequest.headers['Authorization'] = `Bearer ${access_token}`;
-      
-      // Process queued requests
-      processQueue(null, access_token);
-      
-      return api(originalRequest);
-    } catch (refreshError) {
-      // Failed to refresh token
-      processQueue(refreshError, null);
-      
-      // Check if it's a network error
-      if (!refreshError.response) {
-        console.error('Network error during token refresh:', refreshError.message || 'Unknown error');
-        
-        // Instead of clearing auth and redirecting, just reject with network error
-        const networkError = {
-          isNetworkError: true,
-          message: 'Unable to connect to the server during token refresh. Please check your internet connection.',
-          original: refreshError
-        };
-        return Promise.reject(networkError);
-      }
-      
-      // Only clear auth and redirect if it's not a network error
-      clearAuthTokens();
-      window.location.href = '/login';
-      
-      return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
+      throw new Error(`Unsupported method: ${method}`);
+    } catch (error) {
+      handleApiError(error, method, url, true);
+      throw error;
     }
   }
-);
-
-// Helper function to handle API errors consistently
-const handleApiError = (error, context = '') => {
-  // Log error for debugging
-  console.error(`API Error ${context ? `in ${context}` : ''}:`, error);
-  
-  // Create a standardized error object
-  const errorObj = {
-    message: error.response?.data?.detail || error.message || 'Unknown error occurred',
-    status: error.response?.status,
-    data: error.response?.data || null,
-    original: error
-  };
-  
-  // Add context to error
-  if (context) {
-    errorObj.context = context;
-  }
-  
-  // Special handling for network errors
-  if (error.message?.includes('Network Error')) {
-    errorObj.isNetworkError = true;
-    errorObj.message = 'Unable to connect to the server. Please check your internet connection.';
-  }
-  
-  // Special handling for timeout errors
-  if (error.code === 'ECONNABORTED') {
-    errorObj.isTimeoutError = true;
-    errorObj.message = 'Request timed out. Please try again later.';
-  }
-  
-  throw errorObj;
 };
+
+// Helper function for consistent error handling
+function handleApiError(error, method, url, isCORSRequest = false) {
+  if (error.isNetworkError) {
+    console.error(`Network error detected in API call: ${error.message}`);
+  } else if (error.response) {
+    console.error(`API ${method} ${url} failed with status ${error.response.status}:`, 
+      error.response.data);
+      
+    // Log additional information for CORS errors
+    if (isCORSRequest && !error.response.headers['access-control-allow-origin']) {
+      console.error('Possible CORS error - missing Access-Control-Allow-Origin header');
+    }
+  } else {
+    console.error(`API ${method} ${url} failed:`, error.message);
+  }
+}
 
 // Authentication services
 export const authService = {

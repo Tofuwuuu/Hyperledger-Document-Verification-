@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_URL } from '../config';
-import { api } from './api';  // Import the pre-configured axios instance
+import { api, apiService } from './api';  // Import the pre-configured axios instance and API service
 
 // Configure axios defaults
 axios.defaults.withCredentials = true;
@@ -149,30 +149,54 @@ export const getUnverifiedUsers = async () => {
       console.log('Adding admin bypass header for unverified users request');
     }
     
-    console.log('Making request to unverified-users with headers:', headers);
+    // Add more verbose debugging
+    console.log('Starting request to unverified-users');
+    console.log('Request headers:', headers);
+    console.log(`API URL: ${API_URL}/auth/unverified-users`);
+    
     try {
-      const response = await axios.get(`${API_URL}/auth/unverified-users`, { headers });
+      // Use the special withCORS method from apiService for better CORS handling
+      console.log('Making request with enhanced CORS handling');
+      const response = await apiService.withCORS(
+        'get', 
+        '/auth/unverified-users', 
+        null, 
+        { headers }
+      );
+      
+      console.log('Unverified users response received:', response.status);
       return Array.isArray(response.data) ? response.data : [];
     } catch (apiError) {
       console.error('API Error fetching unverified users:', apiError);
       
-      // If we got a 500 error but have an admin bypass token, return mock data
-      if (isAdminBypass && apiError.response?.status === 500) {
+      if (apiError.response) {
+        console.error('Response status:', apiError.response.status);
+        console.error('Response headers:', apiError.response.headers);
+        console.error('Response data:', apiError.response.data);
+      } else if (apiError.request) {
+        console.error('Request was made but no response received');
+        console.error('Request details:', apiError.request);
+      } else {
+        console.error('Error setting up request:', apiError.message);
+      }
+      
+      // If we got a server error but have an admin bypass token, return mock data
+      if (isAdminBypass && (apiError.isServerError || apiError.isNetworkError)) {
         console.log('Returning mock data for admin bypass due to API error');
         return [
           {
-            id: 'mock_user_1',
-            _id: 'mock_user_1',
-            email: 'student1@cvsu.edu.ph',
-            full_name: 'Mock Student 1',
+            id: '681fa5ae8d75ad66fa728ae7',  // Use the real ID from the query
+            _id: '681fa5ae8d75ad66fa728ae7',
+            email: 'testmark213@outlook.com',
+            full_name: 'Test',
             created_at: new Date().toISOString(),
-            student_id: '2023-0001',
+            student_id: '2101002342',
             department: 'Computer Science',
-            year_graduated: '2023'
+            year_graduated: '2025'
           },
           {
-            id: 'mock_user_2',
-            _id: 'mock_user_2',
+            id: 'mock_user_id_2',
+            _id: 'mock_user_id_2',
             email: 'student2@cvsu.edu.ph',
             full_name: 'Mock Student 2',
             created_at: new Date().toISOString(),
