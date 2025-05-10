@@ -40,9 +40,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
-        "http://localhost:3000",  # Local development
-        "http://localhost:5173",  # Vite development
-        "http://127.0.0.1:5173"   # Alternative local
+        "https://alumni-frontend.onrender.com",       # Alternative production frontend
+        "http://localhost:3000",                      # Local development React
+        "http://localhost:5173",                      # Vite development
+        "http://localhost:5174",                      # Alternative Vite port
+        "http://127.0.0.1:5173",                      # Alternative local
+        "http://127.0.0.1:5174",                      # Alternative local
+        "http://127.0.0.1:3000"                       # Alternative local React
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -57,7 +61,10 @@ app.add_middleware(
         "Cache-Control",
         "Pragma",
         "Accept-Encoding",
-        "Accept-Language"
+        "Accept-Language",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers"
     ],
     expose_headers=["Content-Length", "Content-Range", "X-CSRF-Token"],
     max_age=86400,  # 1 day in seconds
@@ -71,24 +78,60 @@ async def add_security_headers(request: Request, call_next):
         # For preflight requests, return a proper response with CORS headers
         # Get the requested headers from the request
         requested_headers = request.headers.get("Access-Control-Request-Headers", "")
+        requested_method = request.headers.get("Access-Control-Request-Method", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+        origin = request.headers.get("Origin", "")
         
-        # Use the requested headers if present, otherwise use our default list
-        allow_headers = requested_headers if requested_headers else "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Use-Local-User, Cache-Control, Pragma, Accept-Encoding, Accept-Language"
+        # Check if the origin is in the list of allowed origins
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
         
-        headers = {
-            "Access-Control-Allow-Origin": request.headers.get("Origin", ""),
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": allow_headers,
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "86400",
-        }
-        return JSONResponse(content={}, status_code=200, headers=headers)
+        # If origin is allowed or empty (will be rejected by the browser anyway)
+        if origin in allowed_origins or not origin:
+            # Use the requested headers if present, otherwise use our default list
+            allow_headers = requested_headers if requested_headers else "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Use-Local-User, Cache-Control, Pragma, Accept-Encoding, Accept-Language, Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+            
+            headers = {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": requested_method,
+                "Access-Control-Allow-Headers": allow_headers,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "86400",
+                "Content-Type": "text/plain",
+                "Content-Length": "0",
+            }
+            return JSONResponse(content={}, status_code=200, headers=headers)
         
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    
+    # Ensure CORS headers are preserved
+    if "access-control-allow-origin" not in response.headers and "origin" in request.headers:
+        origin = request.headers.get("origin")
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     return response
 
 # Add CSRF middleware

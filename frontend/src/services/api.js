@@ -890,33 +890,33 @@ export const alumniService = {
   getAllAlumni: async (params = {}) => {
     try {
       console.log('Fetching alumni list with params:', params);
-      return api.get('/alumni', { params });
-    } catch (error) {
-      console.error('Error fetching alumni list:', error);
-      
-      // Try using the simplified endpoint as a fallback
-      if (error.isNetworkError || error.response?.status >= 500) {
-        console.log('Primary alumni endpoint failed, trying simplified endpoint as fallback');
-        try {
-          // Use the simpler alumni/list endpoint
-          const simplifiedResponse = await api.get('/alumni/list', { params });
-          console.log('Simplified alumni endpoint succeeded');
-          return simplifiedResponse;
-        } catch (fallbackError) {
-          console.error('Fallback endpoint also failed:', fallbackError);
-          // Return empty results if both endpoints fail
-          return {
-            data: {
-              results: [],
-              total: 0,
-              limit: params.limit || 10,
-              offset: params.offset || 0
-            }
-          };
-        }
+      // Use the simplified endpoint by default since it's more reliable
+      try {
+        console.log('Using simplified alumni/list endpoint directly');
+        const simplifiedResponse = await api.get('/alumni/list', { params });
+        console.log('Simplified alumni endpoint succeeded');
+        return simplifiedResponse;
+      } catch (listError) {
+        console.error('Simplified alumni endpoint failed:', listError);
+        
+        // Try the main endpoint as a fallback
+        console.log('Trying main alumni endpoint as fallback');
+        const mainResponse = await api.get('/alumni', { params });
+        console.log('Main alumni endpoint succeeded');
+        return mainResponse;
       }
+    } catch (error) {
+      console.error('Error fetching alumni list (all attempts failed):', error);
       
-      throw error;
+      // Return empty results if both endpoints fail
+      return {
+        data: {
+          results: [],
+          total: 0,
+          limit: params.limit || 10,
+          offset: params.offset || 0
+        }
+      };
     }
   },
 };
