@@ -52,6 +52,11 @@ export const login = async (credentials) => {
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
     
+    // Add remember flag as form data
+    if (credentials.remember !== undefined) {
+      formData.append('remember', credentials.remember);
+    }
+    
     const response = await api.post('/auth/login', formData);
     
     if (response.data.access_token) {
