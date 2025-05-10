@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 # Import only the routes that exist
-from app.api.routes import fabric, notifications, admin, roles, users
+from app.api.routes import fabric, notifications, admin, roles, users, healthcheck
 
 # Use standard routes from the app.routes package
 from app.routes import auth, alumni, documents, verification, events, registrations
@@ -9,6 +9,7 @@ from app.routes import auth, alumni, documents, verification, events, registrati
 api_router = APIRouter()
 
 # Include API routers
+api_router.include_router(healthcheck.router, prefix="/healthcheck", tags=["healthcheck"])
 api_router.include_router(fabric.router, prefix="/fabric", tags=["fabric"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
