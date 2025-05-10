@@ -486,19 +486,14 @@ export const AuthProvider = ({ children }) => {
       
       return response;
     } catch (error) {
-      console.error('Login error:', error);
+      // The error should now be a safe error object from authService
+      console.error('Login error:', error.message || 'Unknown error');
       
-      // Format error message for display
-      let errorMessage = 'Login failed. Please try again.';
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      // Set the error message directly from the error object 
+      // This avoids any serialization issues
+      setError(error.message || 'Login failed. Please try again.');
       
-      // Only set in state, don't use sessionStorage
-      setError(errorMessage);
-      
+      // Rethrow the simplified error
       throw error;
     } finally {
       setLoading(false);

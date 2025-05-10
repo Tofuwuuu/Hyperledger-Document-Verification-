@@ -60,8 +60,36 @@ export const login = async (credentials) => {
     
     return response.data;
   } catch (error) {
-    console.error('Login error:', error);
-    throw error;
+    // Extract the safe error message to avoid serialization issues
+    const errorResponse = error.response?.data || {};
+    let errorMessage = '';
+    
+    // Check for different types of validation errors
+    if (error.response?.status === 422) {
+      if (Array.isArray(errorResponse.detail)) {
+        // Handle FastAPI validation error array format
+        errorMessage = errorResponse.detail[0]?.msg || 'Validation error';
+      } else if (typeof errorResponse.detail === 'string') {
+        errorMessage = errorResponse.detail;
+      } else if (errorResponse.detail && typeof errorResponse.detail === 'object') {
+        // Convert object of errors to a string
+        errorMessage = Object.values(errorResponse.detail).join(', ');
+      } else {
+        errorMessage = 'Validation error';
+      }
+    } else {
+      // For other types of errors
+      errorMessage = errorResponse.detail || error.message || 'Unknown error';
+    }
+    
+    console.error('Login error:', errorMessage);
+    
+    // Create a simplified error object that's safe for serialization
+    const safeError = new Error(errorMessage);
+    safeError.status = error.response?.status;
+    safeError.data = errorMessage;
+    
+    throw safeError;
   }
 };
 
