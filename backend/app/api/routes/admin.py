@@ -10,6 +10,17 @@ from app.schemas import VerificationStatus
 
 router = APIRouter()
 
+@router.get("/dashboard/health", response_model=Dict[str, Any])
+async def admin_dashboard_health():
+    """
+    Simple health check endpoint for admin dashboard without authentication
+    """
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "message": "Admin dashboard API is operational"
+    }
+
 @router.get("/dashboard/stats", response_model=Dict[str, int])
 async def get_dashboard_stats(
     admin_user: Dict[str, Any] = Depends(get_admin_user)
