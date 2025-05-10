@@ -8,12 +8,16 @@ from .user import (
     TokenData, 
     TokenPayload,
     Token, 
-    PasswordReset, 
     PasswordChange,
-    PasswordResetToken,
-    PasswordResetConfirm,
     PaginationMeta,
     UserPaginatedResponse
+)
+
+# Import password reset schemas from dedicated file
+from .password_reset import (
+    PasswordReset,
+    PasswordResetToken,
+    PasswordResetConfirm
 )
 
 from .alumni import (
