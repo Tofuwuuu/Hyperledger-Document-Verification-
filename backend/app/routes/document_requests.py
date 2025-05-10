@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 from bson import ObjectId
 
-from app.config.database import get_database, db, connect_to_mongo
+from app.config.database import get_database, db, connect_to_mongo, get_transaction_session
 from app.models.document_request import (
     DocumentRequestCreate, 
     DocumentRequest,
@@ -392,105 +392,115 @@ async def generate_document(
     admin_user = Depends(get_admin_user)
 ):
     """
-    Generate a document from a template for a document request (admin only)
+    Generate a document for a document request.
+    Only admin users can generate documents.
     """
-    # Get document request
-    request = await db.document_requests.find_one({"_id": ObjectId(request_id)})
-    if not request:
-        raise HTTPException(status_code=404, detail="Document request not found")
-    
-    # Get alumni data using the improved lookup logic
-    alumni = None
-    doc_alumni_id = request.get("alumni_id")
-    print(f"Looking up alumni with ID for document generation: {doc_alumni_id}")
-    
     try:
-        # First try with the ID as is
-        alumni = await db.alumni.find_one({"_id": doc_alumni_id})
+        # Get document request
+        request = await db.document_requests.find_one({"_id": ObjectId(request_id)})
+        if not request:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document request with ID {request_id} not found"
+            )
         
-        # If not found, try converting to ObjectId if it's a string
-        if not alumni and isinstance(doc_alumni_id, str):
-            try:
-                alumni = await db.alumni.find_one({"_id": ObjectId(doc_alumni_id)})
-            except Exception as e:
-                print(f"Error converting alumni_id to ObjectId: {e}")
-                
-        # If still not found, try looking up by string _id
-        if not alumni:
-            alumni = await db.alumni.find_one({"_id": str(doc_alumni_id)})
-            
-        if not alumni:
-            print(f"Alumni record not found for ID: {doc_alumni_id}")
-            raise HTTPException(status_code=404, detail="Alumni record not found")
-            
-        print(f"Found alumni for document generation: {alumni.get('full_name')}")
-    except Exception as e:
-        print(f"Error finding alumni for document generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error finding alumni record: {str(e)}")
-    
-    # Generate document
-    try:
-        file_path = await generate_document_from_template(
-            document_type=request["document_type"],
-            alumni_data=alumni
-        )
-        
-        absolute_path = os.path.join(os.getcwd(), "uploads", file_path)
-        
-        # Calculate file hash
-        file_hash = calculate_document_hash(absolute_path)
-        
-        # Create document record
-        document = DocumentCreate(
-            alumni_id=request["alumni_id"],
-            document_type=DocumentType.CERTIFICATE,
-            title=f"{request['document_type'].replace('_', ' ').title()} for {alumni.get('full_name', 'Unknown')}",
-            description=f"Auto-generated {request['document_type'].replace('_', ' ')} document",
-            file_path=file_path,
-            file_hash=file_hash
-        )
-        
-        # Insert document into database
-        document_dict = document.dict()
-        document_dict["verification_status"] = VerificationStatus.VERIFIED
-        document_dict["verified_by"] = str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"])
-        document_dict["verification_date"] = datetime.utcnow()
-        document_dict["created_at"] = datetime.utcnow()
-        document_dict["updated_at"] = datetime.utcnow()
-        
-        result = await db.documents.insert_one(document_dict)
-        document_id = str(result.inserted_id)
-        
-        # Update document request with document ID and status
-        await db.document_requests.update_one(
-            {"_id": ObjectId(request_id)},
-            {
-                "$set": {
-                    "document_id": document_id,
-                    "status": DocumentRequestStatus.COMPLETED.value,
-                    "completed_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+        # Check if document is already generated
+        if request.get("document_id"):
+            # Return existing document
+            document = await db.documents.find_one({"_id": ObjectId(request.get("document_id"))})
+            if document:
+                return {
+                    "success": True,
+                    "message": "Document already generated",
+                    "document_id": str(document["_id"]),
+                    "document_url": f"/api/v1/documents/{document['_id']}/download"
                 }
+        
+        # Get alumni data
+        alumni = await db.alumni.find_one({"_id": ObjectId(request["alumni_id"])})
+        if not alumni:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Alumni with ID {request['alumni_id']} not found"
+            )
+        
+        # Generate document
+        try:
+            file_path = await generate_document_from_template(
+                document_type=request["document_type"],
+                alumni_data=alumni
+            )
+            
+            absolute_path = os.path.join(os.getcwd(), "uploads", file_path)
+            
+            # Calculate file hash
+            file_hash = calculate_document_hash(absolute_path)
+            
+            # Create document record
+            document = DocumentCreate(
+                alumni_id=request["alumni_id"],
+                document_type=DocumentType.CERTIFICATE,
+                title=f"{request['document_type'].replace('_', ' ').title()} for {alumni.get('full_name', 'Unknown')}",
+                description=f"Auto-generated {request['document_type'].replace('_', ' ')} document",
+                file_path=file_path,
+                file_hash=file_hash
+            )
+            
+            # Use transactions to ensure atomic operations
+            document_dict = document.dict()
+            document_dict["verification_status"] = VerificationStatus.VERIFIED
+            document_dict["verified_by"] = str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"])
+            document_dict["verification_date"] = datetime.utcnow()
+            document_dict["created_at"] = datetime.utcnow()
+            document_dict["updated_at"] = datetime.utcnow()
+            
+            document_id = None
+            
+            # Start transaction
+            async with get_transaction_session() as session:
+                async with session.start_transaction():
+                    # Insert document within transaction
+                    result = await db.documents.insert_one(document_dict, session=session)
+                    document_id = str(result.inserted_id)
+                    
+                    # Update document request within same transaction
+                    await db.document_requests.update_one(
+                        {"_id": ObjectId(request_id)},
+                        {
+                            "$set": {
+                                "document_id": document_id,
+                                "status": DocumentRequestStatus.COMPLETED.value,
+                                "completed_at": datetime.utcnow(),
+                                "updated_at": datetime.utcnow()
+                            }
+                        },
+                        session=session
+                    )
+            
+            # Send notification after transaction completes
+            await notify_document_request_status_update(
+                request_id=request_id,
+                user_id=request["user_id"],
+                status="completed",
+                message=f"Your document request has been completed. You can download your document from the portal."
+            )
+            
+            return {
+                "success": True,
+                "message": "Document generated successfully",
+                "document_id": document_id,
+                "document_url": f"/api/v1/documents/{document_id}/download"
             }
-        )
-        
-        # Notify alumni that document is ready
-        await notify_document_request_status_update(
-            request_id=request_id,
-            document_type=request["document_type"],
-            alumni_id=request["alumni_id"],
-            new_status=DocumentRequestStatus.COMPLETED.value,
-            document_id=document_id
-        )
-        
-        return {
-            "success": True,
-            "message": "Document generated successfully",
-            "document_id": document_id,
-            "file_path": file_path
-        }
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate document: {str(e)}"
+            )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate document: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
 
 @router.get("/{request_id}/download", response_class=FileResponse)
 async def download_generated_document(

@@ -14,7 +14,7 @@ from app.schemas import (
     PublicVerificationResponse
 )
 from app.utils.auth import get_current_user, get_admin_user
-from app.config.database import get_database
+from app.config.database import get_database, get_transaction_session
 from app.blockchain.fabric import (
     generate_document_hash,
     store_document_hash,
@@ -79,6 +79,7 @@ async def verify_document(
             "admin_notes": verification_data.admin_notes
         }
         
+        # Store in blockchain - this can't be rolled back so do it before starting the transaction
         blockchain_result = await store_document_hash(
             document_id=document_id,
             document_hash=document["file_hash"],
@@ -90,80 +91,136 @@ async def verify_document(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to store document hash in blockchain: {blockchain_result['message']}"
             )
-    
-        # Update document status
+        
+        # Start a transaction for database updates and notifications
         now = datetime.utcnow()
-        await db.documents.update_one(
-            {"_id": document_id},
-            {
-                "$set": {
-                    "verification_status": verification_data.status.value,
-                    "verified_by": str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"]),
-                    "verification_date": now,
-                    "blockchain_tx_id": blockchain_result.get("transaction_id"),
-                    "admin_notes": verification_data.admin_notes,
-                    "updated_at": now
-                }
+        transaction_id = blockchain_result.get("transaction_id", "unknown")
+        
+        try:
+            # Use transaction for database operations
+            async with get_transaction_session() as session:
+                async with session.start_transaction():
+                    # Update document status within transaction
+                    await db.documents.update_one(
+                        {"_id": document_id},
+                        {
+                            "$set": {
+                                "verification_status": verification_data.status.value,
+                                "verified_by": str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"]),
+                                "verification_date": now,
+                                "blockchain_tx_id": transaction_id,
+                                "admin_notes": verification_data.admin_notes,
+                                "updated_at": now
+                            }
+                        },
+                        session=session
+                    )
+                    
+                    # Add verification history record
+                    await db.verification_history.insert_one({
+                        "document_id": document_id,
+                        "alumni_id": document["alumni_id"],
+                        "user_id": user_id,
+                        "status": verification_data.status.value,
+                        "verified_by": str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"]),
+                        "verification_date": now,
+                        "blockchain_tx_id": transaction_id,
+                        "admin_notes": verification_data.admin_notes,
+                        "created_at": now
+                    }, session=session)
+                    
+                    # The notifications are now moved outside the transaction as they might involve
+                    # external services that can't be rolled back in MongoDB transactions
+        
+            # Send notifications after transaction completes
+            await notify_document_verification(
+                document_id=document_id,
+                document_title=document["title"],
+                status="verified",
+                user_id=user_id,
+                admin_notes=verification_data.admin_notes
+            )
+            
+            await notify_blockchain_confirmation(
+                document_id=document_id,
+                document_title=document["title"],
+                user_id=user_id,
+                transaction_id=transaction_id
+            )
+            
+            return {
+                "success": True,
+                "message": "Document successfully verified",
+                "document_id": document_id,
+                "transaction_id": transaction_id,
+                "verification_date": now.isoformat()
             }
-        )
-        
-        # Send verification notification to user
-        await notify_document_verification(
-            document_id=document_id,
-            document_title=document["title"],
-            status="verified",
-            user_id=user_id,
-            admin_notes=verification_data.admin_notes
-        )
-        
-        # Send blockchain confirmation notification
-        await notify_blockchain_confirmation(
-            document_id=document_id,
-            document_title=document["title"],
-            user_id=user_id,
-            transaction_id=blockchain_result.get("transaction_id", "unknown")
-        )
-        
-        return {
-            "success": True,
-            "message": "Document successfully verified",
-            "document_id": document_id,
-            "transaction_id": blockchain_result.get("transaction_id"),
-            "verification_date": now.isoformat()
-        }
+            
+        except Exception as e:
+            # If we get here, the transaction was rolled back
+            # But the blockchain operation can't be rolled back
+            return {
+                "success": False,
+                "message": f"Database update failed: {str(e)}",
+                "blockchain_status": "Document hash was stored in blockchain but database update failed",
+                "transaction_id": transaction_id
+            }
     
-    # If rejecting, simply update status
+    # If rejecting, use transaction for database operations
     else:
         now = datetime.utcnow()
-        await db.documents.update_one(
-            {"_id": document_id},
-            {
-                "$set": {
-                    "verification_status": verification_data.status.value,
-                    "verified_by": str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"]),
-                    "verification_date": now,
-                    "admin_notes": verification_data.admin_notes,
-                    "updated_at": now
-                }
+        try:
+            async with get_transaction_session() as session:
+                async with session.start_transaction():
+                    # Update document status within transaction
+                    await db.documents.update_one(
+                        {"_id": document_id},
+                        {
+                            "$set": {
+                                "verification_status": verification_data.status.value,
+                                "verified_by": str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"]),
+                                "verification_date": now,
+                                "admin_notes": verification_data.admin_notes,
+                                "updated_at": now
+                            }
+                        },
+                        session=session
+                    )
+                    
+                    # Add verification history record
+                    await db.verification_history.insert_one({
+                        "document_id": document_id,
+                        "alumni_id": document["alumni_id"],
+                        "user_id": user_id,
+                        "status": verification_data.status.value,
+                        "verified_by": str(admin_user.id) if hasattr(admin_user, 'id') else str(admin_user["_id"]),
+                        "verification_date": now,
+                        "admin_notes": verification_data.admin_notes,
+                        "created_at": now
+                    }, session=session)
+            
+            # Send notification after transaction completes
+            await notify_document_verification(
+                document_id=document_id,
+                document_title=document["title"],
+                status="rejected",
+                user_id=user_id,
+                admin_notes=verification_data.admin_notes
+            )
+            
+            return {
+                "success": True,
+                "message": "Document verification rejected",
+                "document_id": document_id,
+                "rejection_reason": verification_data.admin_notes,
+                "rejection_date": now.isoformat()
             }
-        )
-        
-        # Send rejection notification to user
-        await notify_document_verification(
-            document_id=document_id,
-            document_title=document["title"],
-            status="rejected",
-            user_id=user_id,
-            admin_notes=verification_data.admin_notes
-        )
-        
-        return {
-            "success": True,
-            "message": "Document verification rejected",
-            "document_id": document_id,
-            "rejection_reason": verification_data.admin_notes,
-            "rejection_date": now.isoformat()
-        }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Database update failed: {str(e)}"
+            }
 
 # Check document verification by ID (public)
 @router.get("/check/{document_id}", response_model=VerificationResponse)

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 import uuid
 from bson import ObjectId
-from app.config.database import get_database, get_database_async
+from app.config.database import get_database, get_database_async, get_transaction_session
 from app.models.registration import Registration, RegistrationCreate, RegistrationUpdate, RegistrationWithUser
 from app.repositories.event_repository import EventRepository
 from app.utils.json_utils import serialize_mongodb_doc
@@ -54,11 +54,25 @@ class RegistrationRepository:
             
             logger.info(f"Creating registration with data: {registration_data}")
             
-            result = await db[RegistrationRepository.collection_name].insert_one(registration_data)
-            logger.info(f"Registration created with ID: {result.inserted_id}")
+            # Use a transaction to ensure that both operations succeed or fail together
+            async with get_transaction_session() as session:
+                async with session.start_transaction():
+                    # Insert registration within transaction
+                    result = await db[RegistrationRepository.collection_name].insert_one(
+                        registration_data, 
+                        session=session
+                    )
+                    logger.info(f"Registration created with ID: {result.inserted_id}")
+                    
+                    # Increment the registration count for the event within the same transaction
+                    await db.events.update_one(
+                        {"_id": event_id},
+                        {"$inc": {"registration_count": 1}},
+                        session=session
+                    )
+                    logger.info(f"Event {event_id} registration count incremented")
             
-            # Increment the registration count for the event
-            await EventRepository.increment_registration_count(event_id)
+            # Transaction committed at this point if successful
             
             created_registration = await db[RegistrationRepository.collection_name].find_one({"_id": result.inserted_id})
             

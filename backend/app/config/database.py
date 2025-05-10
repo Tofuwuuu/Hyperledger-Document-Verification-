@@ -3,6 +3,7 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from contextlib import asynccontextmanager
 
 load_dotenv()
 
@@ -85,3 +86,27 @@ async def get_database_async():
         logger.error(f"MongoDB database attempted: {MONGODB_DB}")
         raise ConnectionError("Database connection not established. Please check that MongoDB is running.")
     return db 
+
+@asynccontextmanager
+async def get_transaction_session():
+    """
+    Context manager for MongoDB transactions.
+    Usage:
+        async with get_transaction_session() as session:
+            async with session.start_transaction():
+                # Perform multiple operations within the transaction
+                await db.collection.insert_one(doc1, session=session)
+                await db.collection.update_one(filter, update, session=session)
+    """
+    if client is None:
+        raise ConnectionError("MongoDB client not initialized")
+    
+    try:
+        session = await client.start_session()
+        try:
+            yield session
+        finally:
+            await session.end_session()
+    except Exception as e:
+        logger.error(f"Error in transaction session: {str(e)}")
+        raise 

@@ -23,7 +23,7 @@ from app.utils.auth import (
     get_admin_bypass_header,
     get_authorization_scheme_param
 )
-from app.config.database import get_database
+from app.config.database import get_database, get_transaction_session
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -54,8 +54,9 @@ async def register(user_data: UserCreate):
     
     # Create new user
     now = datetime.utcnow()
+    user_id = str(ObjectId())
     new_user = {
-        "_id": str(ObjectId()),
+        "_id": user_id,
         "email": user_data.email,
         "full_name": user_data.full_name,
         "hashed_password": get_password_hash(user_data.password),
@@ -64,12 +65,44 @@ async def register(user_data: UserCreate):
         "student_id": user_data.student_id,
         "graduation_year": user_data.graduation_year,
         "created_at": now,
-        "updated_at": now
+        "updated_at": now,
+        "is_verified": False,
+        "verification_pending": True
+    }
+    
+    # Create alumni profile placeholders based on user data
+    alumni_profile = {
+        "_id": str(ObjectId()),
+        "user_id": user_id,
+        "email": user_data.email,
+        "full_name": user_data.full_name,
+        "student_id": user_data.student_id,
+        "graduation_year": user_data.graduation_year,
+        "created_at": now,
+        "updated_at": now,
+        "profile_completed": False
     }
     
     try:
-        # Insert user to database
-        await db.users.insert_one(new_user)
+        # Use a transaction to ensure both user and alumni profile are created atomically
+        async with get_transaction_session() as session:
+            async with session.start_transaction():
+                # Insert user to database
+                await db.users.insert_one(new_user, session=session)
+                
+                # Create alumni profile
+                await db.alumni.insert_one(alumni_profile, session=session)
+                
+                # Create initial notification for welcome
+                await db.notifications.insert_one({
+                    "_id": str(ObjectId()),
+                    "user_id": user_id,
+                    "title": "Welcome to CVSU Alumni Portal",
+                    "message": f"Welcome {user_data.full_name}! Please complete your profile to get verified.",
+                    "is_read": False,
+                    "type": "welcome",
+                    "created_at": now
+                }, session=session)
         
         # Return user without password
         return {**new_user, "id": new_user["_id"]}
