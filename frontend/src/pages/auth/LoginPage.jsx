@@ -5,6 +5,7 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import MFAVerification from '../../components/MFAVerification';
 import axios from 'axios';
+import { API_URL } from '../../config';
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
@@ -81,14 +82,24 @@ export default function LoginPage() {
       // First, check if the user exists using the MFA check endpoint
       try {
         // This try-catch specifically handles MFA check errors
-        const mfaCheckResponse = await axios.post(`${import.meta.env.VITE_API_URL || ''}/auth/login/mfa-check`, {
+        // Use the API URL from config.js instead of env variable
+        console.log('Making MFA check request to:', `${API_URL}/auth/login/mfa-check`);
+        const mfaCheckResponse = await axios.post(`${API_URL}/auth/login/mfa-check`, {
           email: values.email
+        }, {
+          withCredentials: true, // Ensure cookies are sent
+          headers: {
+            'Content-Type': 'application/json',
+          }
         });
         
         // If we get here, user exists, proceed with normal login
+        console.log('MFA check success:', mfaCheckResponse.data);
       } catch (mfaError) {
+        console.error('MFA check error:', mfaError);
         // If mfaCheck fails with 401, user doesn't exist
         if (mfaError.response && mfaError.response.status === 401) {
+          console.log('User does not exist:', values.email);
           setGeneralError('This account does not exist. Please register first.');
           setIsLoading(false);
           setSubmitting(false);
@@ -221,7 +232,7 @@ export default function LoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {generalError && (
-            <div className="rounded-md bg-red-50 p-4 mb-4 border border-red-300">
+            <div className="rounded-md bg-red-50 p-4 mb-4 border-2 border-red-400">
               <div className="flex">
                 <div className="flex-shrink-0">
                   <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -233,7 +244,7 @@ export default function LoginPage() {
                     Login Failed
                   </h3>
                   <div className="mt-2 text-sm text-red-700">
-                    <p>{generalError}</p>
+                    <p className="font-semibold">{generalError}</p>
                     {generalError.includes('account does not exist') && (
                       <div className="mt-2">
                         <Link to="/register" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
@@ -264,11 +275,23 @@ export default function LoginPage() {
             }}
             validationSchema={LoginSchema}
             onSubmit={async (values, { setSubmitting }) => {
-              await handleSubmit(values, { setSubmitting });
+              // Explicit event prevention
+              try {
+                console.log('Form submitted with values:', { ...values, password: '***HIDDEN***' });
+                await handleSubmit(values, { setSubmitting });
+              } catch (error) {
+                console.error('Form submission error:', error);
+                // Make sure we don't reload even if there's an unhandled error
+                setSubmitting(false);
+              }
             }}
           >
-            {({ isSubmitting, errors, touched }) => (
-              <Form className="space-y-6">
+            {({ isSubmitting, errors, touched, handleSubmit: formikHandleSubmit }) => (
+              <Form className="space-y-6" onSubmit={(e) => {
+                // Extra protection against form submission refresh
+                e.preventDefault();
+                formikHandleSubmit(e);
+              }}>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                     Email address
