@@ -20,7 +20,7 @@ import hashlib
 load_dotenv()
 
 # JWT settings
-SECRET_KEY = os.getenv("SECRET_KEY", "cvsu_carmona_alumni_blockchain_secret_key")
+SECRET_KEY = os.getenv("SECRET_KEY", "please_change_this_to_a_secure_random_string_in_env_file")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
@@ -54,13 +54,6 @@ def verify_password(plain_password, hashed_password):
     except Exception as e:
         # Log the error for debugging
         logging.error(f"Password verification error: {str(e)}")
-        
-        # Special case for joemarlou.opella@cvsu.edu.ph
-        # Hardcoded check for testing purposes only - remove in production
-        if plain_password == "Admin@12345" and "opella" in hashed_password:
-            logging.info("Using fallback verification for special account")
-            return True
-            
         return False
 
 def get_password_hash(password):
@@ -115,7 +108,7 @@ async def get_current_user(request: Request = None, authorization: str = Header(
         db = get_database()
         
         # Check if the admin bypass user already exists
-        bypass_email = "admin.bypass@cvsu.edu.ph"
+        bypass_email = os.getenv("ADMIN_BYPASS_EMAIL", "admin.bypass@example.com")
         admin_user = await db.users.find_one({"email": bypass_email})
         
         if admin_user:
@@ -134,7 +127,7 @@ async def get_current_user(request: Request = None, authorization: str = Header(
                 "full_name": "Admin Bypass User",
                 "first_name": "Admin",
                 "last_name": "Bypass",
-                "hashed_password": get_password_hash("Admin@12345"),  # Default password
+                "hashed_password": get_password_hash(os.getenv("ADMIN_DEFAULT_PASSWORD", "ChangeThisPassword123")),
                 "department": "IT Department",
                 "position": "System Administrator",
                 "is_active": True,

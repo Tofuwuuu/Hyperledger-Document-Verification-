@@ -11,8 +11,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # MongoDB settings
-# Override default MongoDB URL for deployment
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority&appName=Cluster0")
+# Get settings from environment variables only with safe defaults
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017/cvsu_alumni")
 MONGODB_DB = os.getenv("MONGODB_DB", "cvsu_alumni")
 
 # MongoDB client instance
@@ -23,7 +23,7 @@ async def connect_to_mongo():
     """Connect to MongoDB."""
     global client, db
     try:
-        logger.info(f"Attempting to connect to MongoDB at {MONGODB_URL}")
+        logger.info(f"Attempting to connect to MongoDB")
         # Set a server selection timeout (in milliseconds)
         client = AsyncIOMotorClient(
             MONGODB_URL,
@@ -38,7 +38,7 @@ async def connect_to_mongo():
         await client.admin.command('ping')
         
         db = client[MONGODB_DB]
-        logger.info(f"Connected to MongoDB at {MONGODB_URL}, database: {MONGODB_DB}")
+        logger.info(f"Connected to MongoDB, database: {MONGODB_DB}")
         
         # List collections to verify DB access
         collections = await db.list_collection_names()
@@ -73,7 +73,7 @@ def get_database():
     """Return database instance."""
     if db is None:
         logger.error("Database connection not established. MongoDB might not be running.")
-        logger.error(f"MongoDB URL attempted: {MONGODB_URL}, DB: {MONGODB_DB}")
+        logger.error(f"MongoDB database attempted: {MONGODB_DB}")
         # This will be caught and handled by the routes
         raise ConnectionError("Database connection not established. Please check that MongoDB is running and check your connection settings.")
     return db
@@ -82,6 +82,6 @@ async def get_database_async():
     """Return database instance asynchronously."""
     if db is None:
         logger.error("Database connection not established. MongoDB might not be running.")
-        logger.error(f"MongoDB URL attempted: {MONGODB_URL}, DB: {MONGODB_DB}")
+        logger.error(f"MongoDB database attempted: {MONGODB_DB}")
         raise ConnectionError("Database connection not established. Please check that MongoDB is running.")
     return db 
