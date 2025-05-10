@@ -339,6 +339,7 @@ export const AuthProvider = ({ children }) => {
       
       // Enhanced error handling
       let errorMessage = 'An error occurred during registration';
+      const fieldErrors = {};
       
       // Remove error message references to specific email domains
       if (error.corsError || error.message?.includes('Network Error') || error.message?.includes('CORS')) {
@@ -351,25 +352,74 @@ export const AuthProvider = ({ children }) => {
         // Handle FastAPI validation errors (array of objects with loc, msg, type)
         if (Array.isArray(detail)) {
           // Get the location of validation errors (which fields)
-          const fieldErrors = detail.map(err => {
-            const fieldName = err.loc && err.loc.length > 0 ? err.loc[err.loc.length - 1] : 'unknown';
-            return `${fieldName}: ${err.msg}`;
+          const fieldErrorMsgs = [];
+          
+          detail.forEach(err => {
+            const fieldPath = err.loc && err.loc.length > 0 ? err.loc : [];
+            // Get field name (last part of the location path)
+            let fieldName = 'unknown';
+            
+            if (fieldPath.length > 0) {
+              fieldName = fieldPath[fieldPath.length - 1];
+              
+              // Map backend field names to frontend field names if needed
+              if (fieldName === 'confirm_password') fieldName = 'confirmPassword';
+              
+              // Store field-specific error
+              fieldErrors[fieldName] = err.msg;
+            }
+            
+            fieldErrorMsgs.push(`${fieldName}: ${err.msg}`);
           });
           
-          errorMessage = fieldErrors.join(', ');
+          errorMessage = fieldErrorMsgs.join(', ');
         } 
         // Handle string error
         else if (typeof detail === 'string') {
           errorMessage = detail;
+          
+          // Try to extract field information from common error messages
+          if (detail.includes('Email already registered')) {
+            fieldErrors.email = 'Email already registered';
+          } else if (detail.includes('Student ID already registered')) {
+            fieldErrors.student_id = 'Student ID already registered';
+          } else if (detail.includes('password')) {
+            fieldErrors.password = detail;
+          }
         } 
         // Handle object error
         else if (typeof detail === 'object') {
-          errorMessage = Object.values(detail).join(', ');
+          const errorMsgs = [];
+          
+          // Extract field-specific errors from object
+          Object.entries(detail).forEach(([key, value]) => {
+            // Map backend field names to frontend field names if needed
+            let fieldName = key;
+            if (fieldName === 'confirm_password') fieldName = 'confirmPassword';
+            
+            // Handle array of errors or single string
+            if (Array.isArray(value)) {
+              fieldErrors[fieldName] = value[0];
+              errorMsgs.push(`${fieldName}: ${value[0]}`);
+            } else if (typeof value === 'string') {
+              fieldErrors[fieldName] = value;
+              errorMsgs.push(`${fieldName}: ${value}`);
+            }
+          });
+          
+          errorMessage = errorMsgs.join(', ');
         }
       }
       
       setError(errorMessage);
-      throw new Error(errorMessage); // Throw formatted error
+      
+      // Create enhanced error with field-specific details
+      const enhancedError = new Error(errorMessage);
+      enhancedError.originalError = error;
+      enhancedError.response = error.response;
+      enhancedError.fieldErrors = fieldErrors;
+      
+      throw enhancedError;
     } finally {
       setLoading(false);
     }

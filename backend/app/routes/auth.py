@@ -31,22 +31,26 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def register(user_data: UserCreate):
     db = get_database()
     
+    # Validation errors container
+    field_errors = {}
+    
     # Check if email already exists
     existing_user = await db.users.find_one({"email": user_data.email})
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
+        field_errors["email"] = "Email already registered"
     
     # Check if student ID already exists if provided
     if user_data.student_id:
         existing_student = await db.users.find_one({"student_id": user_data.student_id})
         if existing_student:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Student ID already registered"
-            )
+            field_errors["student_id"] = "Student ID already registered"
+    
+    # If validation errors were found, return them all at once
+    if field_errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=field_errors
+        )
     
     # Create new user
     now = datetime.utcnow()
@@ -63,11 +67,19 @@ async def register(user_data: UserCreate):
         "updated_at": now
     }
     
-    # Insert user to database
-    await db.users.insert_one(new_user)
-    
-    # Return user without password
-    return {**new_user, "id": new_user["_id"]}
+    try:
+        # Insert user to database
+        await db.users.insert_one(new_user)
+        
+        # Return user without password
+        return {**new_user, "id": new_user["_id"]}
+    except Exception as e:
+        logging.error(f"Error during user registration: {str(e)}")
+        # Log the error but don't expose internal details to clients
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during registration. Please try again later."
+        )
 
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
