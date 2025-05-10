@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sys
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from datetime import datetime
@@ -8,71 +9,60 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# MongoDB settings
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017/cvsu_alumni")
-MONGODB_DB = os.getenv("MONGODB_DB", "cvsu_alumni")
+# Production MongoDB URL (found in backend/create_admin.py)
+PROD_MONGODB_URL = "mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority&appName=Cluster0"
+MONGODB_DB = "cvsu_alumni"
 
-# Check for common cloud provider environment variables
-cloud_mongodb_url = os.getenv("DATABASE_URL")
-if cloud_mongodb_url:
-    print("Using DATABASE_URL from environment")
-    MONGODB_URL = cloud_mongodb_url
-
-mongodb_atlas_uri = os.getenv("MONGODB_URI") 
-if mongodb_atlas_uri:
-    print("Using MONGODB_URI from environment")
-    MONGODB_URL = mongodb_atlas_uri
+# Ask for confirmation before proceeding
+print("This script will modify the PRODUCTION database!")
+print(f"Database URL: {PROD_MONGODB_URL.split('@')[1].split('/')[0]}")
+confirm = input("Do you want to continue? (y/n): ")
+if confirm.lower() != 'y':
+    print("Operation cancelled.")
+    sys.exit(0)
 
 async def update_user_to_admin():
-    # Connect to MongoDB
-    print(f"Connecting to MongoDB...")
-    client = AsyncIOMotorClient(MONGODB_URL)
+    # Connect to MongoDB production database
+    print(f"Connecting to MongoDB production database...")
+    client = AsyncIOMotorClient(PROD_MONGODB_URL)
     db = client[MONGODB_DB]
     
-    # User ID to update - convert string to ObjectId
-    user_id_str = "681ec28749c2b2c3dd0f500c"
     try:
-        user_id = ObjectId(user_id_str)
-        print(f"Converted ID to ObjectId: {user_id}")
+        # Test the connection
+        await client.admin.command('ping')
+        print("Connection to production database successful!")
     except Exception as e:
-        print(f"Error converting to ObjectId: {e}")
+        print(f"Error connecting to production database: {str(e)}")
         return
     
-    # First check if user exists
-    user = await db.users.find_one({"_id": user_id})
+    # Search for user by email
+    print("Searching for user by email...")
+    user = await db.users.find_one({"email": "joemarlou.opella@cvsu.edu.ph"})
     if not user:
-        print(f"No user found with ID: {user_id}")
-        print("Searching for user by email instead...")
-        user = await db.users.find_one({"email": "joemarlou.opella@cvsu.edu.ph"})
-        if user:
-            print(f"Found user by email. User ID: {user['_id']}")
-            user_id = user['_id']
-        else:
-            print("User not found by email either.")
-            return
+        print("User not found in production database!")
+        return
+    
+    user_id = user['_id']
+    print(f"Found user with ID: {user_id}")
     
     # Update the user to make them an admin
-    print(f"Updating user with ID: {user_id}")
+    print(f"Updating user to admin status...")
     result = await db.users.update_one(
         {"_id": user_id},
         {"$set": {"is_admin": True, "updated_at": datetime.utcnow()}}
     )
     
-    if result.matched_count > 0:
-        if result.modified_count > 0:
-            print(f"Successfully updated user to admin status!")
-        else:
-            print(f"User found but no changes were made (might already be admin)")
+    if result.modified_count > 0:
+        print("SUCCESS: User was updated to admin status!")
     else:
-        print(f"No user found with ID: {user_id}")
+        print("No changes made. User might already be an admin.")
     
     # Verify the update
-    user = await db.users.find_one({"_id": user_id})
-    if user:
-        print(f"User details after update:")
-        print(f"Name: {user.get('full_name')}")
-        print(f"Email: {user.get('email')}")
-        print(f"Admin status: {user.get('is_admin')}")
+    updated_user = await db.users.find_one({"_id": user_id})
+    print(f"User details after update:")
+    print(f"Name: {updated_user.get('full_name')}")
+    print(f"Email: {updated_user.get('email')}")
+    print(f"Admin status: {updated_user.get('is_admin')}")
     
     # Close the connection
     client.close()
