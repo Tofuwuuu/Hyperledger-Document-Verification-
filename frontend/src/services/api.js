@@ -324,22 +324,35 @@ export const authService = {
       }
       
       // No MFA required, process regular login
-      if (response.data.access_token) {
+      // Create FormData for the actual login request
+      const formData = new FormData();
+      formData.append('username', credentials.email);
+      formData.append('password', credentials.password);
+      formData.append('remember', remember !== undefined ? remember : false);
+      
+      // Make the login request with FormData
+      const loginResponse = await api.post('/auth/login', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
+      });
+      
+      if (loginResponse.data.access_token) {
         // Store tokens properly using our utility function
         storeAuthTokens(
           {
-            accessToken: response.data.access_token,
-            refreshToken: response.data.refresh_token
+            accessToken: loginResponse.data.access_token,
+            refreshToken: loginResponse.data.refresh_token
           },
           remember
         );
         
         // Store user data in localStorage
-        if (response.data.user) {
-          localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (loginResponse.data.user) {
+          localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
         }
         
-        return response.data;
+        return loginResponse.data;
       } else {
         throw new Error('No access token received');
       }
@@ -358,10 +371,16 @@ export const authService = {
   
   verifyMfa: async (email, code, remember = false) => {
     try {
-      const response = await api.post('/auth/login/mfa-verify', {
-        email,
-        verification_code: code,
-        remember // Pass the remember flag to the backend
+      // Create FormData for MFA verification
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('verification_code', code);
+      formData.append('remember', remember);
+      
+      const response = await api.post('/auth/login/mfa-verify', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
       });
       
       if (response.data.access_token) {
