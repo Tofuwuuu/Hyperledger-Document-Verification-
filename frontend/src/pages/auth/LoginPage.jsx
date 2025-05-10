@@ -85,7 +85,8 @@ export default function LoginPage() {
         // Use the API URL from config.js instead of env variable
         console.log('Making MFA check request to:', `${API_URL}/auth/login/mfa-check`);
         const mfaCheckResponse = await axios.post(`${API_URL}/auth/login/mfa-check`, {
-          email: values.email
+          email: values.email,
+          password: values.password
         }, {
           withCredentials: true, // Ensure cookies are sent
           headers: {
