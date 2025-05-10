@@ -159,4 +159,39 @@ export const getUserById = async (userId) => {
     console.error('Get user by ID error:', error);
     throw error;
   }
+};
+
+// Password reset functions
+export const requestPasswordReset = async (email) => {
+  try {
+    const response = await axios.post(`${API_URL}/auth/reset-password`, { email });
+    return response.data;
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    throw error;
+  }
+};
+
+export const verifyResetToken = async (token) => {
+  try {
+    const response = await axios.post(`${API_URL}/auth/verify-reset-token`, { token });
+    return response.data;
+  } catch (error) {
+    console.error('Token verification error:', error);
+    throw error;
+  }
+};
+
+export const resetPassword = async (token, password, confirm_password) => {
+  try {
+    const response = await axios.post(`${API_URL}/auth/reset-password-confirm`, {
+      token,
+      password,
+      confirm_password
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Password reset error:', error);
+    throw error;
+  }
 }; 

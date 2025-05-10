@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     
     # CORS settings
     CORS_ORIGINS: Union[List[str], str] = [
-        "*",  # Allow all origins during development
+        # Remove wildcard for security
         "http://localhost:3000",
         "http://localhost:5173",  # Vite default port
         "http://127.0.0.1:5173",
@@ -35,8 +35,8 @@ class Settings(BaseSettings):
         "https://final-rkpz.onrender.com",            # Backend URL for same-origin reference
         "https://alumni-api-klrk.onrender.com",       # Backend API alternative URL
         "https://alumni-api-klrk.onrender.com/api/v1", # Backend API with path
-        "https://alumni-frontend.onrender.com",       # More general frontend URL pattern
-        "https://alumni-frontend-*"                   # Wildcard for any frontend subdomains
+        "https://alumni-frontend.onrender.com"        # More general frontend URL pattern
+        # Remove wildcard patterns for better security
     ]
     
     # Handle CORS origins from environment variable
@@ -45,7 +45,8 @@ class Settings(BaseSettings):
         """Convert CORS_ORIGINS to a list regardless of input type"""
         if isinstance(self.CORS_ORIGINS, str):
             if self.CORS_ORIGINS == "*":
-                return ["*"]
+                # For backward compatibility, but should avoid using "*" in production
+                return ["http://localhost:3000", "http://localhost:5173", "https://alumni-frontend-zzr2.onrender.com"]
             return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
         return self.CORS_ORIGINS
     

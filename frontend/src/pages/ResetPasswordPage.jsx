@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { KeyIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { requestPasswordReset, verifyResetToken, resetPassword } from '../services/authService';
 
 export default function ResetPasswordPage() {
+  const [searchParams] = useSearchParams();
+  const initialToken = searchParams.get('token') || '';
+  
   const [email, setEmail] = useState('');
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(initialToken);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [step, setStep] = useState(1); // 1: Email, 2: Token, 3: New Password, 4: Success
+  const [step, setStep] = useState(initialToken ? 3 : 1); // 1: Email, 2: Token, 3: New Password, 4: Success
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,32 +26,18 @@ export default function ResetPasswordPage() {
     
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await requestPasswordReset(email);
       setStep(2);
-    }, 1500);
-    
-    // In a real app, call your API:
-    // try {
-    //   const response = await fetch('/api/auth/request-reset', {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify({ email }),
-    //   });
-    //   const data = await response.json();
-    //   if (response.ok) {
-    //     setStep(2);
-    //   } else {
-    //     setError(data.message || 'Failed to send reset token');
-    //   }
-    // } catch (error) {
-    //   setError('Network error, please try again later');
-    // } finally {
-    //   setLoading(false);
-    // }
+    } catch (error) {
+      if (error.response && error.response.data) {
+        setError(error.response.data.detail || 'Failed to send reset email');
+      } else {
+        setError('Network error, please try again later');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVerifyToken = async (e) => {
@@ -61,32 +51,18 @@ export default function ResetPasswordPage() {
     
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await verifyResetToken(token);
       setStep(3);
-    }, 1500);
-    
-    // In a real app, call your API:
-    // try {
-    //   const response = await fetch('/api/auth/verify-token', {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify({ email, token }),
-    //   });
-    //   const data = await response.json();
-    //   if (response.ok) {
-    //     setStep(3);
-    //   } else {
-    //     setError(data.message || 'Invalid or expired token');
-    //   }
-    // } catch (error) {
-    //   setError('Network error, please try again later');
-    // } finally {
-    //   setLoading(false);
-    // }
+    } catch (error) {
+      if (error.response && error.response.data) {
+        setError(error.response.data.detail || 'Invalid or expired token');
+      } else {
+        setError('Network error, please try again later');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResetPassword = async (e) => {
@@ -110,32 +86,18 @@ export default function ResetPasswordPage() {
     
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await resetPassword(token, password, confirmPassword);
       setStep(4);
-    }, 1500);
-    
-    // In a real app, call your API:
-    // try {
-    //   const response = await fetch('/api/auth/reset-password', {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify({ email, token, password }),
-    //   });
-    //   const data = await response.json();
-    //   if (response.ok) {
-    //     setStep(4);
-    //   } else {
-    //     setError(data.message || 'Failed to reset password');
-    //   }
-    // } catch (error) {
-    //   setError('Network error, please try again later');
-    // } finally {
-    //   setLoading(false);
-    // }
+    } catch (error) {
+      if (error.response && error.response.data) {
+        setError(error.response.data.detail || 'Failed to reset password');
+      } else {
+        setError('Network error, please try again later');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

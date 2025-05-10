@@ -34,8 +34,8 @@ else:
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "*"  # Allow all origins as fallback to ensure frontend works
+        "http://127.0.0.1:3000"
+        # Remove wildcard to enhance security
     ]
 
 logger.info(f"Configuring CORS with origins: {cors_origins}")
@@ -57,9 +57,9 @@ app.add_middleware(
     allow_origins=cors_origins,
     allow_origin_regex=r"https://alumni-frontend.*\.onrender\.com",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Admin-Bypass", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Range"],
     max_age=86400,  # 1 day in seconds
 )
 

@@ -13,11 +13,24 @@ app = FastAPI(title="CORS Test")
 # Configure CORS with very permissive settings for testing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",  # Vite default port
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "https://cvsu-alumni.vercel.app",
+        "https://alumni-frontend-zzr2.onrender.com",
+        "http://alumni-frontend-zzr2.onrender.com",
+        "https://final-rkpz.onrender.com",
+        "https://alumni-api-klrk.onrender.com",
+        "https://alumni-frontend.onrender.com"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Admin-Bypass", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Range"],
+    max_age=86400,  # 1 day in seconds
 )
 
 @app.get("/test")

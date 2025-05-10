@@ -65,3 +65,21 @@ Once the application is running, you can access the interactive API documentatio
   - `utils/`: Utility functions
   - `config/`: Configuration files
 - `run.py`: Script to run the application 
+
+## CORS Configuration
+
+The API uses explicit CORS (Cross-Origin Resource Sharing) settings to ensure security while allowing access from authorized frontend applications. The CORS settings are configured in:
+
+- `app/core/config.py`: Defines the list of allowed origins
+- `app/main.py`: Configures the CORS middleware with specific allowed methods and headers
+
+You can modify the allowed origins by:
+1. Updating the `CORS_ORIGINS` list in `app/core/config.py`
+2. Or by setting the `CORS_ORIGINS` environment variable as a comma-separated list of domains
+
+For security reasons, wildcard origins (*) should not be used in production environments.
+
+Example environment variable setting:
+```
+CORS_ORIGINS=https://alumni-frontend-zzr2.onrender.com,http://localhost:3000,http://localhost:5173
+``` 

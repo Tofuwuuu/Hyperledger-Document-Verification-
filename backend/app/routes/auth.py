@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 from typing import Dict, Any, List
 import logging
+import uuid
+import secrets
 
 from app.schemas import (
     UserCreate, 
@@ -11,7 +13,9 @@ from app.schemas import (
     Token, 
     UserLogin, 
     PasswordReset, 
-    PasswordChange
+    PasswordChange,
+    PasswordResetToken,
+    PasswordResetConfirm
 )
 from app.utils.auth import (
     verify_password, 
@@ -24,6 +28,7 @@ from app.utils.auth import (
     get_authorization_scheme_param
 )
 from app.config.database import get_database, get_transaction_session
+from app.utils.email import send_email, get_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -202,12 +207,100 @@ async def reset_password(data: PasswordReset):
         # Don't reveal if email exists or not for security
         return
     
-    # Here you would implement password reset logic
-    # - Generate a reset token
-    # - Store it in the database with an expiration
-    # - Send an email to the user with a reset link
+    # Generate a reset token (random UUID)
+    token = f"{str(uuid.uuid4())}-{secrets.token_hex(16)}"
     
+    # Set token expiration (1 hour from now)
+    expires = datetime.utcnow() + timedelta(hours=1)
+    
+    # Store token in database
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "reset_token": token,
+            "reset_token_expires": expires,
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    
+    # Create reset URL for email
+    from app.core.config import settings
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    
+    # Generate email content
+    email_content = get_password_reset_email(
+        username=user.get("full_name", "User"), 
+        token=token,
+        reset_url=reset_url
+    )
+    
+    # Send email
+    await send_email(
+        recipients=[user["email"]],
+        subject="CVSU Alumni System - Password Reset",
+        html_content=email_content["html"],
+        text_content=email_content["text"]
+    )
+    
+    # Return 204 No Content (success, but no response body)
     return
+
+@router.post("/verify-reset-token", status_code=status.HTTP_200_OK)
+async def verify_reset_token(data: PasswordResetToken):
+    """Verify that a password reset token is valid"""
+    db = get_database()
+    
+    # Find user with this token
+    user = await db.users.find_one({
+        "reset_token": data.token,
+        "reset_token_expires": {"$gt": datetime.utcnow()}  # Token must not be expired
+    })
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token"
+        )
+    
+    # Return success status
+    return {"valid": True}
+
+@router.post("/reset-password-confirm", response_model=UserOut)
+async def reset_password_confirm(data: PasswordResetConfirm):
+    """Set a new password using a valid reset token"""
+    db = get_database()
+    
+    # Find user with this token
+    user = await db.users.find_one({
+        "reset_token": data.token,
+        "reset_token_expires": {"$gt": datetime.utcnow()}  # Token must not be expired
+    })
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token"
+        )
+    
+    # Hash the new password
+    hashed_password = get_password_hash(data.password)
+    
+    # Update the user's password and clear the reset token
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "hashed_password": hashed_password,
+            "updated_at": datetime.utcnow()
+        },
+        "$unset": {
+            "reset_token": "",
+            "reset_token_expires": ""
+        }}
+    )
+    
+    # Return the updated user
+    updated_user = await db.users.find_one({"_id": user["_id"]})
+    return updated_user
 
 @router.post("/change-password", response_model=UserOut)
 async def change_password(data: PasswordChange, current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -576,36 +669,60 @@ async def get_current_user_activity(
     )
 
 @router.options("/register", include_in_schema=False)
-async def options_register():
+async def options_register(request: Request):
     """Handle OPTIONS request for register endpoint (CORS preflight)"""
+    from app.core.config import settings
+    origin = request.headers.get("Origin", "")
+    
+    # Check if the origin is in our allowed list
+    allowed_origins = settings.cors_origins_list
+    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
+    
     return {
         "allow": "POST, OPTIONS",
         "content-type": "application/json",
-        "access-control-allow-origin": "*",
+        "access-control-allow-origin": allow_origin,
         "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-headers": "*",
+        "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
+        "access-control-max-age": "86400",  # 1 day in seconds
     }
 
 @router.options("/login", include_in_schema=False)
-async def options_login():
+async def options_login(request: Request):
     """Handle OPTIONS request for login endpoint (CORS preflight)"""
+    from app.core.config import settings
+    origin = request.headers.get("Origin", "")
+    
+    # Check if the origin is in our allowed list
+    allowed_origins = settings.cors_origins_list
+    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
+    
     return {
         "allow": "POST, OPTIONS",
         "content-type": "application/json",
-        "access-control-allow-origin": "*",
+        "access-control-allow-origin": allow_origin,
         "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-headers": "*",
+        "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
+        "access-control-max-age": "86400",  # 1 day in seconds
     }
 
 @router.options("/{path:path}", include_in_schema=False)
-async def options_any(path: str):
+async def options_any(path: str, request: Request):
     """Handle OPTIONS request for any auth endpoint (CORS preflight)"""
+    from app.core.config import settings
+    origin = request.headers.get("Origin", "")
+    
+    # Check if the origin is in our allowed list
+    allowed_origins = settings.cors_origins_list
+    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
+    
     return {
-        "allow": "GET, POST, PUT, DELETE, OPTIONS",
+        "allow": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
         "content-type": "application/json",
-        "access-control-allow-origin": "*",
-        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "access-control-allow-headers": "*",
+        "access-control-allow-origin": allow_origin,
+        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+        "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With", 
+        "access-control-max-age": "86400",  # 1 day in seconds
     }
 
 @router.get("/test-cors", tags=["Debug"])
