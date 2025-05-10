@@ -63,6 +63,53 @@ const authService = {
     }
   },
   
+  async login(credentials) {
+    try {
+      // First, check for MFA if needed
+      if (!credentials.mfa_code && !credentials.bypass_mfa) {
+        try {
+          console.log('Making MFA check request to:', `${API_URL}/auth/login/mfa-check`);
+          const mfaCheck = await axios.post(
+            `${API_URL}/auth/login/mfa-check`,
+            {
+              email: credentials.email,
+              password: credentials.password
+            },
+            {
+              withCredentials: false  // Don't send credentials for the MFA check
+            }
+          );
+          
+          // If MFA is required, return that info
+          if (mfaCheck.data && mfaCheck.data.mfa_required) {
+            return mfaCheck.data;
+          }
+        } catch (error) {
+          console.error('MFA check error:', error);
+          // Continue with normal login if MFA check fails
+          // This is a fallback in case the MFA endpoint is not available
+        }
+      }
+      
+      // Proceed with normal login
+      const response = await axios.post(`${API_URL}/auth/login`, credentials);
+      return response.data;
+    } catch (error) {
+      console.error('Login service error:', error);
+      throw error;
+    }
+  },
+  
+  async register(userData) {
+    try {
+      const response = await axios.post(`${API_URL}/auth/register`, userData);
+      return response.data;
+    } catch (error) {
+      console.error('Registration service error:', error);
+      throw error;
+    }
+  },
+  
   async logout() {
     try {
       const { accessToken } = getAuthTokens();
