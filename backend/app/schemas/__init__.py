@@ -10,6 +10,8 @@ from .user import (
     Token, 
     PasswordReset, 
     PasswordChange,
+    PasswordResetToken,
+    PasswordResetConfirm,
     PaginationMeta,
     UserPaginatedResponse
 )
