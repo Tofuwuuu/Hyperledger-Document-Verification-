@@ -19,6 +19,37 @@ from app.config.database import get_database
 
 router = APIRouter(prefix="/alumni", tags=["Alumni"])
 
+# Health check endpoint
+@router.get("/health", response_model=Dict[str, Any])
+async def alumni_health_check():
+    """
+    Simple health check endpoint for the alumni API without authentication
+    """
+    # Check database connection
+    db = get_database()
+    db_status = "ok"
+    collection_names = []
+    alumni_count = 0
+    error_details = None
+    
+    try:
+        # Try to get collection names
+        collection_names = await db.list_collection_names()
+        # Try to count alumni
+        alumni_count = await db.alumni.count_documents({})
+    except Exception as e:
+        db_status = "error"
+        error_details = str(e)
+    
+    return {
+        "status": "ok",
+        "database_status": db_status,
+        "collection_names": collection_names,
+        "alumni_count": alumni_count,
+        "error_details": error_details,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 # Create alumni profile
 @router.post("/", response_model=AlumniOut)
 async def create_alumni_profile(
@@ -186,55 +217,72 @@ async def get_all_alumni(
     limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset")
 ):
-    db = get_database()
-    
-    # Build query
-    query = {}
-    if name:
-        query["$or"] = [
-            {"full_name": {"$regex": name, "$options": "i"}},
-            {"email": {"$regex": name, "$options": "i"}},
-            {"student_id": {"$regex": name, "$options": "i"}}
-        ]
-    
-    if department:
-        query["department"] = department
-    
-    if course:
-        query["course"] = course
+    try:
+        db = get_database()
         
-    if batch:
-        query["batch"] = batch
-    
-    if graduation_year:
-        query["graduation_year"] = graduation_year
-    
-    # Get total count for pagination
-    total = await db.alumni.count_documents(query)
-    
-    # Get alumni with pagination
-    alumni_list = await db.alumni.find(query).skip(offset).limit(limit).to_list(None)
-    
-    # Get verified documents for each alumni
-    results = []
-    for alumni in alumni_list:
-        documents = await db.documents.find(
-            {
-                "alumni_id": alumni["_id"],
-                "verification_status": "verified"
-            }
-        ).to_list(None)
+        # Build query
+        query = {}
+        if name:
+            query["$or"] = [
+                {"full_name": {"$regex": name, "$options": "i"}},
+                {"email": {"$regex": name, "$options": "i"}},
+                {"student_id": {"$regex": name, "$options": "i"}}
+            ]
         
-        # Make sure all document IDs are strings
-        verified_document_ids = [str(doc["_id"]) for doc in documents]
-        results.append({**alumni, "verified_documents": verified_document_ids})
-    
-    return {
-        "results": results,
-        "total": total,
-        "limit": limit,
-        "offset": offset
-    }
+        if department:
+            query["department"] = department
+        
+        if course:
+            query["course"] = course
+            
+        if batch:
+            query["batch"] = batch
+        
+        if graduation_year:
+            query["graduation_year"] = graduation_year
+        
+        # Get total count for pagination
+        total = await db.alumni.count_documents(query)
+        
+        # Get alumni with pagination
+        alumni_list = await db.alumni.find(query).skip(offset).limit(limit).to_list(None)
+        
+        # Get verified documents for each alumni
+        results = []
+        for alumni in alumni_list:
+            try:
+                documents = await db.documents.find(
+                    {
+                        "alumni_id": alumni["_id"],
+                        "verification_status": "verified"
+                    }
+                ).to_list(None)
+                
+                # Make sure all document IDs are strings
+                verified_document_ids = [str(doc["_id"]) for doc in documents]
+                results.append({**alumni, "verified_documents": verified_document_ids})
+            except Exception as e:
+                # If there's an error with a specific alumni, log and continue
+                print(f"Error processing alumni {alumni.get('_id')}: {str(e)}")
+                # Add the alumni without documents
+                results.append({**alumni, "verified_documents": []})
+        
+        return {
+            "results": results,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        # Log the error and return a more helpful error response
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in get_all_alumni: {str(e)}\n{error_details}")
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching alumni data: {str(e)}"
+        )
 
 # Get alumni by user ID
 @router.get("/user/{user_id}", response_model=AlumniOut)
