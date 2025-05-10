@@ -6,6 +6,7 @@ import * as Yup from 'yup';
 import MFAVerification from '../../components/MFAVerification';
 import axios from 'axios';
 import { API_URL } from '../../config';
+import * as authService from '../../services/authService'; // Import the authService directly
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
@@ -23,7 +24,8 @@ const LoginSchema = Yup.object().shape({
 });
 
 export default function LoginPage() {
-  const { login, isAuthenticated, error: authError, clearError } = useAuth();
+  // Get auth context for everything except login
+  const { isAuthenticated, error: authError, clearError } = useAuth();
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
@@ -142,8 +144,8 @@ export default function LoginPage() {
         // For other MFA check errors, continue with normal login attempt
       }
       
-      // Normal login flow continues
-      const result = await login({ 
+      // Normal login flow continues - use the authService directly instead of context
+      const result = await authService.login({ 
         email: values.email, 
         password: values.password,
         remember: values.remember // Add remember flag from form values
@@ -160,7 +162,11 @@ export default function LoginPage() {
           remember: values.remember
         });
       }
-      // If login is successful but no MFA, the useEffect will redirect
+      
+      // If login is successful but no MFA, trigger a page reload to update auth state
+      if (!result.mfa_required) {
+        window.location.reload();
+      }
     } catch (error) {
       // The login function now returns a simplified error object with message property
       // No need to process error.response anymore
