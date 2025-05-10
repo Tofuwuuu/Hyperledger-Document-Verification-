@@ -24,6 +24,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   // Add these console logs for debugging
   console.log("Admin Dashboard: API URL:", import.meta.env.VITE_API_URL);
@@ -90,9 +91,28 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
+  // Add auto-refresh functionality
+  useEffect(() => {
+    // Initial fetch
+    fetchDashboardData();
+    
+    // Setup auto-refresh interval - every 60 seconds
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing dashboard data...');
+      fetchDashboardData();
+    }, 60000); // 60 seconds
+    
+    // Clear interval on component unmount
+    return () => {
+      console.log('Cleaning up dashboard auto-refresh interval');
+      clearInterval(refreshInterval);
+    };
+  }, []);
+
   useEffect(() => {
     if (isAdminUser) {
-      fetchDashboardData();
+      // This is kept for backward compatibility
+      // The initial fetch and subsequent refreshes are now handled by the auto-refresh useEffect above
     } else {
       // For regular users, we don't need to fetch admin stats
       // but we should still fetch their activity
@@ -295,126 +315,91 @@ export default function AdminDashboardPage() {
       const adminName = user.full_name || 'Admin User';
       const token = localStorage.getItem('token');
       
-      console.log(`Attempting to fetch real data from: ${apiUrl}/admin/dashboard/stats`);
+      console.log(`Fetching real-time dashboard data from: ${apiUrl}/admin/dashboard/stats`);
       
-      // Try to fetch real stats first, even with bypass token
-      try {
-        console.log(`Attempting to fetch real stats from: ${apiUrl}/admin/dashboard/stats with token: ${token.substring(0, 10)}...`);
-        const statsResponse = await fetch(`${apiUrl}/admin/dashboard/stats`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'X-Admin-Bypass': 'true'
-          }
-        });
-        
-        console.log(`Stats response status: ${statsResponse.status}`);
-        
-        if (statsResponse.ok) {
-          console.log('Successfully fetched real stats data!');
-          const statsData = await statsResponse.json();
-          console.log('Stats data received:', statsData);
-          setStats(statsData);
-        } else {
-          console.log(`Failed to fetch real stats: ${statsResponse.status}, response:`, await statsResponse.text());
-          console.log('Falling back to mock data');
-          // Fall back to mock data if API call fails
-          setStats({
-            totalAlumni: 250,
-            pendingVerifications: 15,
-            verifiedDocuments: 120,
-            newRegistrations: 30
-          });
+      // Add timestamp to avoid caching
+      const timestamp = new Date().getTime();
+      const statsUrl = `${apiUrl}/admin/dashboard/stats?_t=${timestamp}`;
+      
+      const statsResponse = await fetch(statsUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Bypass': 'true',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         }
-      } catch (statError) {
-        console.error('Error fetching real stats:', statError);
-        // Fall back to mock data if API call fails
+      });
+      
+      console.log(`Stats response status: ${statsResponse.status}`);
+      
+      if (statsResponse.ok) {
+        console.log('Successfully fetched real stats data!');
+        const statsData = await statsResponse.json();
+        console.log('Stats data received:', statsData);
+        setStats(statsData);
+        setLastUpdated(new Date());
+      } else {
+        const errorText = await statsResponse.text();
+        console.error(`Failed to fetch stats: ${statsResponse.status}`, errorText);
+        setError(`Failed to load dashboard data: ${statsResponse.status} - ${errorText}`);
+        
+        // We don't want to use mock data anymore, just set empty values
         setStats({
-          totalAlumni: 250,
-          pendingVerifications: 15,
-          verifiedDocuments: 120,
-          newRegistrations: 30
+          totalAlumni: 0,
+          pendingVerifications: 0,
+          verifiedDocuments: 0,
+          newRegistrations: 0
         });
+        
+        // Show error toast
+        toast.error(`Failed to load dashboard statistics. Please try refreshing the page.`);
       }
       
-      // Try to fetch real activity data first, even with bypass token
-      try {
-        console.log(`Attempting to fetch real activity from: ${apiUrl}/admin/dashboard/recent-activity`);
-        const activityResponse = await fetch(`${apiUrl}/admin/dashboard/recent-activity`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'X-Admin-Bypass': 'true'
-          }
-        });
-        
-        if (activityResponse.ok) {
-          console.log('Successfully fetched real activity data!');
-          const activityData = await activityResponse.json();
-          // Process the activity data to extract user information
-          const processedActivityData = processActivityData(activityData);
-          setRecentActivity(processedActivityData);
-        } else {
-          console.log(`Failed to fetch real activity: ${activityResponse.status}, falling back to mock data`);
-          // Fall back to mock activity data
-          const mockActivity = [
-            {
-              id: 'mock_1',
-              type: 'registration',
-              user: 'John Doe',
-              timestamp: new Date().toISOString(),
-              status: 'completed'
-            },
-            {
-              id: 'mock_2',
-              type: 'document_verification',
-              user: 'Jane Smith',
-              document: 'Transcript of Records',
-              timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-              status: 'verified'
-            },
-            {
-              id: 'mock_3',
-              type: 'user_verification',
-              user: 'Alice Johnson',
-              timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-              status: 'verified'
-            }
-          ];
-          
-          setRecentActivity(processActivityData(mockActivity));
+      // Fetch activity data
+      const activityUrl = `${apiUrl}/admin/dashboard/recent-activity?_t=${timestamp}`;
+      console.log(`Fetching real activity from: ${activityUrl}`);
+      
+      const activityResponse = await fetch(activityUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Bypass': 'true',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         }
-      } catch (activityError) {
-        console.error('Error fetching real activity:', activityError);
-        // Fall back to mock activity data
-        const mockActivity = [
-          {
-            id: 'mock_1',
-            type: 'registration',
-            user: 'John Doe',
-            timestamp: new Date().toISOString(),
-            status: 'completed'
-          },
-          {
-            id: 'mock_2',
-            type: 'document_verification',
-            user: 'Jane Smith',
-            document: 'Transcript of Records',
-            timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-            status: 'verified'
-          },
-          {
-            id: 'mock_3',
-            type: 'user_verification',
-            user: 'Alice Johnson',
-            timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-            status: 'verified'
-          }
-        ];
+      });
+      
+      if (activityResponse.ok) {
+        console.log('Successfully fetched real activity data!');
+        const activityData = await activityResponse.json();
         
-        setRecentActivity(processActivityData(mockActivity));
+        // Process the activity data to extract user information
+        const processedActivityData = processActivityData(activityData);
+        setRecentActivity(processedActivityData);
+      } else {
+        const errorText = await activityResponse.text();
+        console.error(`Failed to fetch activity: ${activityResponse.status}`, errorText);
+        
+        // Set empty activity array instead of mock data
+        setRecentActivity([]);
+        
+        // Show error toast
+        toast.error(`Failed to load recent activities. Please try refreshing the page.`);
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError(err.message);
+      
+      // Set empty values instead of mock data
+      setStats({
+        totalAlumni: 0,
+        pendingVerifications: 0,
+        verifiedDocuments: 0,
+        newRegistrations: 0
+      });
+      setRecentActivity([]);
+      
+      // Show error toast
+      toast.error(`Failed to load dashboard data: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -666,56 +651,52 @@ export default function AdminDashboardPage() {
         <div className="mt-8">
           <h2 className="text-lg font-medium text-gray-900">Recent Activity</h2>
           <div className="mt-2 bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
-              {loading ? (
-                <li>
-                  <div className="px-4 py-4 text-center">
-                    <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-cvsu-green"></div>
-                    <span className="ml-2 text-sm text-gray-500">Loading activities...</span>
-                  </div>
-                </li>
-              ) : recentActivity && recentActivity.length > 0 ? (
-                recentActivity.slice(0, 5).map((activity, index) => (
-                  <li key={index}>
-                    <div className="px-4 py-4 sm:px-6">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-cvsu-green truncate">
-                          {activity.title || formatActivityTitle(activity)}
+            {loading ? (
+              <div className="py-10 flex justify-center items-center">
+                <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="ml-2 text-gray-600">Loading recent activities...</span>
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <div className="py-10 text-center text-gray-500">
+                <p>No recent activity found.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-200">
+                {recentActivity.map((activity, i) => (
+                  <li key={activity.id || `activity-${i}`} className="px-4 py-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                          ${activity.status === 'verified' || activity.status === 'completed' 
+                            ? 'bg-green-100 text-green-800' 
+                            : activity.status === 'pending' 
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'}`}>
+                          {activity.status === 'verified' ? 'Verified' : 
+                           activity.status === 'completed' ? 'Completed' : 
+                           activity.status === 'pending' ? 'Pending' : 
+                           activity.status}
                         </p>
-                        <div className="ml-2 flex-shrink-0 flex">
-                          <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            ${activity.status === 'completed' ? 'bg-green-100 text-green-800' : ''}
-                            ${activity.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                            ${activity.status === 'rejected' ? 'bg-red-100 text-red-800' : ''}
-                            ${activity.status === 'verified' ? 'bg-blue-100 text-blue-800' : ''}
-                          `}>
-                            {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">
+                            {formatActivityTitle(activity)}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {formatActivityDescription(activity)}
                           </p>
                         </div>
                       </div>
-                      <div className="mt-2 sm:flex sm:justify-between">
-                        <div className="sm:flex">
-                          <p className="flex items-center text-sm text-gray-500">
-                            {activity.description || formatActivityDescription(activity)}
-                          </p>
-                        </div>
-                        <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                          <p>
-                            {formatDate(activity.timestamp)}
-                          </p>
-                        </div>
+                      <div className="text-right text-sm text-gray-500">
+                        {formatDate(activity.timestamp)}
                       </div>
                     </div>
                   </li>
-                ))
-              ) : (
-                <li>
-                  <div className="px-4 py-4 text-center text-gray-500">
-                    No recent activity found
-                  </div>
-                </li>
-              )}
-            </ul>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
@@ -724,27 +705,72 @@ export default function AdminDashboardPage() {
 
   // Admin dashboard (original content)
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Welcome back, Admin {currentUser?.full_name}! Here's an overview of the system.
-        </p>
+    <div className="p-6 w-full max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">Admin Dashboard</h1>
+          <p className="text-gray-600">Welcome back, Admin {currentUser?.full_name || 'User'}! Here's an overview of the system.</p>
+        </div>
+        
+        <div className="flex flex-col items-end">
+          <button 
+            onClick={() => fetchDashboardData()}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded flex items-center"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Refreshing...
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Data
+              </span>
+            )}
+          </button>
+          {lastUpdated && (
+            <p className="text-sm text-gray-500 mt-1">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
       </div>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
-                <UsersIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                <UsersIcon className="h-6 w-6 text-white" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Alumni</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{stats.totalAlumni.toLocaleString()}</div>
+                    {loading ? (
+                      <div className="h-7 flex items-center">
+                        <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-gray-900">{stats.totalAlumni}</div>
+                    )}
                   </dd>
                 </dl>
               </div>
@@ -752,7 +778,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="bg-gray-50 px-5 py-3">
             <div className="text-sm">
-              <Link to="/admin/alumni" className="font-medium text-blue-700 hover:text-blue-900">
+              <Link to="/admin/alumni" className="font-medium text-blue-600 hover:text-blue-900">
                 View all alumni
               </Link>
             </div>
@@ -763,13 +789,22 @@ export default function AdminDashboardPage() {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                <DocumentCheckIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                <DocumentCheckIcon className="h-6 w-6 text-white" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Pending Verifications</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{stats.pendingVerifications}</div>
+                    {loading ? (
+                      <div className="h-7 flex items-center">
+                        <svg className="animate-spin h-5 w-5 text-yellow-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-gray-900">{stats.pendingVerifications}</div>
+                    )}
                   </dd>
                 </dl>
               </div>
@@ -777,7 +812,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="bg-gray-50 px-5 py-3">
             <div className="text-sm">
-              <Link to="/admin/verifications" className="font-medium text-yellow-700 hover:text-yellow-900">
+              <Link to="/admin/verifications" className="font-medium text-yellow-600 hover:text-yellow-900">
                 Review verifications
               </Link>
             </div>
@@ -788,13 +823,22 @@ export default function AdminDashboardPage() {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                <ChartBarIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                <ChartBarIcon className="h-6 w-6 text-white" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Verified Documents</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{stats.verifiedDocuments.toLocaleString()}</div>
+                    {loading ? (
+                      <div className="h-7 flex items-center">
+                        <svg className="animate-spin h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-gray-900">{stats.verifiedDocuments}</div>
+                    )}
                   </dd>
                 </dl>
               </div>
@@ -802,7 +846,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="bg-gray-50 px-5 py-3">
             <div className="text-sm">
-              <Link to="/admin/admin-documents" className="font-medium text-green-700 hover:text-green-900">
+              <Link to="/admin/documents" className="font-medium text-green-600 hover:text-green-900">
                 View all documents
               </Link>
             </div>
@@ -813,13 +857,22 @@ export default function AdminDashboardPage() {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
-                <UserPlusIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                <UserPlusIcon className="h-6 w-6 text-white" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">New Registrations (30 days)</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">New Registrations</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{stats.newRegistrations}</div>
+                    {loading ? (
+                      <div className="h-7 flex items-center">
+                        <svg className="animate-spin h-5 w-5 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-gray-900">{stats.newRegistrations}</div>
+                    )}
                   </dd>
                 </dl>
               </div>
@@ -827,7 +880,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="bg-gray-50 px-5 py-3">
             <div className="text-sm">
-              <Link to="/admin/new-registrations" className="font-medium text-purple-700 hover:text-purple-900">
+              <Link to="/admin/registrations" className="font-medium text-purple-600 hover:text-purple-900">
                 View new registrations
               </Link>
             </div>
@@ -836,52 +889,57 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="mt-8">
-        <h2 className="text-lg font-medium text-gray-900">Recent Activity</h2>
-        <div className="mt-2 bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((activity, index) => (
-                <li key={index}>
-                  <div className="px-4 py-4 sm:px-6">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-cvsu-green truncate">
-                        {activity.title || formatActivityTitle(activity)}
+      <div className="bg-white shadow overflow-hidden rounded-lg mb-8">
+        <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+          <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Activity</h3>
+        </div>
+        <div className="border-t border-gray-200">
+          {loading ? (
+            <div className="py-10 flex justify-center items-center">
+              <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="ml-2 text-gray-600">Loading recent activities...</span>
+            </div>
+          ) : recentActivity.length === 0 ? (
+            <div className="py-10 text-center text-gray-500">
+              <p>No recent activity found.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-200">
+              {recentActivity.map((activity, i) => (
+                <li key={activity.id || `activity-${i}`} className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${activity.status === 'verified' || activity.status === 'completed' 
+                          ? 'bg-green-100 text-green-800' 
+                          : activity.status === 'pending' 
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'}`}>
+                        {activity.status === 'verified' ? 'Verified' : 
+                         activity.status === 'completed' ? 'Completed' : 
+                         activity.status === 'pending' ? 'Pending' : 
+                         activity.status}
                       </p>
-                      <div className="ml-2 flex-shrink-0 flex">
-                        <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${activity.status === 'completed' ? 'bg-green-100 text-green-800' : ''}
-                          ${activity.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                          ${activity.status === 'rejected' ? 'bg-red-100 text-red-800' : ''}
-                          ${activity.status === 'verified' ? 'bg-blue-100 text-blue-800' : ''}
-                        `}>
-                          {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-900">
+                          {formatActivityTitle(activity)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {formatActivityDescription(activity)}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-2 sm:flex sm:justify-between">
-                      <div className="sm:flex">
-                        <p className="flex items-center text-sm text-gray-500">
-                          {activity.description || formatActivityDescription(activity)}
-                        </p>
-                      </div>
-                      <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                        <p>
-                          {formatDate(activity.timestamp)}
-                        </p>
-                      </div>
+                    <div className="text-right text-sm text-gray-500">
+                      {formatDate(activity.timestamp)}
                     </div>
                   </div>
                 </li>
-              ))
-            ) : (
-              <li>
-                <div className="px-4 py-4 text-center text-gray-500">
-                  No recent activity found
-                </div>
-              </li>
-            )}
-          </ul>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
