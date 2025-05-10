@@ -40,16 +40,17 @@ cors_origins = [
     "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
     "http://localhost:3000",  # Local development
     "http://localhost:5173",  # Vite development
-    "http://127.0.0.1:5173"   # Alternative local
+    "http://127.0.0.1:5173",   # Alternative local
+    "*"  # Allow all origins temporarily for debugging
 ]
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],  # Allow all origins temporarily for debugging
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Admin-Bypass", "X-Requested-With", "X-CSRF-Token"],
+    allow_headers=["*"],  # Allow all headers
     expose_headers=["Content-Length", "Content-Range"],
     max_age=86400,  # 1 day in seconds
 )
