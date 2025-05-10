@@ -16,6 +16,19 @@ logger = logging.getLogger(__name__)
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017/cvsu_alumni")
 MONGODB_DB = os.getenv("MONGODB_DB", "cvsu_alumni")
 
+# Check for common cloud provider environment variables
+# Render.com provides DATABASE_URL for MongoDB
+cloud_mongodb_url = os.getenv("DATABASE_URL")
+if cloud_mongodb_url:
+    logger.info("Found cloud DATABASE_URL, using it instead of MONGODB_URL")
+    MONGODB_URL = cloud_mongodb_url
+
+# MongoDB Atlas connection string - Render.com often provides this
+mongodb_atlas_uri = os.getenv("MONGODB_URI") 
+if mongodb_atlas_uri:
+    logger.info("Found MongoDB Atlas URI, using it instead of other connection strings")
+    MONGODB_URL = mongodb_atlas_uri
+
 # Log MongoDB connection info (without sensitive credentials)
 connection_url = MONGODB_URL
 if "://" in connection_url:
@@ -120,8 +133,32 @@ async def close_mongo_connection():
 def get_database():
     """Return database instance."""
     if db is None:
+        # Report more detailed error information
+        connection_url = MONGODB_URL
+        # Mask any password in the URL for logging
+        if "://" in connection_url and "@" in connection_url:
+            parts = connection_url.split("://", 1)
+            auth_part = parts[1].split("@", 1)[0]
+            if ":" in auth_part:
+                username = auth_part.split(":", 1)[0]
+                masked_url = f"{parts[0]}://{username}:****@{parts[1].split('@', 1)[1]}"
+                logger.error(f"Failed to connect to MongoDB at {masked_url}")
+            else:
+                logger.error(f"Failed to connect to MongoDB at {parts[0]}://{parts[1].split('@', 1)[1]}")
+        else:
+            logger.error(f"Failed to connect to MongoDB at {MONGODB_URL}")
+            
         logger.error("Database connection not established. MongoDB might not be running.")
         logger.error(f"MongoDB database attempted: {MONGODB_DB}")
+        logger.error(f"Environment variables: DATABASE_URL exists: {bool(os.getenv('DATABASE_URL'))}, MONGODB_URI exists: {bool(os.getenv('MONGODB_URI'))}")
+        
+        # Return a mock database for development/testing if configured
+        if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+            logger.warning("Using mock database for development/testing")
+            from unittest.mock import MagicMock
+            mock_db = MagicMock()
+            return mock_db
+            
         # This will be caught and handled by the routes
         raise ConnectionError("Database connection not established. Please check that MongoDB is running and check your connection settings.")
     return db

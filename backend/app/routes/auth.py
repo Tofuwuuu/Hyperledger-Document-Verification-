@@ -674,6 +674,18 @@ async def options_register(request: Request):
     from app.core.config import settings
     origin = request.headers.get("Origin", "")
     
+    # Always allow the main frontend domain
+    if origin == "https://alumni-frontend-zzr2.onrender.com":
+        return {
+            "allow": "POST, OPTIONS",
+            "content-type": "application/json",
+            "access-control-allow-origin": origin,
+            "access-control-allow-methods": "POST, OPTIONS",
+            "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
+            "access-control-allow-credentials": "true",
+            "access-control-max-age": "86400",  # 1 day in seconds
+        }
+    
     # Check if the origin is in our allowed list
     allowed_origins = settings.cors_origins_list
     allow_origin = origin if origin in allowed_origins else allowed_origins[0]
@@ -684,6 +696,7 @@ async def options_register(request: Request):
         "access-control-allow-origin": allow_origin,
         "access-control-allow-methods": "POST, OPTIONS",
         "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
+        "access-control-allow-credentials": "true",
         "access-control-max-age": "86400",  # 1 day in seconds
     }
 
@@ -693,6 +706,18 @@ async def options_login(request: Request):
     from app.core.config import settings
     origin = request.headers.get("Origin", "")
     
+    # Always allow the main frontend domain
+    if origin == "https://alumni-frontend-zzr2.onrender.com":
+        return {
+            "allow": "POST, OPTIONS",
+            "content-type": "application/json",
+            "access-control-allow-origin": origin,
+            "access-control-allow-methods": "POST, OPTIONS",
+            "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
+            "access-control-allow-credentials": "true",
+            "access-control-max-age": "86400",  # 1 day in seconds
+        }
+    
     # Check if the origin is in our allowed list
     allowed_origins = settings.cors_origins_list
     allow_origin = origin if origin in allowed_origins else allowed_origins[0]
@@ -703,6 +728,7 @@ async def options_login(request: Request):
         "access-control-allow-origin": allow_origin,
         "access-control-allow-methods": "POST, OPTIONS",
         "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
+        "access-control-allow-credentials": "true",
         "access-control-max-age": "86400",  # 1 day in seconds
     }
 
@@ -711,6 +737,18 @@ async def options_any(path: str, request: Request):
     """Handle OPTIONS request for any auth endpoint (CORS preflight)"""
     from app.core.config import settings
     origin = request.headers.get("Origin", "")
+    
+    # Always allow the main frontend domain
+    if origin == "https://alumni-frontend-zzr2.onrender.com":
+        return {
+            "allow": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "content-type": "application/json",
+            "access-control-allow-origin": origin,
+            "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With", 
+            "access-control-allow-credentials": "true",
+            "access-control-max-age": "86400",  # 1 day in seconds
+        }
     
     # Check if the origin is in our allowed list
     allowed_origins = settings.cors_origins_list
@@ -722,6 +760,7 @@ async def options_any(path: str, request: Request):
         "access-control-allow-origin": allow_origin,
         "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
         "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With", 
+        "access-control-allow-credentials": "true",
         "access-control-max-age": "86400",  # 1 day in seconds
     }
 

@@ -38,6 +38,10 @@ else:
         # Remove wildcard to enhance security
     ]
 
+# Ensure critical production domains are always included
+if "https://alumni-frontend-zzr2.onrender.com" not in cors_origins:
+    cors_origins.append("https://alumni-frontend-zzr2.onrender.com")
+
 logger.info(f"Configuring CORS with origins: {cors_origins}")
 
 # Create FastAPI app
