@@ -242,30 +242,62 @@ async def get_all_alumni(
             query["graduation_year"] = graduation_year
         
         # Get total count for pagination
-        total = await db.alumni.count_documents(query)
+        try:
+            total = await db.alumni.count_documents(query)
+        except Exception as count_error:
+            print(f"Error counting alumni documents: {str(count_error)}")
+            # Default to 0 for total if count fails
+            total = 0
         
         # Get alumni with pagination
-        alumni_list = await db.alumni.find(query).skip(offset).limit(limit).to_list(None)
+        try:
+            alumni_list = await db.alumni.find(query).skip(offset).limit(limit).to_list(None)
+        except Exception as find_error:
+            print(f"Error finding alumni documents: {str(find_error)}")
+            # Return empty list if find fails
+            return {
+                "results": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset
+            }
         
         # Get verified documents for each alumni
         results = []
         for alumni in alumni_list:
             try:
-                documents = await db.documents.find(
-                    {
-                        "alumni_id": alumni["_id"],
-                        "verification_status": "verified"
-                    }
-                ).to_list(None)
+                # Convert _id to string to ensure proper serialization
+                alumni["_id"] = str(alumni["_id"])
                 
-                # Make sure all document IDs are strings
-                verified_document_ids = [str(doc["_id"]) for doc in documents]
+                # Try to get documents, but handle failure gracefully
+                try:
+                    documents = await db.documents.find(
+                        {
+                            "alumni_id": alumni["_id"],
+                            "verification_status": "verified"
+                        }
+                    ).to_list(None)
+                    
+                    # Make sure all document IDs are strings
+                    verified_document_ids = [str(doc["_id"]) for doc in documents]
+                except Exception as doc_error:
+                    print(f"Error fetching documents for alumni {alumni.get('_id')}: {str(doc_error)}")
+                    verified_document_ids = []
+                
                 results.append({**alumni, "verified_documents": verified_document_ids})
             except Exception as e:
                 # If there's an error with a specific alumni, log and continue
                 print(f"Error processing alumni {alumni.get('_id')}: {str(e)}")
-                # Add the alumni without documents
-                results.append({**alumni, "verified_documents": []})
+                # Try to add the alumni without documents but with minimal processing
+                try:
+                    results.append({
+                        "_id": str(alumni.get("_id", "unknown")),
+                        "full_name": alumni.get("full_name", "Unknown"),
+                        "verified_documents": []
+                    })
+                except:
+                    # If even that fails, just skip this alumni
+                    pass
         
         return {
             "results": results,
@@ -278,6 +310,66 @@ async def get_all_alumni(
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in get_all_alumni: {str(e)}\n{error_details}")
+        
+        # Return an empty result instead of raising an exception
+        # This ensures the frontend always gets a valid response
+        return {
+            "results": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset
+        }
+
+# Simple alumni list endpoint for improved reliability
+@router.get("/list", response_model=Dict[str, Any])
+async def get_simple_alumni_list(
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Pagination offset")
+):
+    """
+    Simplified endpoint to get a list of alumni with basic pagination.
+    This endpoint prioritizes reliability over features.
+    """
+    try:
+        db = get_database()
+        
+        # Get total count
+        total = await db.alumni.count_documents({})
+        
+        # Get alumni with pagination but minimal fields
+        alumni_cursor = db.alumni.find(
+            {},
+            projection={
+                "_id": 1, 
+                "full_name": 1, 
+                "email": 1,
+                "student_id": 1,
+                "department": 1,
+                "course": 1,
+                "graduation_year": 1,
+                "profile_picture": 1
+            }
+        ).skip(offset).limit(limit)
+        
+        # Convert to list of dictionaries
+        alumni_list = await alumni_cursor.to_list(length=limit)
+        
+        # Convert ObjectId to string for serialization
+        for alumni in alumni_list:
+            alumni["_id"] = str(alumni["_id"])
+        
+        return {
+            "results": alumni_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        # Log the error and return a more helpful error response
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in get_simple_alumni_list: {str(e)}\n{error_details}")
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -422,59 +514,3 @@ async def delete_alumni_profile(
         except Exception:
             # Ignore errors when deleting files
             pass 
-
-# Simple alumni list endpoint for improved reliability
-@router.get("/list", response_model=Dict[str, Any])
-async def get_simple_alumni_list(
-    limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
-    offset: int = Query(0, ge=0, description="Pagination offset")
-):
-    """
-    Simplified endpoint to get a list of alumni with basic pagination.
-    This endpoint prioritizes reliability over features.
-    """
-    try:
-        db = get_database()
-        
-        # Get total count
-        total = await db.alumni.count_documents({})
-        
-        # Get alumni with pagination but minimal fields
-        alumni_cursor = db.alumni.find(
-            {},
-            projection={
-                "_id": 1, 
-                "full_name": 1, 
-                "email": 1,
-                "student_id": 1,
-                "department": 1,
-                "course": 1,
-                "graduation_year": 1,
-                "profile_picture": 1
-            }
-        ).skip(offset).limit(limit)
-        
-        # Convert to list of dictionaries
-        alumni_list = await alumni_cursor.to_list(length=limit)
-        
-        # Convert ObjectId to string for serialization
-        for alumni in alumni_list:
-            alumni["_id"] = str(alumni["_id"])
-        
-        return {
-            "results": alumni_list,
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
-        
-    except Exception as e:
-        # Log the error and return a more helpful error response
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in get_simple_alumni_list: {str(e)}\n{error_details}")
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching alumni data: {str(e)}"
-        ) 

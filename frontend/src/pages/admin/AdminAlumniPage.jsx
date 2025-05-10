@@ -6,6 +6,7 @@ import { alumniService } from '../../services/api';
 export default function AdminAlumniPage() {
   const [alumni, setAlumni] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
@@ -21,6 +22,8 @@ export default function AdminAlumniPage() {
   // Fetch alumni with search parameters
   const fetchAlumni = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
       const params = {
         limit,
@@ -44,10 +47,22 @@ export default function AdminAlumniPage() {
       }
       
       const response = await alumniService.getAllAlumni(params);
-      setAlumni(response.data.results);
-      setTotalAlumni(response.data.total);
+      
+      // Check if response data exists and has expected format
+      if (response?.data?.results) {
+        setAlumni(response.data.results);
+        setTotalAlumni(response.data.total || 0);
+      } else {
+        console.warn('Alumni response missing expected data format:', response);
+        setAlumni([]);
+        setTotalAlumni(0);
+      }
     } catch (error) {
       console.error('Error fetching alumni:', error);
+      setError(error.message || 'Failed to load alumni data');
+      // Set empty data to prevent UI errors
+      setAlumni([]);
+      setTotalAlumni(0);
     } finally {
       setLoading(false);
     }
