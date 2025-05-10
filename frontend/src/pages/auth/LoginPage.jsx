@@ -96,7 +96,9 @@ export default function LoginPage() {
         // If we get here, user exists, proceed with normal login
         console.log('MFA check success:', mfaCheckResponse.data);
       } catch (mfaError) {
-        console.error('MFA check error:', mfaError.response?.data || mfaError.message || mfaError);
+        // Properly handle the error object to avoid React serialization issues
+        const errorMessage = mfaError.response?.data?.detail || mfaError.message || 'Unknown error';
+        console.error('MFA check error:', errorMessage);
         
         // Handle various error conditions from MFA check
         if (mfaError.response) {
@@ -105,7 +107,22 @@ export default function LoginPage() {
           
           // Handle 422 validation errors
           if (status === 422) {
-            const errorMessage = errorData?.detail || 'Invalid email format or validation error';
+            let errorMessage = 'Invalid email format or validation error';
+            
+            // Handle different formats of validation errors
+            if (Array.isArray(errorData.detail)) {
+              // FastAPI validation errors come as an array
+              errorMessage = errorData.detail[0]?.msg || errorMessage;
+            } else if (typeof errorData.detail === 'string') {
+              errorMessage = errorData.detail;
+            } else if (errorData.detail && typeof errorData.detail === 'object') {
+              // Try to extract a readable message from the validation error object
+              const detailValues = Object.values(errorData.detail);
+              errorMessage = detailValues.length > 0 ? 
+                detailValues.join(', ') : errorMessage;
+            }
+            
+            console.log('Validation error formatted:', errorMessage);
             setGeneralError(errorMessage);
             setIsLoading(false);
             setSubmitting(false);
@@ -144,10 +161,13 @@ export default function LoginPage() {
       }
       // If login is successful but no MFA, the useEffect will redirect
     } catch (error) {
-      console.error('Login error:', error.response?.data || error.message || error);
+      // Properly handle the error object to avoid React serialization issues
+      const errorResponse = error.response?.data || {};
+      const errorMessage = errorResponse.detail || error.message || 'Unknown error';
+      console.error('Login error:', errorMessage);
       
       // Enhanced error messages based on error types
-      let errorMessage = '';
+      let displayError = '';
       
       if (error.response) {
         const status = error.response.status;
@@ -157,42 +177,42 @@ export default function LoginPage() {
         if (status === 401) {
           // Check for specific error type headers
           if (errorType === 'account_not_found') {
-            errorMessage = 'This account does not exist. Please register first.';
+            displayError = 'This account does not exist. Please register first.';
           } else if (errorType === 'wrong_password') {
-            errorMessage = 'Incorrect password. Please try again.';
+            displayError = 'Incorrect password. Please try again.';
           } else if (errorDetail.includes("account with this email address doesn't exist")) {
-            errorMessage = 'This account does not exist. Please register first.';
+            displayError = 'This account does not exist. Please register first.';
           } else if (errorDetail.includes('deactivated')) {
-            errorMessage = errorDetail;
+            displayError = errorDetail;
           } else if (errorDetail.includes('verification')) {
-            errorMessage = 'Your account email has not been verified. Please check your inbox for a verification link.';
+            displayError = 'Your account email has not been verified. Please check your inbox for a verification link.';
           } else {
             // Fallback for other authentication errors
-            errorMessage = errorDetail || 'Invalid credentials. Please try again.';
+            displayError = errorDetail || 'Invalid credentials. Please try again.';
           }
         } else if (status === 422) {
-          errorMessage = errorDetail || 'Validation error. Please check your input and try again.';
+          displayError = errorDetail || 'Validation error. Please check your input and try again.';
         } else if (status === 429) {
-          errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
+          displayError = 'Too many failed login attempts. Please try again later or reset your password.';
         } else if (status === 503) {
-          errorMessage = 'The service is temporarily unavailable. Please try again later.';
+          displayError = 'The service is temporarily unavailable. Please try again later.';
         } else {
           // Use the error message from the server if available
-          errorMessage = errorDetail || 'Login failed. Please try again later.';
+          displayError = errorDetail || 'Login failed. Please try again later.';
         }
       } else if (error.request) {
         // Network error - the request was made but no response was received
-        errorMessage = 'Cannot connect to the server. Please check your internet connection and try again.';
+        displayError = 'Cannot connect to the server. Please check your internet connection and try again.';
       } else {
         // Something else caused the error
-        errorMessage = error.message || 'Login failed. Please try again later.';
+        displayError = error.message || 'Login failed. Please try again later.';
       }
       
       // Set error in state only - don't store in sessionStorage to prevent refresh issues
-      setGeneralError(errorMessage);
+      setGeneralError(displayError);
       
       // Handle specific error types with field-level errors
-      if (errorMessage.includes('password')) {
+      if (displayError.includes('password')) {
         setFieldError('password', 'Incorrect password');
       }
       

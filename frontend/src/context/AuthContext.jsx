@@ -85,7 +85,9 @@ const authService = {
             return mfaCheck.data;
           }
         } catch (error) {
-          console.error('MFA check error:', error.response?.data || error.message || error);
+          // Properly handle the error object to avoid React serialization issues
+          const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+          console.error('MFA check error:', errorMessage);
           
           // If we get a 422 validation error, handle it properly
           if (error.response?.status === 422) {
@@ -99,7 +101,10 @@ const authService = {
       const response = await axios.post(`${API_URL}/auth/login`, credentials);
       return response.data;
     } catch (error) {
-      console.error('Login service error:', error.response?.data || error.message || error);
+      // Properly handle the error object to avoid React serialization issues
+      const errorResponse = error.response?.data || {};
+      const errorMessage = errorResponse.detail || error.message || 'Unknown error';
+      console.error('Login service error:', errorMessage);
       throw error;
     }
   },
