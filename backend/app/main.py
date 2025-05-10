@@ -62,6 +62,18 @@ app.add_middleware(
 # Add security headers middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    # Special handling for OPTIONS requests
+    if request.method == "OPTIONS":
+        # For preflight requests, return a proper response with CORS headers
+        headers = {
+            "Access-Control-Allow-Origin": request.headers.get("Origin", ""),
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Use-Local-User",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400",
+        }
+        return JSONResponse(content={}, status_code=200, headers=headers)
+        
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -73,7 +85,7 @@ async def add_security_headers(request: Request, call_next):
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
     """Middleware to handle CSRF protection for non-GET methods"""
-    # Skip CSRF check for safe methods
+    # Skip CSRF check for safe methods (including OPTIONS)
     if request.method.upper() in ("GET", "HEAD", "OPTIONS"):
         return await call_next(request)
     
@@ -83,7 +95,8 @@ async def csrf_middleware(request: Request, call_next):
         "/api/v1/auth/register", 
         "/api/v1/auth/reset-password",
         "/api/v1/auth/verify-reset-token",
-        "/api/v1/auth/reset-password-confirm"
+        "/api/v1/auth/reset-password-confirm",
+        "/api/v1/admin/"  # Skip for all admin endpoints
     ]
     
     for path in skip_paths:
