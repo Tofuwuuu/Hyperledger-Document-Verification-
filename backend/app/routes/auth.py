@@ -154,21 +154,22 @@ async def login(
         # Find user by username (email)
         user = await db.users.find_one({"email": form_data.username})
         
-        # Check if user exists and password is correct
-        if not user or not verify_password(form_data.password, user["hashed_password"]):
-            # Use a consistent error message for both non-existent users and wrong passwords
-            logging.warning(f"Failed login attempt for user: {form_data.username}")
-            
-            # If user exists but password is wrong, log this separately without exposing in response
-            if user:
-                logging.info(f"User exists but password is incorrect: {form_data.username}")
-            else:
-                logging.info(f"User does not exist: {form_data.username}")
-                
+        # Check if user exists first
+        if not user:
+            logging.info(f"User does not exist: {form_data.username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="The email or password you entered is incorrect. Please try again.",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail="The account with this email address doesn't exist. Please register first.",
+                headers={"WWW-Authenticate": "Bearer", "X-Error-Type": "account_not_found"},
+            )
+        
+        # Check if password is correct
+        if not verify_password(form_data.password, user["hashed_password"]):
+            logging.warning(f"Failed login attempt (wrong password) for user: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect password. Please try again.",
+                headers={"WWW-Authenticate": "Bearer", "X-Error-Type": "wrong_password"},
             )
         
         # Check if user is active
@@ -941,22 +942,22 @@ async def check_mfa_status(data: UserLogin, response: Response):
         # Find user by email
         user = await db.users.find_one({"email": data.email})
         
-        # Check if user exists and password is correct
-        if not user or not verify_password(data.password, user["hashed_password"]):
-            # Use a consistent error message for both non-existent users and wrong passwords
-            logging.warning(f"Failed login attempt for user: {data.email}")
-            
-            # If user exists but password is wrong, log this separately without exposing in response
-            if user:
-                logging.info(f"User exists but password is incorrect: {data.email}")
-            else:
-                logging.info(f"User does not exist: {data.email}")
-                
-            # Return generic error for security
+        # Check if user exists first
+        if not user:
+            logging.info(f"User does not exist (MFA check): {data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="The email or password you entered is incorrect. Please try again.",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail="The account with this email address doesn't exist. Please register first.",
+                headers={"WWW-Authenticate": "Bearer", "X-Error-Type": "account_not_found"},
+            )
+        
+        # Check if password is correct
+        if not verify_password(data.password, user["hashed_password"]):
+            logging.warning(f"Failed MFA check (wrong password) for user: {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect password. Please try again.",
+                headers={"WWW-Authenticate": "Bearer", "X-Error-Type": "wrong_password"},
             )
             
         # Check if user is active

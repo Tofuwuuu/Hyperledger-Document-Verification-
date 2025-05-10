@@ -102,18 +102,23 @@ export default function LoginPage() {
       if (error.response) {
         const status = error.response.status;
         const errorDetail = error.response.data?.detail || '';
+        const errorType = error.response.headers?.['x-error-type'];
         
         if (status === 401) {
-          // Handle authentication errors
-          if (errorDetail.includes('email or password you entered is incorrect')) {
-            setGeneralError(errorDetail);
+          // Check for specific error type headers
+          if (errorType === 'account_not_found') {
+            setGeneralError('This account does not exist. Please register first.');
+          } else if (errorType === 'wrong_password') {
+            setGeneralError('Incorrect password. Please try again.');
+          } else if (errorDetail.includes("account with this email address doesn't exist")) {
+            setGeneralError('This account does not exist. Please register first.');
           } else if (errorDetail.includes('deactivated')) {
             setGeneralError(errorDetail);
           } else if (errorDetail.includes('verification')) {
             setGeneralError('Your account email has not been verified. Please check your inbox for a verification link.');
           } else {
             // Fallback for other authentication errors
-            setGeneralError('Invalid credentials. Please double-check your email and password.');
+            setGeneralError(errorDetail || 'Invalid credentials. Please try again.');
           }
         } else if (status === 429) {
           setGeneralError('Too many failed login attempts. Please try again later or reset your password.');
@@ -196,11 +201,19 @@ export default function LoginPage() {
                   </h3>
                   <div className="mt-2 text-sm text-red-700">
                     <p>{generalError}</p>
-                    {generalError.includes('email or password') && (
+                    {generalError.includes('account does not exist') && (
+                      <div className="mt-2">
+                        <Link to="/register" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                          Register Now
+                        </Link>
+                        <p className="mt-1 text-sm text-gray-600">
+                          Create an account to access the alumni system.
+                        </p>
+                      </div>
+                    )}
+                    {generalError.includes('password') && (
                       <ul className="list-disc pl-5 mt-1 space-y-1">
-                        <li>Make sure you are using the correct email address</li>
                         <li>Check that your password is entered correctly</li>
-                        <li>If you're new, please <Link to="/register" className="font-medium underline">register here</Link></li>
                         <li>Forgot your password? <Link to="/reset-password" className="font-medium underline">Reset it here</Link></li>
                       </ul>
                     )}
