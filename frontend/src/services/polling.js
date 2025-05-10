@@ -1,4 +1,4 @@
-import { getUserToken } from './api';
+import { getAuthTokens } from '../utils/authUtils';
 
 class PollingService {
   constructor() {
@@ -18,8 +18,8 @@ class PollingService {
       return;
     }
 
-    const token = getUserToken();
-    if (!token) {
+    const { accessToken } = getAuthTokens();
+    if (!accessToken) {
       console.error('No authentication token found');
       return;
     }
@@ -46,15 +46,15 @@ class PollingService {
 
   async fetchNotifications() {
     try {
-      const token = getUserToken();
-      if (!token) {
+      const { accessToken } = getAuthTokens();
+      if (!accessToken) {
         console.error('No auth token available for notifications');
         this.stopPolling();
         return;
       }
 
       // Special handling for admin bypass tokens
-      if (token.startsWith('admin_access_token_')) {
+      if (accessToken.startsWith('admin_access_token_')) {
         console.log('Using admin bypass token - returning empty notifications array');
         // For admin bypass, just emit empty notifications to prevent API calls that would 401
         const mockData = {
@@ -95,7 +95,7 @@ class PollingService {
       
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Cache-Control': 'no-cache'
         }
       });
