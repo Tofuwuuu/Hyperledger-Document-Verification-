@@ -53,7 +53,11 @@ app.add_middleware(
         "X-CSRF-Token", 
         "X-Requested-With",
         "X-Admin-Bypass",
-        "X-Use-Local-User"
+        "X-Use-Local-User",
+        "Cache-Control",
+        "Pragma",
+        "Accept-Encoding",
+        "Accept-Language"
     ],
     expose_headers=["Content-Length", "Content-Range", "X-CSRF-Token"],
     max_age=86400,  # 1 day in seconds
@@ -65,10 +69,16 @@ async def add_security_headers(request: Request, call_next):
     # Special handling for OPTIONS requests
     if request.method == "OPTIONS":
         # For preflight requests, return a proper response with CORS headers
+        # Get the requested headers from the request
+        requested_headers = request.headers.get("Access-Control-Request-Headers", "")
+        
+        # Use the requested headers if present, otherwise use our default list
+        allow_headers = requested_headers if requested_headers else "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Use-Local-User, Cache-Control, Pragma, Accept-Encoding, Accept-Language"
+        
         headers = {
             "Access-Control-Allow-Origin": request.headers.get("Origin", ""),
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Use-Local-User",
+            "Access-Control-Allow-Headers": allow_headers,
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "86400",
         }
