@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Query, Request, Header, Response
+from fastapi import APIRouter, HTTPException, Depends, status, Query, Request, Header, Response, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -140,12 +140,16 @@ async def register(user_data: UserCreate):
         )
 
 @router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), response: Response = None):
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), 
+    remember: bool = Form(False),
+    response: Response = None
+):
     try:
         db = get_database()
         
         # Log login attempt (without password)
-        logging.info(f"Login attempt for user: {form_data.username}")
+        logging.info(f"Login attempt for user: {form_data.username}, remember: {remember}")
         
         # Find user by username (email)
         user = await db.users.find_one({"email": form_data.username})
@@ -169,8 +173,19 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), response: Resp
         
         # Create access and refresh tokens
         user_id = str(user["_id"])
-        access_token = create_access_token(data={"sub": user_id})
-        refresh_token = create_refresh_token(data={"sub": user_id})
+        
+        # Set expiration times based on remember flag
+        access_token_expires = timedelta(days=7 if remember else 1)
+        refresh_token_expires = timedelta(days=30 if remember else 7)
+        
+        access_token = create_access_token(
+            data={"sub": user_id},
+            expires_delta=access_token_expires
+        )
+        refresh_token = create_refresh_token(
+            data={"sub": user_id},
+            expires_delta=refresh_token_expires
+        )
         
         # Set tokens as HttpOnly cookies
         response.set_cookie(
@@ -179,7 +194,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), response: Resp
             httponly=True,
             secure=True,  # Only sent over HTTPS
             samesite="lax",  # CSRF protection
-            max_age=60 * 60,  # 1 hour in seconds
+            max_age=int(access_token_expires.total_seconds()),
             path="/"
         )
         
@@ -189,11 +204,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), response: Resp
             httponly=True,
             secure=True,
             samesite="lax",
-            max_age=7 * 24 * 60 * 60,  # 7 days in seconds
+            max_age=int(refresh_token_expires.total_seconds()),
             path="/"
         )
         
-        logging.info(f"Successful login for user: {form_data.username}")
+        logging.info(f"Successful login for user: {form_data.username}, remember: {remember}")
         
         # Still return tokens in response for backward compatibility
         # In production, you might want to remove this later
@@ -1207,4 +1222,192 @@ async def disable_mfa(current_user: Dict[str, Any] = Depends(get_current_user)):
     return {
         "success": True,
         "message": "MFA disabled successfully"
-    } 
+    }
+
+# Add routes for security questions as an additional recovery method
+@router.post("/set-security-questions")
+async def set_security_questions(
+    security_data: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Set security questions and answers for account recovery"""
+    try:
+        db = get_database()
+        
+        # Validate questions and answers format
+        if not isinstance(security_data.get("questions"), list) or len(security_data.get("questions", [])) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please provide at least 2 security questions and answers"
+            )
+        
+        # Store questions and hashed answers
+        questions_data = []
+        for item in security_data["questions"]:
+            if not item.get("question") or not item.get("answer"):
+                continue
+                
+            # Hash the answer for security
+            hashed_answer = get_password_hash(item["answer"].lower().strip())
+            
+            questions_data.append({
+                "question": item["question"],
+                "answer_hash": hashed_answer
+            })
+        
+        if len(questions_data) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please provide at least 2 security questions with valid answers"
+            )
+        
+        # Update user document with security questions
+        await db.users.update_one(
+            {"_id": current_user["_id"]},
+            {"$set": {
+                "security_questions": questions_data,
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        
+        return {"status": "success", "message": "Security questions set successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error setting security questions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred setting security questions"
+        )
+
+@router.post("/verify-security-questions")
+async def verify_security_questions(verify_data: Dict[str, Any]):
+    """Verify security questions for account recovery"""
+    try:
+        db = get_database()
+        
+        if not verify_data.get("email"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is required"
+            )
+            
+        if not isinstance(verify_data.get("answers"), list) or len(verify_data.get("answers", [])) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please provide answers to at least 2 security questions"
+            )
+        
+        # Find user by email
+        user = await db.users.find_one({"email": verify_data["email"]})
+        if not user:
+            # Don't reveal if email exists or not
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Check if user has security questions
+        if not user.get("security_questions") or len(user.get("security_questions", [])) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security questions not set for this account"
+            )
+        
+        # Verify answers
+        security_questions = user["security_questions"]
+        correct_answers = 0
+        
+        for answer_data in verify_data["answers"]:
+            question_idx = answer_data.get("question_idx")
+            answer = answer_data.get("answer", "").lower().strip()
+            
+            if question_idx is None or not answer:
+                continue
+                
+            if question_idx < 0 or question_idx >= len(security_questions):
+                continue
+                
+            # Check if the answer matches
+            stored_hash = security_questions[question_idx]["answer_hash"]
+            if verify_password(answer, stored_hash):
+                correct_answers += 1
+        
+        # Require at least 2 correct answers
+        if correct_answers < 2:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect answers to security questions"
+            )
+        
+        # Generate a reset token
+        token = f"{str(uuid.uuid4())}-{secrets.token_hex(16)}"
+        
+        # Set token expiration (1 hour from now)
+        expires = datetime.utcnow() + timedelta(hours=1)
+        
+        # Store token in database
+        await db.users.update_one(
+            {"_id": user["_id"]},
+            {"$set": {
+                "reset_token": token,
+                "reset_token_expires": expires,
+                "reset_method": "security_questions",
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        
+        # Return the token for frontend to redirect to reset page
+        return {
+            "status": "success", 
+            "reset_token": token,
+            "expires_at": expires.isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error verifying security questions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred verifying security questions"
+        )
+
+@router.get("/security-questions/{email}")
+async def get_security_questions(email: str):
+    """Get security questions for a user without revealing answers"""
+    try:
+        db = get_database()
+        
+        # Find user by email
+        user = await db.users.find_one({"email": email})
+        if not user:
+            # Don't reveal if email exists or not
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Check if user has security questions
+        if not user.get("security_questions") or len(user.get("security_questions", [])) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security questions not set for this account"
+            )
+        
+        # Return questions without answers
+        questions = []
+        for idx, q_data in enumerate(user["security_questions"]):
+            questions.append({
+                "index": idx,
+                "question": q_data["question"]
+            })
+        
+        return {"questions": questions}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting security questions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred retrieving security questions"
+        ) 

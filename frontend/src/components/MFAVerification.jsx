@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const MFAVerification = ({ email, setup_id, mfa_type, onVerified, onCancel }) => {
+const MFAVerification = ({ email, setup_id, mfa_type, remember = false, onVerified, onCancel }) => {
   const [verificationCode, setVerificationCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+  const [resendDisabled, setResendDisabled] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
   
   const { authService } = useAuth();
   
@@ -20,12 +22,52 @@ const MFAVerification = ({ email, setup_id, mfa_type, onVerified, onCancel }) =>
     return () => clearTimeout(timer);
   }, [countdown]);
   
+  // Handle resend countdown
+  useEffect(() => {
+    if (resendCountdown <= 0) {
+      setResendDisabled(false);
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      setResendCountdown(resendCountdown - 1);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
+  
   // Format countdown as MM:SS
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+  
+  // Handle input changes with validation
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    // Only allow digits and limit to 6 characters
+    const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
+    setVerificationCode(cleanedValue);
+    
+    // Clear error when user types
+    if (error) setError('');
+  };
+  
+  // Handle resend code
+  const handleResendCode = useCallback(async () => {
+    setResendDisabled(true);
+    setResendCountdown(60); // 60 second cooldown
+    
+    try {
+      await authService.setupMFA(mfa_type);
+      // Reset main countdown
+      setCountdown(300);
+      setError('');
+    } catch (err) {
+      setError('Failed to resend verification code. Please try again later.');
+    }
+  }, [authService, mfa_type]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,15 +87,35 @@ const MFAVerification = ({ email, setup_id, mfa_type, onVerified, onCancel }) =>
     setIsSubmitting(true);
     
     try {
-      const result = await authService.verifyMfa(email, verificationCode);
+      const result = await authService.verifyMfa(email, verificationCode, remember);
       onVerified(result);
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || 'Failed to verify code. Please try again.';
+      let errorMessage = 'Failed to verify code. Please try again.';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      }
+      
       setError(errorMessage);
+      setVerificationCode(''); // Clear code field on error
     } finally {
       setIsSubmitting(false);
     }
   };
+  
+  // Auto-submit when code is complete
+  useEffect(() => {
+    if (verificationCode.length === 6 && !isSubmitting && !error) {
+      // Add a small delay to allow user to see what they entered
+      const timer = setTimeout(() => {
+        handleSubmit({ preventDefault: () => {} });
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [verificationCode, isSubmitting, error]);
   
   return (
     <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-md mx-auto">
@@ -87,9 +149,10 @@ const MFAVerification = ({ email, setup_id, mfa_type, onVerified, onCancel }) =>
             maxLength="6"
             className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-cvsu-green focus:border-transparent text-center text-2xl tracking-widest"
             value={verificationCode}
-            onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onChange={handleInputChange}
             placeholder="000000"
             autoComplete="one-time-code"
+            autoFocus
             required
           />
         </div>
@@ -97,7 +160,7 @@ const MFAVerification = ({ email, setup_id, mfa_type, onVerified, onCancel }) =>
         <div className="flex flex-col space-y-2">
           <button
             type="submit"
-            className="w-full bg-cvsu-green text-white py-2 rounded hover:bg-cvsu-green-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+            className="w-full bg-cvsu-green text-white py-2 rounded hover:bg-cvsu-green-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green disabled:opacity-50"
             disabled={isSubmitting}
           >
             {isSubmitting ? 'Verifying...' : 'Verify'}
@@ -118,15 +181,13 @@ const MFAVerification = ({ email, setup_id, mfa_type, onVerified, onCancel }) =>
         <p className="text-sm text-gray-500">
           Didn't receive the code? 
           <button 
-            className="text-cvsu-green ml-1 hover:underline focus:outline-none"
-            onClick={() => {
-              // Resend code logic would go here
-              // For now, just reset the countdown
-              setCountdown(300);
-              alert('A new code has been sent to your email');
-            }}
+            className={`text-cvsu-green ml-1 hover:underline focus:outline-none ${resendDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={handleResendCode}
+            disabled={resendDisabled}
           >
-            Resend
+            {resendDisabled 
+              ? `Resend in ${resendCountdown}s` 
+              : 'Resend code'}
           </button>
         </p>
       </div>

@@ -33,6 +33,7 @@ const AdminProfilePage = lazy(() => import('./pages/admin/AdminProfilePage'));
 const DocumentVerificationPage = lazy(() => import('./pages/dashboard/DocumentVerificationPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const AccountRecoveryPage = lazy(() => import('./pages/AccountRecoveryPage'));
 const QuickRegisterPage = lazy(() => import('./pages/QuickRegisterPage'));
 const ProfileEditPage = lazy(() => import('./pages/profile/ProfileEditPage'));
 const SecuritySettingsPage = lazy(() => import('./pages/profile/SecuritySettingsPage'));
@@ -196,6 +197,7 @@ function App() {
               <Route path="alumni-directory" element={<AlumniDirectoryPage />} />
               <Route path="alumni/:id" element={<AlumniProfilePage />} />
               <Route path="reset-password" element={<ResetPasswordPage />} />
+              <Route path="account-recovery" element={<AccountRecoveryPage />} />
               <Route path="events" element={<EventsPage />} />
               <Route path="events/:eventId" element={<EventDetailPage />} />
               <Route path="quick-register/:eventId/:token" element={<QuickRegisterPage />} />

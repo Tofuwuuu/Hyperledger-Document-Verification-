@@ -17,6 +17,7 @@ const LoginSchema = Yup.object().shape({
   password: Yup.string()
     .required('Password is required')
     .min(6, 'Password must be at least 6 characters'),
+  remember: Yup.boolean()
 });
 
 export default function LoginPage() {
@@ -78,7 +79,8 @@ export default function LoginPage() {
     try {
       const result = await login({ 
         email: values.email, 
-        password: values.password 
+        password: values.password,
+        remember: values.remember // Add remember flag from form values
       });
       
       // Check if MFA is required
@@ -88,17 +90,39 @@ export default function LoginPage() {
           email: values.email,
           setup_id: result.setup_id,
           mfa_type: result.mfa_type,
-          masked_email: result.email
+          masked_email: result.email,
+          remember: values.remember
         });
       }
       // If login is successful but no MFA, the useEffect will redirect
     } catch (error) {
       console.error('Login failed:', error);
       
-      setGeneralError(
-        error.response?.data?.detail || 
-        'Login failed. Please check your credentials and try again.'
-      );
+      // Enhanced error messages based on error types
+      if (error.response) {
+        const status = error.response.status;
+        const errorDetail = error.response.data?.detail || '';
+        
+        if (status === 401) {
+          if (errorDetail.includes('Inactive user')) {
+            setGeneralError('Your account has been deactivated. Please contact support for assistance.');
+          } else if (errorDetail.includes('verification')) {
+            setGeneralError('Your account email has not been verified. Please check your inbox for a verification link.');
+          } else {
+            setGeneralError('Invalid email or password. Please check your credentials and try again.');
+          }
+        } else if (status === 429) {
+          setGeneralError('Too many failed login attempts. Please try again later or reset your password.');
+        } else if (status === 503) {
+          setGeneralError('The service is temporarily unavailable. Please try again later.');
+        } else {
+          setGeneralError(errorDetail || 'Login failed. Please try again later.');
+        }
+      } else if (error.message?.includes('Network Error')) {
+        setGeneralError('Cannot connect to the server. Please check your internet connection and try again.');
+      } else {
+        setGeneralError('Login failed. Please check your credentials and try again.');
+      }
     } finally {
       setIsLoading(false);
       setSubmitting(false);
@@ -123,6 +147,7 @@ export default function LoginPage() {
         email={mfaData.email}
         setup_id={mfaData.setup_id}
         mfa_type={mfaData.mfa_type}
+        remember={mfaData.remember}
         onVerified={handleMfaVerified}
         onCancel={handleMfaCancel}
       />
@@ -166,7 +191,8 @@ export default function LoginPage() {
           <Formik
             initialValues={{
               email: '',
-              password: ''
+              password: '',
+              remember: false
             }}
             validationSchema={LoginSchema}
             onSubmit={async (values, { setSubmitting }) => {
@@ -221,9 +247,9 @@ export default function LoginPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <input
+                    <Field
                       id="remember-me"
-                      name="remember-me"
+                      name="remember"
                       type="checkbox"
                       className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                     />
@@ -235,6 +261,10 @@ export default function LoginPage() {
                   <div className="text-sm">
                     <Link to="/reset-password" className="font-medium text-cvsu-green hover:text-green-700">
                       Forgot your password?
+                    </Link>
+                    <span className="mx-1 text-gray-500">|</span>
+                    <Link to="/account-recovery" className="font-medium text-cvsu-green hover:text-green-700">
+                      More recovery options
                     </Link>
                   </div>
                 </div>

@@ -1,4 +1,11 @@
 import axios from 'axios';
+import { 
+  validateToken, 
+  getAuthTokens, 
+  storeAuthTokens, 
+  clearAuthTokens,
+  isRememberedSession 
+} from '../utils/authUtils';
 
 // Get API URL from environment or use fallback
 // First try to get from environment variable
@@ -13,33 +20,7 @@ console.log('API URL configured as:', API_URL); // Debug API URL
 let isRefreshing = false;
 let failedQueue = [];
 
-// Add special debugging function to check and log auth state
-const logAuthState = () => {
-  try {
-    const token = localStorage.getItem('token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    const userData = localStorage.getItem('user');
-    
-    console.log('Auth State Check:', { 
-      hasToken: !!token,
-      tokenLength: token ? token.length : 0,
-      tokenStart: token ? token.substring(0, 20) + '...' : null,
-      hasRefreshToken: !!refreshToken,
-      hasUserData: !!userData,
-      timestamp: new Date().toISOString()
-    });
-    
-    return { token, refreshToken, userData };
-  } catch (e) {
-    console.error('Error checking auth state:', e);
-    return { error: e.message };
-  }
-};
-
-// Log auth state on load
-console.log('Initial Auth State:');
-logAuthState();
-
+// Process the queue of failed requests after token refresh
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
     if (error) {
@@ -52,7 +33,7 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Update axios instance to include CSRF token and withCredentials
+// Create axios instance with default configuration
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000, // 30 seconds
@@ -62,28 +43,30 @@ const api = axios.create({
   }
 });
 
-// Add interceptors to include CSRF token
+// Request interceptor to include auth tokens and CSRF token
 api.interceptors.request.use(
   (config) => {
     // Get the stored CSRF token from localStorage and add it to the headers
-    const token = localStorage.getItem('csrf_token');
-    if (token) {
-      config.headers['X-CSRF-Token'] = token;
+    const csrfToken = localStorage.getItem('csrf_token');
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken;
     }
     
+    // Get auth tokens
+    const { accessToken } = getAuthTokens();
+    
     // If we have an auth token, include that too (backwards compatibility)
-    const authToken = localStorage.getItem('token');
-    if (authToken && !config.headers['Authorization']) {
-      config.headers['Authorization'] = `Bearer ${authToken}`;
+    if (accessToken && !config.headers['Authorization']) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
       
       // For admin bypass tokens, add a special header
-      if (authToken.startsWith('admin_access_token_')) {
+      if (accessToken.startsWith('admin_access_token_')) {
         config.headers['X-Admin-Bypass'] = 'true';
         console.log('Added admin bypass header to request:', config.url);
       }
       
       // For alumni bypass tokens, add a special header
-      if (authToken.startsWith('alumni_access_token_')) {
+      if (accessToken.startsWith('alumni_access_token_')) {
         config.headers['X-Use-Local-User'] = 'true';
         console.log('Added alumni bypass header to request:', config.url);
       }
@@ -94,18 +77,25 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for handling errors
+// Response interceptor for handling token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // If there's no error response, just reject
+    if (!error.response) {
+      return Promise.reject(error);
+    }
+    
     const originalRequest = error.config;
     
     // Get the token to check if it's a bypass token
-    const token = localStorage.getItem('token');
+    const { accessToken } = getAuthTokens();
     
     // If using admin, alumni, or test bypass token, don't try to refresh the token
-    if (token && (token.startsWith('admin_access_token_') || 
-                  token.startsWith('alumni_access_token_'))) {
+    if (accessToken && (
+      accessToken.startsWith('admin_access_token_') || 
+      accessToken.startsWith('alumni_access_token_')
+    )) {
       console.log('Bypass token detected - not attempting refresh for:', originalRequest.url);
       // For bypass tokens, we don't want to redirect to login on 401 either
       return Promise.reject(error);
@@ -135,7 +125,7 @@ api.interceptors.response.use(
     
     try {
       // Try to refresh the token
-      const refreshToken = localStorage.getItem('refresh_token');
+      const { refreshToken } = getAuthTokens();
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
@@ -144,9 +134,17 @@ api.interceptors.response.use(
         refresh_token: refreshToken
       });
       
+      if (!response.data || !response.data.access_token) {
+        throw new Error('Invalid refresh response');
+      }
+      
       const { access_token, refresh_token } = response.data;
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('refresh_token', refresh_token);
+      
+      // Store the new tokens
+      storeAuthTokens(
+        { accessToken: access_token, refreshToken: refresh_token },
+        isRememberedSession()
+      );
       
       // Update authorization header for originalRequest
       originalRequest.headers['Authorization'] = `Bearer ${access_token}`;
@@ -158,9 +156,7 @@ api.interceptors.response.use(
     } catch (refreshError) {
       // Failed to refresh token, clear auth data and redirect to login
       processQueue(refreshError, null);
-      localStorage.removeItem('token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
+      clearAuthTokens();
       window.location.href = '/login';
       
       return Promise.reject(refreshError);
@@ -169,6 +165,39 @@ api.interceptors.response.use(
     }
   }
 );
+
+// Helper function to handle API errors consistently
+const handleApiError = (error, context = '') => {
+  // Log error for debugging
+  console.error(`API Error ${context ? `in ${context}` : ''}:`, error);
+  
+  // Create a standardized error object
+  const errorObj = {
+    message: error.response?.data?.detail || error.message || 'Unknown error occurred',
+    status: error.response?.status,
+    data: error.response?.data || null,
+    original: error
+  };
+  
+  // Add context to error
+  if (context) {
+    errorObj.context = context;
+  }
+  
+  // Special handling for network errors
+  if (error.message?.includes('Network Error')) {
+    errorObj.isNetworkError = true;
+    errorObj.message = 'Unable to connect to the server. Please check your internet connection.';
+  }
+  
+  // Special handling for timeout errors
+  if (error.code === 'ECONNABORTED') {
+    errorObj.isTimeoutError = true;
+    errorObj.message = 'Request timed out. Please try again later.';
+  }
+  
+  throw errorObj;
+};
 
 // Authentication services
 export const authService = {
@@ -179,16 +208,16 @@ export const authService = {
     localStorage.removeItem('user_verification');
     
     // Get the token
-    const token = localStorage.getItem('token');
+    const { accessToken } = getAuthTokens();
     
-    if (!token) {
+    if (!accessToken) {
       console.log("No authentication token found");
       return null;
     }
     
     // Special case: Handle admin, alumni, or test domain bypass tokens
-    if (token.startsWith('admin_access_token_') || 
-        token.startsWith('alumni_access_token_')) {
+    if (accessToken.startsWith('admin_access_token_') || 
+        accessToken.startsWith('alumni_access_token_')) {
       console.log("Using bypass token - returning cached data with verification flag set");
       
       // For bypass tokens, use the stored user data
@@ -228,8 +257,7 @@ export const authService = {
       
       return userData;
     } catch (error) {
-      console.error('Error reloading user data:', error);
-      throw error;
+      return handleApiError(error, 'reloadUserWithFreshData');
     }
   },
   
@@ -244,6 +272,7 @@ export const authService = {
       return null;
     } catch (error) {
       console.error('Error getting CSRF token:', error);
+      // Don't throw here as this is a non-critical operation
       return null;
     }
   },
@@ -253,24 +282,31 @@ export const authService = {
       // First get a CSRF token
       await authService.getCsrfToken();
       
+      // Extract remember flag if present
+      const { remember, ...loginCredentials } = credentials;
+      
       // Now use the MFA check endpoint which may return direct login or MFA challenge
-      const response = await api.post('/auth/login/mfa-check', credentials);
+      const response = await api.post('/auth/login/mfa-check', loginCredentials);
       
       // If MFA is required, return the MFA challenge
       if (response.data.mfa_required) {
+        // Pass along the remember flag for later use after MFA verification
         return {
-          mfa_required: true,
-          setup_id: response.data.setup_id,
-          mfa_type: response.data.mfa_type,
-          email: response.data.email
+          ...response.data,
+          remember
         };
       }
       
       // No MFA required, process regular login
       if (response.data.access_token) {
-        // Still store tokens in localStorage for backward compatibility
-        localStorage.setItem('token', response.data.access_token);
-        localStorage.setItem('refresh_token', response.data.refresh_token);
+        // Store tokens properly using our utility function
+        storeAuthTokens(
+          {
+            accessToken: response.data.access_token,
+            refreshToken: response.data.refresh_token
+          },
+          remember
+        );
         
         // Store user data in localStorage
         if (response.data.user) {
@@ -282,22 +318,27 @@ export const authService = {
         throw new Error('No access token received');
       }
     } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      return handleApiError(error, 'login');
     }
   },
   
-  verifyMfa: async (email, code) => {
+  verifyMfa: async (email, code, remember = false) => {
     try {
       const response = await api.post('/auth/login/mfa-verify', {
         email,
-        verification_code: code
+        verification_code: code,
+        remember // Pass the remember flag to the backend
       });
       
       if (response.data.access_token) {
-        // Store tokens in localStorage for backward compatibility
-        localStorage.setItem('token', response.data.access_token);
-        localStorage.setItem('refresh_token', response.data.refresh_token);
+        // Store tokens properly using our utility function
+        storeAuthTokens(
+          {
+            accessToken: response.data.access_token,
+            refreshToken: response.data.refresh_token
+          },
+          remember
+        );
         
         // Fetch user data
         const userData = await authService.reloadUserWithFreshData();
@@ -310,8 +351,7 @@ export const authService = {
         throw new Error('No access token received after MFA verification');
       }
     } catch (error) {
-      console.error('MFA verification error:', error);
-      throw error;
+      return handleApiError(error, 'verifyMfa');
     }
   },
   
@@ -355,19 +395,29 @@ export const authService = {
   },
   
   refreshToken: async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
+    const { refreshToken } = getAuthTokens();
     if (!refreshToken) {
       return Promise.reject('No refresh token available');
     }
     
-    const response = await axios.post(`${API_URL}/auth/refresh`);
-    
-    if (response.data.access_token) {
-      localStorage.setItem('token', response.data.access_token);
-      localStorage.setItem('refresh_token', response.data.refresh_token);
+    try {
+      const response = await axios.post(`${API_URL}/auth/refresh`);
+      
+      if (response.data.access_token) {
+        // Store the refreshed tokens
+        storeAuthTokens(
+          {
+            accessToken: response.data.access_token,
+            refreshToken: response.data.refresh_token
+          },
+          isRememberedSession()
+        );
+      }
+      
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'refreshToken');
     }
-    
-    return response.data;
   },
   
   logout: async () => {
@@ -378,23 +428,20 @@ export const authService = {
       console.error('Logout API call failed:', error);
     } finally {
       // Clear local storage regardless of API success/failure
-      localStorage.removeItem('token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('csrf_token');
+      clearAuthTokens();
     }
   },
   
   getCurrentUser: async () => {
-    const token = localStorage.getItem('token');
+    const { accessToken } = getAuthTokens();
     
-    if (!token) {
+    if (!accessToken) {
       return null;
     }
     
-    // Special case: Handle admin, alumni, or test domain bypass tokens
-    if (token.startsWith('admin_access_token_') || 
-        token.startsWith('alumni_access_token_')) {
+    // Special case: Handle admin or alumni bypass tokens that should use localStorage data instead of API calls
+    if (accessToken.startsWith('admin_access_token_') || 
+        accessToken.startsWith('alumni_access_token_')) {
       console.log("getCurrentUser: Using bypass token - returning local data");
       
       // For bypass tokens, just return the stored user data
@@ -414,25 +461,20 @@ export const authService = {
     
     // For regular tokens, make the API call
     try {
-      const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/auth/me');
       return response.data;
     } catch (error) {
-      console.error('Error getting current user:', error);
-      throw error;
+      return handleApiError(error, 'getCurrentUser');
     }
   },
 
   checkAuth: async () => {
     try {
       // Check if we're using bypass tokens
-      const token = localStorage.getItem('token');
+      const { accessToken } = getAuthTokens();
       
       // Admin bypass
-      if (token && token.startsWith('admin_access_token_')) {
+      if (accessToken && accessToken.startsWith('admin_access_token_')) {
         console.log('Using admin bypass token - returning mock auth check');
         // Get stored user data
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -448,7 +490,7 @@ export const authService = {
       }
       
       // Alumni bypass
-      if (token && token.startsWith('alumni_access_token_')) {
+      if (accessToken && accessToken.startsWith('alumni_access_token_')) {
         console.log('Using alumni bypass token - returning mock auth check');
         // Get stored user data
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -467,47 +509,11 @@ export const authService = {
       const response = await api.get('/auth/me');
       return { isAuthenticated: true, user: response.data };
     } catch (error) {
+      if (error.status === 401) {
+        // Clear tokens on unauthorized
+        clearAuthTokens();
+      }
       return { isAuthenticated: false, user: null };
-    }
-  },
-
-  // This function is only for specific accounts that should be verified
-  ensureUserVerified: async () => {
-    try {
-      // Get user data from localStorage
-      const userData = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      if (!userData || !userData.email) {
-        console.log("No user data found to verify");
-        return null;
-      }
-      
-      console.log(`Checking verification status for ${userData.email}`);
-      
-      // ONLY verify specific accounts that should be verified
-      if (userData.email === 'rodericksalise812@gmail.com') {
-        console.log(`Special case: Ensuring verification for ${userData.email}`);
-        
-        // If the verification flag is already set, just return the current data
-        if (userData.is_verified) {
-          console.log(`User ${userData.email} is already verified`);
-          return userData;
-        }
-        
-        // Set verification flag to true and update localStorage
-        console.log(`Setting verification flag for ${userData.email}`);
-        userData.is_verified = true;
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        return userData;
-      } else {
-        // For other accounts, just return the data without modifying
-        console.log(`Not a special case account, no verification modification`);
-        return userData;
-      }
-    } catch (error) {
-      console.error('Error ensuring user verification:', error);
-      return null;
     }
   },
 
@@ -517,8 +523,7 @@ export const authService = {
       const response = await api.get('/auth/mfa/status');
       return response.data;
     } catch (error) {
-      console.error('Error getting MFA status:', error);
-      throw error;
+      return handleApiError(error, 'getMFAStatus');
     }
   },
   
@@ -527,8 +532,7 @@ export const authService = {
       const response = await api.post('/auth/mfa/setup', { type });
       return response.data;
     } catch (error) {
-      console.error('Error setting up MFA:', error);
-      throw error;
+      return handleApiError(error, 'setupMFA');
     }
   },
   
@@ -537,8 +541,7 @@ export const authService = {
       const response = await api.post('/auth/mfa/enable', { verification_code: verificationCode });
       return response.data;
     } catch (error) {
-      console.error('Error enabling MFA:', error);
-      throw error;
+      return handleApiError(error, 'enableMFA');
     }
   },
   
@@ -547,8 +550,35 @@ export const authService = {
       const response = await api.post('/auth/mfa/disable');
       return response.data;
     } catch (error) {
-      console.error('Error disabling MFA:', error);
-      throw error;
+      return handleApiError(error, 'disableMFA');
+    }
+  },
+  
+  // Security questions
+  setSecurityQuestions: async (questionsData) => {
+    try {
+      const response = await api.post('/auth/set-security-questions', questionsData);
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'setSecurityQuestions');
+    }
+  },
+  
+  getSecurityQuestions: async (email) => {
+    try {
+      const response = await api.get(`/auth/security-questions/${email}`);
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'getSecurityQuestions');
+    }
+  },
+  
+  verifySecurityQuestions: async (data) => {
+    try {
+      const response = await api.post('/auth/verify-security-questions', data);
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'verifySecurityQuestions');
     }
   }
 };
@@ -1077,7 +1107,8 @@ export const referenceService = {
 
 // Get Auth Token
 export const getUserToken = () => {
-  return localStorage.getItem('token');
+  const { accessToken } = getAuthTokens();
+  return accessToken;
 };
 
 // Document Request services

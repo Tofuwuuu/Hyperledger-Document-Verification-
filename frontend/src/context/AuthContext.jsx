@@ -1,6 +1,15 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/api';
-import { jwtDecode } from 'jwt-decode';
+import { 
+  validateToken, 
+  getAuthTokens, 
+  storeAuthTokens, 
+  clearAuthTokens,
+  isRememberedSession,
+  isTemporarySession,
+  isUserAdmin,
+  needsTokenRefresh
+} from '../utils/authUtils';
 
 // Create the auth context
 const AuthContext = createContext();
@@ -24,9 +33,9 @@ export const AuthProvider = ({ children }) => {
 
   // Define loadUserData at component level with useCallback
   const loadUserData = useCallback(async () => {
-    const token = localStorage.getItem('token');
+    const { accessToken } = getAuthTokens();
     
-    if (!token) {
+    if (!accessToken) {
       setLoading(false);
       setCurrentUser(null);
       setIsAuthenticated(false);
@@ -38,10 +47,12 @@ export const AuthProvider = ({ children }) => {
       console.log('Loading user data from API or local storage');
       
       // Check for admin or alumni bypass tokens that should use localStorage data instead of API calls
-      if (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_')) {
-        console.log('Using bypass token - skipping API call and using localStorage data');
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      if (accessToken.startsWith('admin_access_token_') || 
+          accessToken.startsWith('alumni_access_token_')) {
+        console.log("Using bypass token - skipping API call and using localStorage data");
         
+        // For bypass tokens, just return the stored user data
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
         if (userData && userData.email) {
           console.log('User data loaded from localStorage:', userData);
           
@@ -56,7 +67,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
           return userData;
         } else {
-          console.error('No valid user data found in localStorage for bypass token');
+          console.error("No valid user data found in localStorage for bypass token");
           setCurrentUser(null);
           setIsAuthenticated(false);
           return null;
@@ -92,9 +103,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       // Clean up storage on auth error
       if (error.response?.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
+        clearAuthTokens();
       }
       return null;
     } finally {
@@ -106,10 +115,11 @@ export const AuthProvider = ({ children }) => {
   const forceRefreshUserData = useCallback(async () => {
     console.log('Force refreshing user data from API');
     try {
-      const token = localStorage.getItem('token');
+      const { accessToken } = getAuthTokens();
       
       // Check for admin or alumni bypass tokens that should use localStorage data
-      if (token && (token.startsWith('admin_access_token_') || token.startsWith('alumni_access_token_'))) {
+      if (accessToken && (accessToken.startsWith('admin_access_token_') || 
+                           accessToken.startsWith('alumni_access_token_'))) {
         console.log('Using bypass token - skipping API call for force refresh');
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
         
@@ -166,18 +176,30 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
+      const { accessToken } = getAuthTokens();
+      
       // Check if we're using admin bypass
-      const token = localStorage.getItem('token');
-      if (token && token.startsWith('admin_access_token_')) {
+      if (accessToken && accessToken.startsWith('admin_access_token_')) {
         console.log('Admin bypass token - no need to refresh');
         await loadUserData();
         return true;
       }
       
       // Normal token refresh for regular users
-      await authService.refreshToken();
-      await loadUserData();
-      return true;
+      const response = await authService.refreshToken();
+      
+      if (response && response.access_token) {
+        // Store new tokens with the same "remember" setting
+        storeAuthTokens({
+          accessToken: response.access_token,
+          refreshToken: response.refresh_token
+        }, isRememberedSession());
+        
+        await loadUserData();
+        return true;
+      } else {
+        throw new Error('Invalid refresh response');
+      }
     } catch (error) {
       console.error('Error refreshing token:', error);
       logout();
@@ -190,9 +212,9 @@ export const AuthProvider = ({ children }) => {
   // Check authentication status on initial load
   useEffect(() => {
     const checkAuthStatus = async () => {
-      const token = localStorage.getItem('token');
+      const { accessToken } = getAuthTokens();
       
-      if (!token) {
+      if (!accessToken) {
         setCurrentUser(null);
         setIsAuthenticated(false);
         setLoading(false);
@@ -200,7 +222,7 @@ export const AuthProvider = ({ children }) => {
       }
       
       // Check if we're using admin bypass
-      if (token && token.startsWith('admin_access_token_')) {
+      if (accessToken && accessToken.startsWith('admin_access_token_')) {
         console.log('Using admin bypass token - skipping JWT validation');
         // Skip validation for admin bypass tokens
         await loadUserData();
@@ -209,43 +231,39 @@ export const AuthProvider = ({ children }) => {
       }
       
       try {
-        // Check if token is expired
-        const decodedToken = jwtDecode(token);
-        const currentTime = Date.now() / 1000;
+        const { isValid, isExpired } = validateToken(accessToken);
         
-        if (decodedToken.exp < currentTime) {
-          // Token is expired, try to refresh
-          const success = await refreshToken();
-          if (!success) {
-            setCurrentUser(null);
-            setIsAuthenticated(false);
+        if (!isValid) {
+          if (isExpired) {
+            // Token is expired, try to refresh
+            const success = await refreshToken();
+            if (!success) {
+              setCurrentUser(null);
+              setIsAuthenticated(false);
+            }
+          } else {
+            // Token is invalid, logout
+            await logout();
           }
         } else {
+          // For temporary sessions (not remembered), verify the session is still in this browser tab
+          if (!isRememberedSession() && !isTemporarySession()) {
+            // User likely opened a new tab/window without explicitly logging in again
+            // and this is not a remembered session
+            console.log('Non-remembered session in new browser context - enforcing re-login');
+            await logout();
+            return;
+          }
+          
           // Token is valid, get user data
           await loadUserData();
           
-          // Special verification check for the specific account
-          try {
-            // Don't wait for this operation - do it in the background
-            setTimeout(async () => {
-              try {
-                // Get current user data
-                const userData = JSON.parse(localStorage.getItem('user') || '{}');
-                if (userData && 
-                    userData.email === 'rodericksalise812@gmail.com' && 
-                    !userData.is_verified) {
-                  console.log('Special case: Setting verification status for rodericksalise812@gmail.com');
-                  userData.is_verified = true;
-                  localStorage.setItem('user', JSON.stringify(userData));
-                  // Update current user with verified status
-                  setCurrentUser({...userData});
-                }
-              } catch (e) {
-                console.error('Error ensuring verification:', e);
-              }
-            }, 500);
-          } catch (e) {
-            console.error('Error in verification check:', e);
+          // If token needs refreshing soon, refresh it in the background
+          if (needsTokenRefresh(accessToken)) {
+            console.log('Token will expire soon, refreshing in background');
+            refreshToken().catch(err => {
+              console.error('Background token refresh failed:', err);
+            });
           }
         }
       } catch (error) {
@@ -273,15 +291,23 @@ export const AuthProvider = ({ children }) => {
         return response;
       }
       
+      // Store tokens with remember flag
+      if (response.access_token) {
+        storeAuthTokens({
+          accessToken: response.access_token,
+          refreshToken: response.refresh_token
+        }, credentials.remember);
+      }
+      
       // Check if we have user data in the response
       if (response.user) {
         setCurrentUser(response.user);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        setIsAuthenticated(true);
       } else {
         // If not, load user data separately
         await loadUserData();
       }
-      
-      setIsAuthenticated(true);
       
       return response;
     } catch (error) {
@@ -413,6 +439,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear all auth data using utility function
+      clearAuthTokens();
+      
       setCurrentUser(null);
       setIsAuthenticated(false);
       setLoading(false);
@@ -425,17 +454,9 @@ export const AuthProvider = ({ children }) => {
     return currentUser.roles.includes(role);
   }, [currentUser]);
 
-  // Check if user is admin
-  const isAdmin = useCallback(() => {
-    const token = localStorage.getItem('token');
-    
-    // Special case: If we're using admin bypass, always return true for admin check
-    if (token && token.startsWith('admin_access_token_')) {
-      return true;
-    }
-    
-    // Normal check based on user data
-    return currentUser?.is_admin || false;
+  // Check if user is admin using utility function
+  const admin = useCallback(() => {
+    return isUserAdmin(currentUser);
   }, [currentUser]);
 
   // Expose the provider value
@@ -451,7 +472,8 @@ export const AuthProvider = ({ children }) => {
     loadUserData,
     forceRefreshUserData,
     hasRole,
-    isAdmin,
+    isAdmin: admin,
+    authService,
     clearError: () => setError(null)
   };
 
