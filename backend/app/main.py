@@ -41,13 +41,12 @@ cors_origins = [
     "http://localhost:3000",  # Local development
     "http://localhost:5173",  # Vite development
     "http://127.0.0.1:5173",   # Alternative local
-    "*"  # Allow all origins temporarily for debugging
 ]
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins temporarily for debugging
+    allow_origins=cors_origins,  # Use specific origins instead of wildcard
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],  # Allow all headers
