@@ -248,35 +248,72 @@ export const AuthProvider = ({ children }) => {
         } else {
           // For temporary sessions (not remembered), verify the session is still in this browser tab
           if (!isRememberedSession() && !isTemporarySession()) {
-            // User likely opened a new tab/window without explicitly logging in again
-            // and this is not a remembered session
-            console.log('Non-remembered session in new browser context - enforcing re-login');
+            // For temporary sessions, we require the session marker
+            console.log('Temporary session not found, logging out');
             await logout();
             return;
           }
           
-          // Token is valid, get user data
-          await loadUserData();
-          
-          // If token needs refreshing soon, refresh it in the background
-          if (needsTokenRefresh(accessToken)) {
-            console.log('Token will expire soon, refreshing in background');
-            refreshToken().catch(err => {
-              console.error('Background token refresh failed:', err);
-            });
+          try {
+            // Try to load user data from API
+            await loadUserData();
+          } catch (error) {
+            console.error('Error loading user data from API:', error);
+            
+            // If network error, try to use cached user data instead of logging out
+            if (error.isNetworkError || error.message?.includes('Network Error') || 
+                error.original?.message?.includes('Network Error')) {
+              console.log('Network error detected, using cached user data from localStorage');
+              
+              // Try to get user data from localStorage
+              try {
+                const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                if (cachedUser && cachedUser.email) {
+                  console.log('Using cached user data:', cachedUser);
+                  setCurrentUser(cachedUser);
+                  setIsAuthenticated(true);
+                  // Don't clear loading here since we're using cached data
+                } else {
+                  console.log('No valid cached user data found');
+                  // Keep the user logged in but with minimal data
+                  setCurrentUser({ email: 'User', is_authenticated: true });
+                  setIsAuthenticated(true);
+                }
+              } catch (e) {
+                console.error('Error parsing cached user data:', e);
+                // Still keep user logged in with minimal info
+                setCurrentUser({ email: 'User', is_authenticated: true });
+                setIsAuthenticated(true);
+              }
+            } else {
+              // For other errors, proceed with logout
+              console.log('Non-network error, logging out:', error);
+              await logout();
+            }
           }
         }
       } catch (error) {
-        console.error('Error checking auth status:', error);
-        setCurrentUser(null);
-        setIsAuthenticated(false);
+        console.error('Error in checkAuthStatus:', error);
+        // For any validation error, try to use cached data first
+        try {
+          const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          if (cachedUser && cachedUser.email) {
+            console.log('Using cached user data due to validation error:', cachedUser);
+            setCurrentUser(cachedUser);
+            setIsAuthenticated(true);
+          } else {
+            await logout();
+          }
+        } catch (e) {
+          await logout();
+        }
       } finally {
         setLoading(false);
       }
     };
-
+    
     checkAuthStatus();
-  }, [loadUserData, refreshToken]);
+  }, [loadUserData, logout, refreshToken]);
 
   // Login a user
   const login = useCallback(async (credentials) => {

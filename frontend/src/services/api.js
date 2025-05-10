@@ -81,9 +81,20 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // If there's no error response, just reject
+    // If there's no error response (network error), handle specially
     if (!error.response) {
-      return Promise.reject(error);
+      console.error('Network error detected in API call:', error.message || 'Unknown error');
+      
+      // Create a standardized network error
+      const networkError = {
+        isNetworkError: true,
+        message: 'Unable to connect to the server. Please check your internet connection.',
+        original: error
+      };
+      
+      // Don't redirect to login for network errors
+      // This allows the app to continue functioning offline
+      return Promise.reject(networkError);
     }
     
     const originalRequest = error.config;
@@ -154,8 +165,23 @@ api.interceptors.response.use(
       
       return api(originalRequest);
     } catch (refreshError) {
-      // Failed to refresh token, clear auth data and redirect to login
+      // Failed to refresh token
       processQueue(refreshError, null);
+      
+      // Check if it's a network error
+      if (!refreshError.response) {
+        console.error('Network error during token refresh:', refreshError.message || 'Unknown error');
+        
+        // Instead of clearing auth and redirecting, just reject with network error
+        const networkError = {
+          isNetworkError: true,
+          message: 'Unable to connect to the server during token refresh. Please check your internet connection.',
+          original: refreshError
+        };
+        return Promise.reject(networkError);
+      }
+      
+      // Only clear auth and redirect if it's not a network error
       clearAuthTokens();
       window.location.href = '/login';
       
