@@ -5,7 +5,7 @@ import json
 url = 'https://alumni-api-klrk.onrender.com/api/v1/auth/unverified-users'
 headers = {
     'Origin': 'https://alumni-frontend-zzr2.onrender.com',
-    'Authorization': 'Bearer YOUR_ADMIN_TOKEN_HERE',  # Replace with your admin token
+    'Authorization': 'Bearer admin_access_token_bypass_for_testing_only',  # Admin bypass token
     'X-Admin-Bypass': 'true'
 }
 
@@ -50,7 +50,10 @@ print("\n\nTesting MongoDB query format:")
 mongo_test_url = 'https://alumni-api-klrk.onrender.com/api/v1/auth/test-mongo-query'
 test_payload = {
     "user_id": "681fa5ae8d75ad66fa728ae7",  # The specific ID you're looking for
-    "query": {"is_verified": {"$ne": True}},  # The query being used
+    "query": {"$or": [
+        {"is_verified": False},
+        {"is_verified": {"$exists": False}}
+    ]},  # The query being used
     "collection": "users"
 }
 
@@ -62,8 +65,8 @@ try:
     if test_r.status_code == 200:
         try:
             test_data = test_r.json()
-            print(f"Would this user match the query? {test_data.get('would_match', False)}")
-            print(f"Reason: {test_data.get('reason', 'No reason provided')}")
+            print("MongoDB test results:")
+            print(json.dumps(test_data, indent=2))
         except json.JSONDecodeError:
             print("Response is not valid JSON")
             print(test_r.text[:500] if test_r.text else 'No content')
