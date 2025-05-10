@@ -52,7 +52,7 @@ db = None
 
 async def connect_to_mongo():
     """Connect to MongoDB."""
-    global client, db
+    global client, db, MONGODB_DB
     try:
         logger.info(f"Attempting to connect to MongoDB at {MONGODB_URL.split('@')[-1] if '@' in MONGODB_URL else 'localhost'}")
         
@@ -80,7 +80,6 @@ async def connect_to_mongo():
             if '?' in potential_db_name:
                 potential_db_name = potential_db_name.split('?')[0]
             if potential_db_name:
-                global MONGODB_DB
                 MONGODB_DB = potential_db_name
                 logger.info(f"Extracted database name from URL: {MONGODB_DB}")
                 
