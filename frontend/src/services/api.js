@@ -324,16 +324,16 @@ export const authService = {
       }
       
       // No MFA required, process regular login
-      // Create FormData for the actual login request
-      const formData = new FormData();
-      formData.append('username', credentials.email);
-      formData.append('password', credentials.password);
-      formData.append('remember', remember !== undefined ? remember : false);
+      // Use URLSearchParams instead of FormData for OAuth2 compatibility
+      const params = new URLSearchParams();
+      params.append('username', credentials.email);
+      params.append('password', credentials.password);
+      params.append('remember', remember !== undefined ? remember : false);
       
-      // Make the login request with FormData
-      const loginResponse = await api.post('/auth/login', formData, {
+      // Make the login request with application/x-www-form-urlencoded format
+      const loginResponse = await api.post('/auth/login', params, {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/x-www-form-urlencoded',
         }
       });
       
@@ -371,15 +371,15 @@ export const authService = {
   
   verifyMfa: async (email, code, remember = false) => {
     try {
-      // Create FormData for MFA verification
-      const formData = new FormData();
-      formData.append('email', email);
-      formData.append('verification_code', code);
-      formData.append('remember', remember);
+      // Use URLSearchParams for MFA verification, more compatible with FastAPI
+      const params = new URLSearchParams();
+      params.append('email', email);
+      params.append('verification_code', code);
+      params.append('remember', remember);
       
-      const response = await api.post('/auth/login/mfa-verify', formData, {
+      const response = await api.post('/auth/login/mfa-verify', params, {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/x-www-form-urlencoded',
         }
       });
       
@@ -633,7 +633,79 @@ export const authService = {
     } catch (error) {
       return handleApiError(error, 'verifySecurityQuestions');
     }
-  }
+  },
+
+  // Simple direct login method as a last resort
+  directLogin: async (email, password, remember = false) => {
+    try {
+      console.log('Attempting direct login with minimal processing');
+      console.log('Login details:', { email, remember, password: '***HIDDEN***' });
+      
+      // Create URLSearchParams with EXACT field names expected by FastAPI OAuth2PasswordRequestForm
+      const params = new URLSearchParams();
+      // Must use 'username', not 'email' for OAuth2PasswordRequestForm
+      params.append('username', email);
+      params.append('password', password);
+      // Convert boolean to string because FastAPI Form() expects string values
+      params.append('remember', remember.toString());
+      
+      console.log('Login params:', params.toString().replace(/password=[^&]+/, 'password=***HIDDEN***'));
+      
+      // Make the direct request with no extra headers or processing
+      const response = await axios.post(`${API_URL}/auth/login`, params, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        withCredentials: true
+      });
+      
+      console.log('Direct login response status:', response.status);
+      console.log('Direct login response data:', response.data);
+      
+      if (response.data.access_token) {
+        // Store tokens properly
+        storeAuthTokens(
+          {
+            accessToken: response.data.access_token,
+            refreshToken: response.data.refresh_token
+          },
+          remember
+        );
+        
+        // Store user data
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
+        
+        return response.data;
+      } else {
+        throw new Error('No access token received');
+      }
+    } catch (error) {
+      console.error('Direct login error:', error);
+      
+      // Enhanced error logging
+      if (error.response) {
+        console.error('Error status:', error.response.status);
+        console.error('Error data:', error.response.data);
+        
+        // Log validation errors in detail
+        if (error.response.status === 422 && error.response.data?.detail) {
+          console.error('Validation error details:', JSON.stringify(error.response.data.detail));
+          
+          // Log each field with issues
+          if (Array.isArray(error.response.data.detail)) {
+            error.response.data.detail.forEach(err => {
+              console.error(`Field ${err.loc.join('.')}: ${err.msg}`);
+            });
+          }
+        }
+      }
+      
+      // Only return the raw error object for debugging
+      throw error;
+    }
+  },
 };
 
 // Alumni services

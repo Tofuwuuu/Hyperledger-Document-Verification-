@@ -81,109 +81,53 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      // First, check if the user exists using the MFA check endpoint
-      try {
-        // This try-catch specifically handles MFA check errors
-        // Use the API URL from config.js instead of env variable
-        console.log('Making MFA check request to:', `${API_URL}/auth/login/mfa-check`);
-        const mfaCheckResponse = await axios.post(`${API_URL}/auth/login/mfa-check`, {
-          email: values.email,
-          password: values.password
-        }, {
-          withCredentials: true, // Ensure cookies are sent
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        // If we get here, user exists, proceed with normal login
-        console.log('MFA check success:', mfaCheckResponse.data);
-      } catch (mfaError) {
-        // Properly handle the error object to avoid React serialization issues
-        const errorMessage = mfaError.response?.data?.detail || mfaError.message || 'Unknown error';
-        console.error('MFA check error:', errorMessage);
-        
-        // Handle various error conditions from MFA check
-        if (mfaError.response) {
-          const status = mfaError.response.status;
-          const errorData = mfaError.response.data;
-          
-          // Handle 422 validation errors
-          if (status === 422) {
-            let errorMessage = 'Invalid email format or validation error';
-            
-            // Handle different formats of validation errors
-            if (Array.isArray(errorData.detail)) {
-              // FastAPI validation errors come as an array
-              errorMessage = errorData.detail[0]?.msg || errorMessage;
-            } else if (typeof errorData.detail === 'string') {
-              errorMessage = errorData.detail;
-            } else if (errorData.detail && typeof errorData.detail === 'object') {
-              // Try to extract a readable message from the validation error object
-              const detailValues = Object.values(errorData.detail);
-              errorMessage = detailValues.length > 0 ? 
-                detailValues.join(', ') : errorMessage;
-            }
-            
-            console.log('Validation error formatted:', errorMessage);
-            setGeneralError(errorMessage);
-            setIsLoading(false);
-            setSubmitting(false);
-            return; // Stop the login process here
-          }
-          
-          // If mfaCheck fails with 401, user doesn't exist
-          if (status === 401) {
-            console.log('User does not exist:', values.email);
-            setGeneralError('This account does not exist. Please register first.');
-            setIsLoading(false);
-            setSubmitting(false);
-            return; // Stop the login process here
-          }
-        }
-        // For other MFA check errors, continue with normal login attempt
-      }
-      
-      // Normal login flow continues - use the authService directly instead of context
-      const result = await authService.login({ 
+      console.log('Form submitted with values:', { 
         email: values.email, 
-        password: values.password,
-        remember: values.remember // Add remember flag from form values
+        password: '***HIDDEN***', 
+        remember: values.remember 
       });
       
-      // Check if MFA is required
-      if (result.mfa_required) {
-        setMfaRequired(true);
-        setMfaData({
-          email: values.email,
-          setup_id: result.setup_id,
-          mfa_type: result.mfa_type,
-          masked_email: result.email,
-          remember: values.remember
-        });
-      }
+      // Try the direct login method as a last resort
+      // This bypasses the MFA check and other complex processing
+      const result = await authService.directLogin(
+        values.email,
+        values.password,
+        values.remember
+      );
       
-      // If login is successful but no MFA, trigger a page reload to update auth state
-      if (!result.mfa_required) {
-        window.location.reload();
-      }
+      console.log('Login successful, reloading page');
+      
+      // If login is successful, trigger a page reload to update auth state
+      window.location.reload();
     } catch (error) {
-      // The login function now returns a simplified error object with message property
-      // No need to process error.response anymore
       console.error('Login error:', error.message || 'Unknown error');
       
-      // Use directly the error message
-      let displayError = error.message || 'Login failed. Please try again.';
+      // Get error message from response if available
+      let displayError = 'Login failed. Please try again.';
       
-      // Set error in state only
+      if (error.response) {
+        console.error('Error status:', error.response.status);
+        console.error('Error data:', error.response.data);
+        
+        if (error.response.data?.detail) {
+          if (typeof error.response.data.detail === 'string') {
+            displayError = error.response.data.detail;
+          } else if (Array.isArray(error.response.data.detail)) {
+            // FastAPI validation errors
+            displayError = error.response.data.detail.map(err => err.msg).join(', ');
+          }
+        }
+      } else if (error.message) {
+        displayError = error.message;
+      }
+      
+      // Set error in state
       setGeneralError(displayError);
       
       // Handle specific error types with field-level errors
       if (displayError.toLowerCase().includes('password')) {
         setFieldError('password', 'Incorrect password');
       }
-      
-      // No longer storing in sessionStorage here to avoid refresh-related issues
     } finally {
       setIsLoading(false);
       setSubmitting(false);

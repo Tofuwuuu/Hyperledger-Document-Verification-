@@ -134,6 +134,16 @@ const authService = {
       // Continue even if the API call fails
       console.error('Error calling logout API:', error);
     }
+  },
+
+  async directLogin(credentials) {
+    try {
+      const response = await axios.post(`${API_URL}/auth/login`, credentials);
+      return response.data;
+    } catch (error) {
+      console.error('Direct login error:', error);
+      throw error;
+    }
   }
 };
 
@@ -630,6 +640,7 @@ export const AuthProvider = ({ children }) => {
     hasRole,
     isAdmin: admin,
     authService,
+    directLogin: authService.directLogin,
     clearError: () => setError(null)
   };
 
