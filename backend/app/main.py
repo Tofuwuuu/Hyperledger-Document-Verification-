@@ -9,6 +9,7 @@ import asyncio
 from app.routes import auth, alumni, documents, verification, references, events, registrations, meetings, document_requests
 from app.config.database import connect_to_mongo, close_mongo_connection, client
 from app.config.db_init import initialize_database
+from app.config.indexes import create_indexes
 from app.api.api import api_router
 from app.api.routes.notifications import router as notifications_router
 from app.core.config import settings
@@ -85,6 +86,8 @@ async def startup_db_client():
     await connect_to_mongo()
     # Initialize database structure
     await initialize_database()
+    # Create database indexes for performance
+    await create_indexes()
     await init_permissions()  # Initialize roles and permissions
     # Start the heartbeat task
     asyncio.create_task(mongo_heartbeat())
