@@ -25,49 +25,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Get CORS origins from environment or use defaults
-# First try environment variable, then fallback to a list with explicit domains
-cors_origins_env = os.getenv("CORS_ORIGINS", "")
-if cors_origins_env:
-    cors_origins = cors_origins_env.split(",")
-else:
-    # Explicitly list all known frontend domains
-    cors_origins = [
-        "https://alumni-frontend-zzr2.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000"
-        # Remove wildcard to enhance security
-    ]
+cors_origins = [
+    "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
+    "http://localhost:3000",  # Local development
+    "http://localhost:5173",  # Vite development
+    "http://127.0.0.1:5173"   # Alternative local
+]
 
-# Ensure critical production domains are always included
-if "https://alumni-frontend-zzr2.onrender.com" not in cors_origins:
-    cors_origins.append("https://alumni-frontend-zzr2.onrender.com")
-
-logger.info(f"Configuring CORS with origins: {cors_origins}")
-
-# Create FastAPI app
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-    description=settings.PROJECT_DESCRIPTION,
-    version=settings.PROJECT_VERSION,
-    openapi_url=f"{settings.API_PREFIX}/openapi.json",
-    docs_url=f"{settings.API_PREFIX}/docs",
-    redoc_url=f"{settings.API_PREFIX}/redoc",
-    swagger_ui_parameters={"tryItOutEnabled": True},
-)
-
-# Configure CORS - Make sure this is the FIRST middleware added
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_origin_regex=r"https://alumni-frontend.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Admin-Bypass", "X-Requested-With", "X-CSRF-Token"],
     expose_headers=["Content-Length", "Content-Range"],
     max_age=86400,  # 1 day in seconds
 )
+
+# Add security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # Add CSRF middleware
 async def csrf_middleware(request: Request, call_next):

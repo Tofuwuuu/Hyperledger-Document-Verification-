@@ -1,6 +1,10 @@
 import axios from 'axios';
 import { API_URL } from '../config';
 
+// Configure axios defaults
+axios.defaults.withCredentials = true;
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+
 const getToken = () => {
   return localStorage.getItem('token');
 };
@@ -9,6 +13,44 @@ const getAuthHeader = () => {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
+
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// Add request interceptor
+api.interceptors.request.use(
+  (config) => {
+    // Add auth header if token exists
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Clear stored tokens on unauthorized
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const register = async (userData) => {
   try {
@@ -26,7 +68,7 @@ export const login = async (credentials) => {
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
     
-    const response = await axios.post(`${API_URL}/auth/login`, formData);
+    const response = await api.post('/auth/login', formData);
     
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token);
