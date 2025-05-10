@@ -203,15 +203,20 @@ export default function AdminUserVerificationPage() {
           <p className="mt-1 text-sm text-gray-500">
             All user accounts have been verified
           </p>
-          {/* Admin bypass button */}
           <button
-            onClick={enableAdminBypass}
+            onClick={fetchUnverifiedUsers}
             className="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
-            Enable Admin Bypass
+            Reload Unverified Users
           </button>
-          <p className="mt-1 text-xs text-gray-400">
-            Having problems? Click above to use admin bypass mode.
+          <p className="mt-4 text-xs text-gray-400">
+            Having issues seeing unverified users? 
+            <button 
+              onClick={enableAdminBypass} 
+              className="ml-1 text-cvsu-green underline hover:text-cvsu-green-dark"
+            >
+              Use advanced admin mode
+            </button>
           </p>
         </div>
       ) : (

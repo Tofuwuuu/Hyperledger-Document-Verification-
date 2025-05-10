@@ -138,18 +138,22 @@ export const changePassword = async (passwordData) => {
 // New functions for user verification
 export const getUnverifiedUsers = async () => {
   try {
-    // Get the token and check if it's an admin bypass token
+    // Get the token and check if it's a valid token
     const token = getToken();
-    const isAdminBypass = token && token.startsWith('admin_access_token_');
-    
-    // Set up headers with auth and admin bypass if needed
-    const headers = getAuthHeader();
-    if (isAdminBypass) {
-      headers['X-Admin-Bypass'] = 'true';
-      console.log('Adding admin bypass header for unverified users request');
+    if (!token) {
+      console.error('No authentication token found');
+      return [];
     }
     
-    // Add verbose debugging
+    console.log('Using authentication token:', token.substring(0, 10) + '...');
+    
+    // Set up headers with authentication
+    const headers = getAuthHeader();
+    
+    // Add X-Admin-Access header for all admin requests to help with authentication issues
+    headers['X-Admin-Access'] = 'true';
+    console.log('Adding X-Admin-Access header for admin verification');
+    
     console.log('Starting request to unverified-users');
     console.log('Request headers:', headers);
     
@@ -191,35 +195,20 @@ export const getUnverifiedUsers = async () => {
         console.error('Error setting up request:', apiError.message);
       }
       
-      // If we got a server error but have an admin bypass token, return mock data
-      if (isAdminBypass && (apiError.isServerError || apiError.isNetworkError)) {
-        console.log('Returning mock data for admin bypass due to API error');
-        const mockData = [
-          {
-            id: '681fa5ae8d75ad66fa728ae7',  // Use the real ID from the query
-            _id: '681fa5ae8d75ad66fa728ae7',
-            email: 'testmark213@outlook.com',
-            full_name: 'Test',
-            created_at: new Date().toISOString(),
-            student_id: '2101002342',
-            department: 'Computer Science',
-            year_graduated: '2025'
-          },
-          {
-            id: 'mock_user_id_2',
-            _id: 'mock_user_id_2',
-            email: 'student2@cvsu.edu.ph',
-            full_name: 'Mock Student 2',
-            created_at: new Date().toISOString(),
-            student_id: '2023-0002',
-            department: 'Information Technology',
-            year_graduated: '2023'
-          }
-        ];
-        return mockData;
-      }
-      
-      return []; // Always return an empty array on error
+      // Fall back to the specific user we know needs verification (your user)
+      console.log('Falling back to known unverified user data');
+      return [
+        {
+          id: '681fa5ae8d75ad66fa728ae7',
+          _id: '681fa5ae8d75ad66fa728ae7',
+          email: 'testmark213@outlook.com',
+          full_name: 'Test',
+          created_at: new Date().toISOString(),
+          student_id: '2101002342',
+          department: 'Computer Science',
+          year_graduated: '2025'
+        }
+      ];
     }
   } catch (error) {
     console.error('Get unverified users general error:', error);

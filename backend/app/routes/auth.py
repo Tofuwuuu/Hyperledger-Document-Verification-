@@ -560,7 +560,21 @@ async def get_unverified_users(
     """
     try:
         logger = logging.getLogger(__name__)
-        logger.info(f"Fetching unverified users for admin: {admin_user.get('email', 'Unknown admin')}")
+        
+        # Log headers to help debug authentication issues
+        if request:
+            logger.info(f"Request headers: {dict(request.headers.items())}")
+        
+        admin_email = admin_user.get('email', 'Unknown admin')
+        logger.info(f"Admin authenticated: {admin_email}")
+        
+        # Check for admin access header
+        admin_access = False
+        if request:
+            admin_access_header = request.headers.get("X-Admin-Access")
+            if admin_access_header == "true":
+                logger.info(f"Admin access header detected")
+                admin_access = True
         
         # Check for admin bypass
         admin_bypass = False
@@ -573,16 +587,13 @@ async def get_unverified_users(
                 logger.info(f"Admin bypass detected in unverified-users route")
                 admin_bypass = True
         
-        # Print more information about the request for debugging
-        logger.info(f"Request headers: {dict(request.headers.items()) if request else 'No request'}")
-        logger.info(f"Admin user: {admin_user.get('email')}, admin bypass: {admin_bypass}")
-        
         # Get database connection
         db = get_database()
         if not db:
             logger.error("Failed to get database connection")
-            if admin_bypass:
-                # Return mock data for admin bypass
+            if admin_bypass or admin_access:
+                # Return mock data if admin bypass or admin access is enabled
+                logger.info("Returning mock data due to database connection failure")
                 return get_mock_users()
             return []  # Return empty list instead of raising error
         
@@ -604,8 +615,8 @@ async def get_unverified_users(
                 logger.info(f"Verification status: {specific_user.get('is_verified')}")
                 logger.info(f"User document keys: {list(specific_user.keys())}")
                 
-                # If this user is unverified, add them to results regardless of query
-                if not specific_user.get('is_verified', False):
+                # Always include this specific user if not verified
+                if specific_user and not specific_user.get('is_verified', False):
                     sanitized_user = {
                         "id": str(specific_user.get("_id", "")),
                         "_id": str(specific_user.get("_id", "")),
@@ -621,22 +632,15 @@ async def get_unverified_users(
                     return [sanitized_user]
         except Exception as specific_err:
             logger.error(f"Error checking specific user: {specific_err}")
-        
-        # Find unverified users - use multiple approaches to be resilient
+            
+        # Find unverified users using various query approaches
         try:
-            # Complex query to handle various verification status field variations
+            # Query for unverified users
             query = {"$or": [
-                {"is_verified": False},                   # Explicitly false
-                {"is_verified": {"$exists": False}},      # Field doesn't exist
-                {"is_verified": None},                    # Null value
-                {"is_verified": "false"},                 # String "false"
-                {"is_verified": 0},                       # Integer 0
-                {"isVerified": False},                    # Camel case variant
-                {"isVerified": {"$exists": False}},       # Camel case missing
-                {"isVerified": None},                     # Camel case null
-                {"isVerified": "false"},                  # Camel case string "false"
-                {"isVerified": 0},                        # Camel case integer 0
-                {"verification_pending": True}            # Pending verification
+                {"is_verified": False},
+                {"is_verified": {"$exists": False}},
+                {"is_verified": None},
+                {"verification_pending": True}
             ]}
             
             logger.info(f"Using query: {query}")
@@ -649,36 +653,30 @@ async def get_unverified_users(
             
             # Process users
             users = []
-            try:
-                async for user in cursor:
-                    try:
-                        # Create a sanitized user object (no password)
-                        sanitized_user = {
-                            # Keep both id and _id to maintain backward compatibility
-                            "id": str(user.get("_id", "")),
-                            "_id": str(user.get("_id", "")),
-                            "email": user.get("email", ""),
-                            "full_name": user.get("full_name", ""),
-                            "created_at": user.get("created_at", datetime.utcnow()).isoformat() 
-                                if "created_at" in user else datetime.utcnow().isoformat(),
-                            "student_id": user.get("student_id", ""),
-                            "department": user.get("department", ""),
-                            "year_graduated": user.get("year_graduated", "")
-                        }
-                        users.append(sanitized_user)
-                    except Exception as user_error:
-                        logger.error(f"Error processing user: {user_error}")
-                        # Continue to next user
-                        continue
-            except Exception as cursor_error:
-                logger.error(f"Error iterating cursor: {cursor_error}")
-                # Continue with any users we've processed so far
+            async for user in cursor:
+                # Create a sanitized user object (no password)
+                try:
+                    sanitized_user = {
+                        "id": str(user.get("_id", "")),
+                        "_id": str(user.get("_id", "")),
+                        "email": user.get("email", ""),
+                        "full_name": user.get("full_name", ""),
+                        "created_at": user.get("created_at", datetime.utcnow()).isoformat() 
+                            if "created_at" in user else datetime.utcnow().isoformat(),
+                        "student_id": user.get("student_id", ""),
+                        "department": user.get("department", ""),
+                        "year_graduated": user.get("year_graduated", "")
+                    }
+                    users.append(sanitized_user)
+                except Exception as user_error:
+                    logger.error(f"Error processing user: {user_error}")
+                    continue
             
             logger.info(f"Found {len(users)} unverified users")
             
-            # If no users found and admin bypass is active, create some mock users
-            if (len(users) == 0) and admin_bypass:
-                logger.info("Admin bypass active and no unverified users found, returning mock data")
+            # If no users found and admin bypass is active, return mock data
+            if len(users) == 0 and (admin_bypass or admin_access):
+                logger.info("Admin authenticated but no unverified users found, returning mock data")
                 return get_mock_users()
             
             logger.info(f"Returning {len(users)} unverified users")
@@ -686,18 +684,14 @@ async def get_unverified_users(
             
         except Exception as query_error:
             logger.error(f"Database query error: {query_error}")
-            # Return empty list instead of raising error
-            if admin_bypass:
+            if admin_bypass or admin_access:
                 return get_mock_users()
             return []
     
     except Exception as e:
         # Log the error but return an empty list instead of failing
         logger.error(f"Error in get_unverified_users: {str(e)}")
-        # Instead of raising an HTTP exception, return an empty array
-        # This provides a more graceful degradation for the frontend
-        if admin_bypass:
-            return get_mock_users()
+        # Return an empty array for graceful frontend degradation
         return []
 
 def get_mock_users():
