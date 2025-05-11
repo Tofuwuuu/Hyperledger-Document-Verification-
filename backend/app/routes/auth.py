@@ -606,7 +606,30 @@ async def get_unverified_users(
     # Enhanced debugging for unverified users endpoint
     logger.info("==== UNVERIFIED USERS ENDPOINT CALLED ====")
     logger.info(f"Request headers: {dict(request.headers) if request else 'No request object'}")
-    logger.info(f"Admin user ID: {admin_user.get('_id', 'Unknown')}, Email: {admin_user.get('email', 'Unknown')}")
+    
+    # Handle both dictionary and Pydantic model access patterns
+    admin_id = None
+    admin_email = None
+    
+    try:
+        # Check if admin_user is a dictionary
+        if isinstance(admin_user, dict):
+            admin_id = admin_user.get('_id', 'Unknown')
+            admin_email = admin_user.get('email', 'Unknown')
+        # Check if admin_user is a Pydantic model
+        elif hasattr(admin_user, 'id'):
+            admin_id = getattr(admin_user, 'id', 'Unknown')
+            admin_email = getattr(admin_user, 'email', 'Unknown')
+        else:
+            admin_id = str(admin_user)
+            admin_email = 'Unknown format'
+            
+        logger.info(f"Admin user ID: {admin_id}, Email: {admin_email}")
+    except Exception as e:
+        logger.error(f"Error accessing admin user details: {e}")
+        logger.error(f"Admin user type: {type(admin_user)}")
+    
+    # Log the request parameters
     logger.info(f"Parameters: limit={limit}, db={db}, collection={collection}, filter={filter}")
     
     try:
