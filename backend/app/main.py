@@ -143,6 +143,10 @@ async def csrf_middleware(request: Request, call_next):
     if request.method.upper() in ("GET", "HEAD", "OPTIONS"):
         return await call_next(request)
     
+    # Log the request path for debugging
+    request_path = request.url.path
+    logger.debug(f"CSRF middleware processing request: {request.method} {request_path}")
+    
     # Skip CSRF for specified paths (like login, which can't have CSRF yet)
     skip_paths = [
         "/api/v1/auth/login", 
@@ -158,22 +162,35 @@ async def csrf_middleware(request: Request, call_next):
         "/api/v1/admin/"             # Skip for all admin endpoints
     ]
     
+    # Check if the path should skip CSRF validation
+    should_skip = False
     for path in skip_paths:
-        if request.url.path.startswith(path):
-            return await call_next(request)
+        if request_path.startswith(path):
+            should_skip = True
+            logger.debug(f"CSRF check skipped for path: {request_path}")
+            break
+    
+    if should_skip:
+        return await call_next(request)
     
     # Get CSRF token from header and cookie
     csrf_header = request.headers.get("X-CSRF-Token")
     csrf_cookie = request.cookies.get("csrf_token")
     
+    # Log CSRF token values for debugging
+    logger.debug(f"CSRF Header: {'Present' if csrf_header else 'Not present'}")
+    logger.debug(f"CSRF Cookie: {'Present' if csrf_cookie else 'Not present'}")
+    
     # If token is missing, return 403
     if not csrf_header or not csrf_cookie or csrf_header != csrf_cookie:
+        logger.warning(f"CSRF validation failed for {request.method} {request_path}")
         return JSONResponse(
             status_code=403,
             content={"detail": "CSRF token missing or invalid"}
         )
     
     # Continue with the request
+    logger.debug(f"CSRF validation passed for {request.method} {request_path}")
     return await call_next(request)
 
 # MongoDB heartbeat function
