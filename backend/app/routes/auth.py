@@ -463,13 +463,16 @@ async def change_password(data: PasswordChange, current_user: Dict[str, Any] = D
 async def verify_user(
     user_id: str,
     admin_user: Dict[str, Any] = Depends(get_admin_user),
-    notes: str = None
+    notes: str = None,
+    db: str = Query("cvsu_alumni", description="Database name (e.g., cvsu_alumni)"),
+    collection: str = Query("users", description="Collection name (e.g., users)")
 ):
     """
     Verify a user account (admin only)
     """
     try:
-        db = get_database()
+        logger = logging.getLogger(__name__)
+        database = get_database()
         
         # Get admin user's ID safely
         admin_id = None
@@ -480,16 +483,27 @@ async def verify_user(
         else:
             # Fallback - this should not normally happen
             admin_id = str(ObjectId())
+        
+        logger.info(f"Verifying user {user_id} in database {db}.{collection} by admin {admin_id}")
+        
+        # Validate database and collection for security
+        if db not in ['cvsu_alumni']:
+            logger.error(f"Attempt to access unauthorized database: {db}")
+            raise HTTPException(status_code=403, detail="Access to this database is not allowed")
             
+        if collection not in ['users', 'alumni']:
+            logger.error(f"Attempt to access unauthorized collection: {collection}")
+            raise HTTPException(status_code=403, detail="Access to this collection is not allowed")
+        
         # First try as a direct string ID
-        user = await db.users.find_one({"_id": user_id})
+        user = await database[collection].find_one({"_id": user_id})
         user_id_for_update = user_id if user else None
         
         # If user not found, try converting to ObjectId
         if not user:
             try:
                 user_object_id = ObjectId(user_id)
-                user = await db.users.find_one({"_id": user_object_id})
+                user = await database[collection].find_one({"_id": user_object_id})
                 user_id_for_update = user_object_id if user else None
             except Exception as e:
                 raise HTTPException(
@@ -505,7 +519,7 @@ async def verify_user(
         
         # Update user verification status
         now = datetime.utcnow()
-        result = await db.users.update_one(
+        result = await database[collection].update_one(
             {"_id": user_id_for_update},
             {"$set": {
                 "is_verified": True,
@@ -518,7 +532,7 @@ async def verify_user(
         
         if result.modified_count == 0:
             # If no modification, check if user is already verified
-            user = await db.users.find_one({"_id": user_id_for_update})
+            user = await database[collection].find_one({"_id": user_id_for_update})
             if user and user.get("is_verified"):
                 return user
             else:
@@ -528,21 +542,25 @@ async def verify_user(
                 )
         
         # Log activity in audit log
-        await db.audit_logs.insert_one({
+        await database.audit_logs.insert_one({
             "action": "user_verification",
             "user_id": str(user_id_for_update),
             "admin_id": str(admin_id),
+            "database": db,
+            "collection": collection,
             "notes": notes,
             "timestamp": now
         })
         
         # Get updated user
-        updated_user = await db.users.find_one({"_id": user_id_for_update})
+        updated_user = await database[collection].find_one({"_id": user_id_for_update})
+        logger.info(f"Successfully verified user {user_id} in {db}.{collection}")
         return updated_user
         
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error verifying user: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during user verification: {str(e)}"
@@ -553,7 +571,10 @@ async def get_unverified_users(
     request: Request = None,
     authorization: str = Header(None),
     admin_user: Dict[str, Any] = Depends(get_admin_user),
-    limit: int = Query(50, ge=1, le=100)
+    limit: int = Query(50, ge=1, le=100),
+    db: str = Query(None, description="Database name (e.g., cvsu_alumni)"),
+    collection: str = Query(None, description="Collection name (e.g., users)"),
+    filter: str = Query(None, description="Filter in format field:value (e.g., is_verified:false)")
 ):
     """
     Get all unverified users (admin only)
@@ -568,74 +589,52 @@ async def get_unverified_users(
         admin_email = admin_user.get('email', 'Unknown admin')
         logger.info(f"Admin authenticated: {admin_email}")
         
-        # Check for admin access header
-        admin_access = False
-        if request:
-            admin_access_header = request.headers.get("X-Admin-Access")
-            if admin_access_header == "true":
-                logger.info(f"Admin access header detected")
-                admin_access = True
-        
-        # Check for admin bypass
-        admin_bypass = False
-        if request and authorization:
-            admin_bypass_header = request.headers.get("X-Admin-Bypass")
-            if admin_bypass_header == "true" and (
-                authorization.startswith("Bearer admin_access_token_") or 
-                "bypass" in authorization.lower()
-            ):
-                logger.info(f"Admin bypass detected in unverified-users route")
-                admin_bypass = True
-        
+        # Parse custom filter if provided
+        custom_filter = {}
+        if filter:
+            try:
+                field, value = filter.split(':', 1)
+                # Convert string value to appropriate type
+                if value.lower() == 'true':
+                    value = True
+                elif value.lower() == 'false':
+                    value = False
+                elif value.isdigit():
+                    value = int(value)
+                custom_filter[field] = value
+                logger.info(f"Using custom filter: {custom_filter}")
+            except Exception as e:
+                logger.error(f"Error parsing custom filter '{filter}': {e}")
+                
         # Get database connection
-        db = get_database()
-        if not db:
+        database = get_database()
+        if not database:
             logger.error("Failed to get database connection")
-            if admin_bypass or admin_access:
-                # Return mock data if admin bypass or admin access is enabled
-                logger.info("Returning mock data due to database connection failure")
-                return get_mock_users()
             return []  # Return empty list instead of raising error
         
-        # First, try to directly find the specific user by ID to check if they exist
-        specific_user_id = "681fa5ae8d75ad66fa728ae7"  # ID from the user message
-        try:
-            # Try both as string and ObjectId
-            specific_user = await db.users.find_one({"_id": specific_user_id})
-            if not specific_user:
-                try:
-                    from bson import ObjectId
-                    obj_id = ObjectId(specific_user_id)
-                    specific_user = await db.users.find_one({"_id": obj_id})
-                except:
-                    pass
-                    
-            if specific_user:
-                logger.info(f"Found specific user: {specific_user.get('email')}")
-                logger.info(f"Verification status: {specific_user.get('is_verified')}")
-                logger.info(f"User document keys: {list(specific_user.keys())}")
+        # Determine which database and collection to use
+        target_db = database
+        if db:
+            logger.info(f"Using custom database: {db}")
+            # For security, we only allow accessing specific databases
+            if db not in ['cvsu_alumni']:
+                logger.error(f"Attempt to access unauthorized database: {db}")
+                raise HTTPException(status_code=403, detail="Access to this database is not allowed")
                 
-                # Always include this specific user if not verified
-                if specific_user and not specific_user.get('is_verified', False):
-                    sanitized_user = {
-                        "id": str(specific_user.get("_id", "")),
-                        "_id": str(specific_user.get("_id", "")),
-                        "email": specific_user.get("email", ""),
-                        "full_name": specific_user.get("full_name", ""),
-                        "created_at": specific_user.get("created_at", datetime.utcnow()).isoformat() 
-                            if "created_at" in specific_user else datetime.utcnow().isoformat(),
-                        "student_id": specific_user.get("student_id", ""),
-                        "department": specific_user.get("department", ""),
-                        "year_graduated": specific_user.get("year_graduated", "")
-                    }
-                    logger.info(f"Returning specific unverified user: {sanitized_user['email']}")
-                    return [sanitized_user]
-        except Exception as specific_err:
-            logger.error(f"Error checking specific user: {specific_err}")
-            
-        # Find unverified users using various query approaches
-        try:
-            # Query for unverified users
+        # Determine collection to use
+        target_collection = 'users'  # Default
+        if collection:
+            logger.info(f"Using custom collection: {collection}")
+            # For security, we only allow accessing specific collections
+            if collection not in ['users', 'alumni']:
+                logger.error(f"Attempt to access unauthorized collection: {collection}")
+                raise HTTPException(status_code=403, detail="Access to this collection is not allowed")
+            target_collection = collection
+
+        # Build the query based on custom filter or use default
+        if custom_filter:
+            query = custom_filter
+        else:
             query = {"$or": [
                 {"is_verified": False},
                 {"is_verified": {"$exists": False}},
@@ -643,56 +642,42 @@ async def get_unverified_users(
                 {"verification_pending": True}
             ]}
             
-            logger.info(f"Using query: {query}")
-            
-            cursor = db.users.find(
+        logger.info(f"Using query: {query}")
+        
+        # Execute the query against the specified collection
+        try:
+            cursor = database[target_collection].find(
                 query,
-                sort=[("created_at", -1)],
-                limit=limit
-            )
+                {"password": 0, "hashed_password": 0}  # Exclude sensitive fields
+            ).sort("created_at", -1).limit(limit)
             
-            # Process users
+            # Convert to list of dicts and format for response
             users = []
             async for user in cursor:
-                # Create a sanitized user object (no password)
-                try:
-                    sanitized_user = {
-                        "id": str(user.get("_id", "")),
-                        "_id": str(user.get("_id", "")),
-                        "email": user.get("email", ""),
-                        "full_name": user.get("full_name", ""),
-                        "created_at": user.get("created_at", datetime.utcnow()).isoformat() 
-                            if "created_at" in user else datetime.utcnow().isoformat(),
-                        "student_id": user.get("student_id", ""),
-                        "department": user.get("department", ""),
-                        "year_graduated": user.get("year_graduated", "")
-                    }
-                    users.append(sanitized_user)
-                except Exception as user_error:
-                    logger.error(f"Error processing user: {user_error}")
-                    continue
-            
+                # Convert ObjectId to string
+                if "_id" in user:
+                    user["id"] = str(user["_id"])
+                    user["_id"] = str(user["_id"])
+                
+                # Ensure created_at is properly formatted
+                if "created_at" in user and user["created_at"]:
+                    if isinstance(user["created_at"], datetime):
+                        user["created_at"] = user["created_at"].isoformat()
+                
+                users.append(user)
+                
             logger.info(f"Found {len(users)} unverified users")
-            
-            # If no users found and admin bypass is active, return mock data
-            if len(users) == 0 and (admin_bypass or admin_access):
-                logger.info("Admin authenticated but no unverified users found, returning mock data")
-                return get_mock_users()
-            
-            logger.info(f"Returning {len(users)} unverified users")
             return users
             
-        except Exception as query_error:
-            logger.error(f"Database query error: {query_error}")
-            if admin_bypass or admin_access:
-                return get_mock_users()
+        except Exception as query_err:
+            logger.error(f"Error executing query: {query_err}")
             return []
-    
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        # Log the error but return an empty list instead of failing
-        logger.error(f"Error in get_unverified_users: {str(e)}")
-        # Return an empty array for graceful frontend degradation
-        return []
+        logger.error(f"Unexpected error in get_unverified_users: {str(e)}")
+        return []  # Return empty list instead of raising error to avoid frontend crashes
 
 def get_mock_users():
     """Return mock unverified users for testing"""

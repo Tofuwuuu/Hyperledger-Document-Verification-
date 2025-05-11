@@ -154,15 +154,14 @@ export const getUnverifiedUsers = async () => {
     headers['X-Admin-Access'] = 'true';
     console.log('Adding X-Admin-Access header for admin verification');
     
-    console.log('Starting request to unverified-users');
+    console.log('Starting request to get unverified users from cvsu_alumni.users database');
     console.log('Request headers:', headers);
     
     try {
-      // Use the special withCORS method from apiService for better CORS handling
-      console.log('Making request with enhanced CORS handling');
+      // Modify the endpoint to specifically query cvsu_alumni.users with is_verified=false
       const response = await apiService.withCORS(
         'get', 
-        '/auth/unverified-users', 
+        '/auth/unverified-users?db=cvsu_alumni&collection=users&filter=is_verified:false', 
         null, 
         { headers }
       );
@@ -195,20 +194,8 @@ export const getUnverifiedUsers = async () => {
         console.error('Error setting up request:', apiError.message);
       }
       
-      // Fall back to the specific user we know needs verification (your user)
-      console.log('Falling back to known unverified user data');
-      return [
-        {
-          id: '681fa5ae8d75ad66fa728ae7',
-          _id: '681fa5ae8d75ad66fa728ae7',
-          email: 'testmark213@outlook.com',
-          full_name: 'Test',
-          created_at: new Date().toISOString(),
-          student_id: '2101002342',
-          department: 'Computer Science',
-          year_graduated: '2025'
-        }
-      ];
+      // Return empty array instead of mock data
+      return [];
     }
   } catch (error) {
     console.error('Get unverified users general error:', error);
@@ -220,19 +207,13 @@ export const verifyUser = async (userId, notes = '') => {
   try {
     console.log(`Sending verification request for userId: ${userId}, notes: ${notes}`);
     
-    // Get the token and check if it's an admin bypass token
-    const token = getToken();
-    const isAdminBypass = token && token.startsWith('admin_access_token_');
-    
-    // Set up headers with auth and admin bypass if needed
+    // Set up headers with auth
     const headers = getAuthHeader();
-    if (isAdminBypass) {
-      headers['X-Admin-Bypass'] = 'true';
-      console.log('Adding admin bypass header for verify user request');
-    }
+    headers['X-Admin-Access'] = 'true';
     
+    // Include database and collection parameters
     const response = await axios.post(
-      `${API_URL}/auth/verify-user/${userId}`, 
+      `${API_URL}/auth/verify-user/${userId}?db=cvsu_alumni&collection=users`, 
       { notes },
       { headers }
     );
@@ -241,7 +222,7 @@ export const verifyUser = async (userId, notes = '') => {
     
     // Additional step to trigger the dashboard to refresh immediately
     try {
-      // Force the dashboard to refetch recent activity with admin bypass if needed
+      // Force the dashboard to refetch recent activity
       await axios.get(
         `${API_URL}/admin/dashboard/recent-activity?_force_refresh=true`, 
         { headers }
@@ -252,7 +233,7 @@ export const verifyUser = async (userId, notes = '') => {
     
     return response.data;
   } catch (error) {
-    console.error('Verify user error:', error);
+    console.error('Error verifying user:', error);
     throw error;
   }
 };

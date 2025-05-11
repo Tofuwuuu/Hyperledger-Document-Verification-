@@ -25,7 +25,7 @@ export default function AdminUserVerificationPage() {
     setLoading(true);
     setError(null);
     
-    console.log('Starting to fetch unverified users...');
+    console.log('Starting to fetch unverified users from cvsu_alumni.users database...');
     
     try {
       console.log('Calling authService.getUnverifiedUsers()');
@@ -152,13 +152,6 @@ export default function AdminUserVerificationPage() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  const enableAdminBypass = () => {
-    // Store an admin bypass token in localStorage
-    localStorage.setItem('token', 'admin_access_token_bypass_for_testing_only');
-    toast.info('Admin bypass enabled. Reloading unverified users...');
-    fetchUnverifiedUsers();
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -202,21 +195,6 @@ export default function AdminUserVerificationPage() {
           <h3 className="mt-2 text-sm font-medium text-gray-900">No unverified users</h3>
           <p className="mt-1 text-sm text-gray-500">
             All user accounts have been verified
-          </p>
-          <button
-            onClick={fetchUnverifiedUsers}
-            className="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-          >
-            Reload Unverified Users
-          </button>
-          <p className="mt-4 text-xs text-gray-400">
-            Having issues seeing unverified users? 
-            <button 
-              onClick={enableAdminBypass} 
-              className="ml-1 text-cvsu-green underline hover:text-cvsu-green-dark"
-            >
-              Use advanced admin mode
-            </button>
           </p>
         </div>
       ) : (
