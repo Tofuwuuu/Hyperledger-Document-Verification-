@@ -473,24 +473,34 @@ async def verify_user(
     """
     Verify a user account (admin only)
     """
-    # Add explicit CORS headers for this endpoint
-    if response and request and "origin" in request.headers:
-        origin = request.headers.get("origin")
-        allowed_origins = [
-            "https://alumni-frontend-zzr2.onrender.com",
-            "https://alumni-frontend.onrender.com",
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5173", 
-            "http://127.0.0.1:5174",
-            "http://127.0.0.1:3000"
-        ]
+    # Add explicit CORS headers for this endpoint - ALWAYS at the start, before any processing
+    allowed_origins = [
+        "https://alumni-frontend-zzr2.onrender.com",
+        "https://alumni-frontend.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173", 
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000"
+    ]
+    
+    # If response is provided, set CORS headers unconditionally
+    if response:
+        # Get the origin from request if available
+        origin = request.headers.get("origin") if request else "*"
+        
+        # Check if origin is in allowed list, default to the first allowed origin if not
         if origin in allowed_origins:
             response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With"
+        elif len(allowed_origins) > 0:
+            # Default to the production frontend
+            response.headers["Access-Control-Allow-Origin"] = allowed_origins[0]
+            
+        # Set other CORS headers
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
     
     logger = logging.getLogger(__name__)
     
@@ -1715,10 +1725,7 @@ async def test_cors_unverified(request: Request, response: Response):
 @router.options("/verify-user/{user_id}", include_in_schema=False)
 async def options_verify_user(request: Request, response: Response):
     """Handle OPTIONS request for verify-user endpoint (CORS preflight)"""
-    # Always add CORS headers for OPTIONS requests
-    origin = request.headers.get("Origin", "")
-    
-    # List of allowed origins
+    # Set CORS headers unconditionally for OPTIONS requests
     allowed_origins = [
         "https://alumni-frontend-zzr2.onrender.com",
         "https://alumni-frontend.onrender.com",
@@ -1730,18 +1737,25 @@ async def options_verify_user(request: Request, response: Response):
         "http://127.0.0.1:3000"
     ]
     
-    # Check if origin is allowed, default to the frontend domain if not specified
+    # Get the origin from request
+    origin = request.headers.get("Origin", "")
+    
+    # Set the Access-Control-Allow-Origin header
     if origin in allowed_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
     elif len(allowed_origins) > 0:
+        # Default to the production frontend if origin not in list
         response.headers["Access-Control-Allow-Origin"] = allowed_origins[0]
     
-    # Add required CORS headers
+    # Set standard CORS headers for preflight
     response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
     response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
-    # Necessary to avoid Content-Length issues
+    response.headers["Access-Control-Max-Age"] = "86400"  # 1 day
+    
+    # Ensure Content-Type and Content-Length are set to prevent browser issues
     response.headers["Content-Type"] = "text/plain"
     response.headers["Content-Length"] = "0"
+    
+    # Return empty response body
     return {} 

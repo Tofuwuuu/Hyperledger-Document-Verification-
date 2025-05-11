@@ -8,7 +8,7 @@ import asyncio
 from fastapi.responses import JSONResponse
 
 from app.routes import auth, alumni, documents, verification, references, events, registrations, meetings, document_requests
-from app.config.database import connect_to_mongo, close_mongo_connection, client
+from app.config.database import connect_to_mongo, close_mongo_connection, client, get_database
 from app.config.db_init import initialize_database
 from app.config.indexes import create_indexes
 from app.api.api import api_router
@@ -285,16 +285,66 @@ async def root():
 
 @app.middleware("http")
 async def fix_content_length(request: Request, call_next):
-    """Middleware to fix Content-Length issues"""
+    """Middleware to fix Content-Length issues and ensure CORS headers"""
+    # Special handling for OPTIONS requests (preflight)
+    if request.method == "OPTIONS":
+        origin = request.headers.get("Origin", "")
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
+        
+        # Process the preflight request properly
+        if origin in allowed_origins or not origin:
+            # Get requested headers/methods
+            requested_headers = request.headers.get("Access-Control-Request-Headers", "")
+            requested_method = request.headers.get("Access-Control-Request-Method", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+            
+            # Create appropriate CORS headers
+            headers = {
+                "Access-Control-Allow-Origin": origin if origin else allowed_origins[0],
+                "Access-Control-Allow-Methods": requested_method,
+                "Access-Control-Allow-Headers": requested_headers if requested_headers else "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Admin-Access, X-Use-Local-User, Cache-Control, Pragma",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "86400",
+                "Content-Type": "text/plain",
+                "Content-Length": "0"
+            }
+            return JSONResponse(content={}, status_code=200, headers=headers)
+    
+    # For non-OPTIONS requests, proceed normally
     response = await call_next(request)
     
-    # Check if Content-Length is set and response has a body
+    # Check if Content-Length is set and fix any inconsistencies
     if "content-length" in response.headers and not isinstance(response, JSONResponse):
         try:
-            # For non-JSON responses, remove the Content-Length header to let the server set it correctly
-            # Based on the response body length when it's sent
+            # For non-JSON responses, remove Content-Length to let the server set it correctly
+            # based on the actual content length when sending the response
             del response.headers["content-length"]
         except Exception as e:
             logger.error(f"Error removing Content-Length header: {e}")
-            
+    
+    # Ensure CORS headers are present for all responses
+    if "access-control-allow-origin" not in response.headers and "origin" in request.headers:
+        origin = request.headers.get("origin")
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     return response 
