@@ -49,6 +49,16 @@ export const createEvent = async (eventData) => {
   try {
     console.log('Creating event with data:', JSON.stringify(eventData));
     
+    // Try to get a CSRF token first
+    try {
+      console.log('Fetching CSRF token for event creation');
+      await api.get('/auth/csrf-token');
+      console.log('CSRF token obtained');
+    } catch (csrfError) {
+      console.warn('Error obtaining CSRF token:', csrfError);
+      // Continue even if CSRF token fetch fails
+    }
+    
     // Make sure all date fields are properly formatted
     const cleanedData = {
       ...eventData,
@@ -67,8 +77,17 @@ export const createEvent = async (eventData) => {
     
     console.log('Sending cleaned event data:', JSON.stringify(cleanedData));
     
+    // Add CSRF token if available
+    const csrfToken = localStorage.getItem('csrf_token');
+    const headers = {};
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+      console.log('Added CSRF token to request');
+    }
+    
     // Use api instance to include admin headers
     const response = await api.post(`/events`, cleanedData, {
+      headers,
       timeout: 10000 // 10 second timeout
     });
     
@@ -80,6 +99,12 @@ export const createEvent = async (eventData) => {
       console.error('Response data:', error.response.data);
       console.error('Response status:', error.response.status);
       console.error('Response headers:', error.response.headers);
+      
+      // If it's a CSRF error, provide a more helpful error message
+      if (error.response.status === 403 && 
+          error.response.data?.detail?.includes('CSRF token')) {
+        error.userMessage = 'CSRF validation failed. Please try refreshing the page and submitting again.';
+      }
     } else if (error.request) {
       console.error('No response received:', error.request);
     }
@@ -89,22 +114,92 @@ export const createEvent = async (eventData) => {
 
 export const updateEvent = async (eventId, eventData) => {
   try {
+    console.log(`Updating event ${eventId} with data:`, JSON.stringify(eventData));
+    
+    // Try to get a CSRF token first
+    try {
+      console.log('Fetching CSRF token for event update');
+      await api.get('/auth/csrf-token');
+      console.log('CSRF token obtained');
+    } catch (csrfError) {
+      console.warn('Error obtaining CSRF token:', csrfError);
+      // Continue even if CSRF token fetch fails
+    }
+    
+    // Add CSRF token if available
+    const csrfToken = localStorage.getItem('csrf_token');
+    const headers = {};
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+      console.log('Added CSRF token to request');
+    }
+    
     // Use api instance to include admin headers
-    const response = await api.put(`/events/${eventId}`, eventData);
+    const response = await api.put(`/events/${eventId}`, eventData, {
+      headers,
+      timeout: 10000 // 10 second timeout
+    });
+    
+    console.log('Event update successful:', response.data);
     return response.data;
   } catch (error) {
     console.error(`Error updating event with ID ${eventId}:`, error);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+      
+      // If it's a CSRF error, provide a more helpful error message
+      if (error.response.status === 403 && 
+          error.response.data?.detail?.includes('CSRF token')) {
+        error.userMessage = 'CSRF validation failed. Please try refreshing the page and submitting again.';
+      }
+    }
     throw error;
   }
 };
 
 export const deleteEvent = async (eventId) => {
   try {
+    console.log(`Deleting event ${eventId}`);
+    
+    // Try to get a CSRF token first
+    try {
+      console.log('Fetching CSRF token for event deletion');
+      await api.get('/auth/csrf-token');
+      console.log('CSRF token obtained');
+    } catch (csrfError) {
+      console.warn('Error obtaining CSRF token:', csrfError);
+      // Continue even if CSRF token fetch fails
+    }
+    
+    // Add CSRF token if available
+    const csrfToken = localStorage.getItem('csrf_token');
+    const headers = {};
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+      console.log('Added CSRF token to request');
+    }
+    
     // Use api instance to include admin headers
-    const response = await api.delete(`/events/${eventId}`);
+    const response = await api.delete(`/events/${eventId}`, {
+      headers,
+      timeout: 10000 // 10 second timeout
+    });
+    
+    console.log('Event deletion successful');
     return response.data;
   } catch (error) {
     console.error(`Error deleting event with ID ${eventId}:`, error);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+      
+      // If it's a CSRF error, provide a more helpful error message
+      if (error.response.status === 403 && 
+          error.response.data?.detail?.includes('CSRF token')) {
+        error.userMessage = 'CSRF validation failed. Please try refreshing the page and submitting again.';
+      }
+    }
     throw error;
   }
 };

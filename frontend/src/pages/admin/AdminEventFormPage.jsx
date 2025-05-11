@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getEventById, createEvent, updateEvent } from '../../services/eventService';
+import axios from 'axios';
+import { API_URL } from '../../config';
 
 const AdminEventFormPage = () => {
   const { eventId } = useParams();
@@ -27,8 +29,19 @@ const AdminEventFormPage = () => {
   });
 
   useEffect(() => {
-    if (isEditMode) {
-      const fetchEvent = async () => {
+    const loadData = async () => {
+      // Fetch CSRF token for form submission
+      try {
+        console.log('Fetching CSRF token for event form');
+        await axios.get(`${API_URL}/auth/csrf-token`, { withCredentials: true });
+        console.log('CSRF token obtained');
+      } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+        // Continue anyway
+      }
+
+      // Load event data if editing
+      if (eventId) {
         try {
           setLoading(true);
           const event = await getEventById(eventId);
@@ -55,11 +68,11 @@ const AdminEventFormPage = () => {
         } finally {
           setLoading(false);
         }
-      };
-      
-      fetchEvent();
-    }
-  }, [eventId, isEditMode]);
+      }
+    };
+    
+    loadData();
+  }, [eventId]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
