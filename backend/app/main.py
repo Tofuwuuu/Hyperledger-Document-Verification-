@@ -10,6 +10,12 @@ from app.cors_middleware import add_cors_middleware
 # Initialize FastAPI app
 app = FastAPI(title="Alumni System API")
 
+# Set up more detailed logging for debugging CORS issues
+logging.getLogger('uvicorn').setLevel(logging.DEBUG)
+logging.getLogger('fastapi').setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 # TEMPORARY: Make CORS completely permissive for debugging
 app.add_middleware(
     CORSMiddleware,
@@ -19,9 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-
-# Set up logging
-logger = logging.getLogger(__name__)
 
 # Disable CSRF middleware for now to debug CORS
 # @app.middleware("http")
@@ -76,26 +79,42 @@ async def csrf_middleware(request: Request, call_next):
     logger.info(f"CSRF validation PASSED for {request.method} {request_path}")
     return await call_next(request) 
 
-# Add OPTIONS route handler for auth/login
+# Direct OPTIONS handler for login that works for any origin
 @app.options("/api/v1/auth/login")
-async def options_auth_login():
+async def options_auth_login(request: Request):
+    logger.debug(f"OPTIONS request received for auth/login from origin: {request.headers.get('origin', 'Unknown')}")
+    
+    # Get the origin from the request
+    origin = request.headers.get("origin", "*")
+    
     headers = {
-        "Access-Control-Allow-Origin": "https://alumni-frontend-ybas.onrender.com",
+        "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token, X-Requested-With",
         "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400",
     }
+    
+    logger.debug(f"Returning headers for OPTIONS request: {headers}")
     return JSONResponse(content={}, headers=headers)
 
-# Add OPTIONS route handler for all routes
+# Fallback OPTIONS handler for all other routes
 @app.options("/{full_path:path}")
-async def options_all(full_path: str):
+async def options_all(request: Request, full_path: str):
+    logger.debug(f"OPTIONS request received for {full_path} from origin: {request.headers.get('origin', 'Unknown')}")
+    
+    # Get the origin from the request
+    origin = request.headers.get("origin", "*")
+    
     headers = {
-        "Access-Control-Allow-Origin": "https://alumni-frontend-ybas.onrender.com",
+        "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin",
         "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400",
     }
+    
+    logger.debug(f"Returning headers for OPTIONS request: {headers}")
     return JSONResponse(content={}, headers=headers)
 
 # Include API router
