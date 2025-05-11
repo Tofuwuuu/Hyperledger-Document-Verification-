@@ -255,56 +255,83 @@ export const getUnverifiedUsers = async (signal) => {
 };
 
 export const verifyUser = async (userId, notes = '') => {
-  try {
-    console.log(`Sending verification request for userId: ${userId}, notes: ${notes}`);
-    
-    // Set up headers with auth
-    const headers = getAuthHeader();
-    headers['X-Admin-Access'] = 'true';
-    
-    // Use withCORS to handle CORS issues better
-    const response = await apiService.withCORS(
-      'post',
-      `/auth/verify-user/${userId}?db=cvsu_alumni&collection=users`,
-      { notes },
-      { 
-        headers,
-        timeout: 20000 // 20s timeout
-      }
-    );
-    
-    console.log('Verification API response:', response.data);
-    
-    // Additional step to trigger the dashboard to refresh immediately
+  let attempts = 0;
+  const maxAttempts = 3;
+  const backoffMs = 1000; // Start with 1 second backoff
+  
+  while (attempts < maxAttempts) {
     try {
-      // Force the dashboard to refetch recent activity
-      await apiService.withCORS(
-        'get',
-        `/admin/dashboard/recent-activity?_force_refresh=true`,
-        null,
-        { headers }
+      console.log(`Sending verification request for userId: ${userId}, notes: ${notes} (Attempt ${attempts + 1}/${maxAttempts})`);
+      
+      // Set up headers with auth
+      const headers = getAuthHeader();
+      headers['X-Admin-Access'] = 'true';
+      
+      // Use withCORS to handle CORS issues better
+      const response = await apiService.withCORS(
+        'post',
+        `/auth/verify-user/${userId}?db=cvsu_alumni&collection=users`,
+        { notes },
+        { 
+          headers,
+          timeout: 20000 // 20s timeout
+        }
       );
-    } catch (refreshErr) {
-      console.warn('Failed to refresh dashboard data:', refreshErr);
-    }
-    
-    return response.data;
-  } catch (error) {
-    console.error('Error verifying user:', error);
-    
-    // Provide more specific error messages based on the error type
-    if (error.message && error.message.includes('CORS')) {
-      throw new Error('CORS error: Unable to verify user due to cross-origin restrictions. Please try again.');
-    } else if (error.isTimeout) {
-      throw new Error('Request timed out. The server took too long to respond.');
-    } else if (error.response) {
-      // Use the server's error message if available
-      const errorMessage = error.response.data?.detail || 'Failed to verify user';
-      throw new Error(errorMessage);
-    } else {
-      throw error;
+      
+      console.log('Verification API response:', response.data);
+      
+      // Additional step to trigger the dashboard to refresh immediately
+      try {
+        // Force the dashboard to refetch recent activity
+        await apiService.withCORS(
+          'get',
+          `/admin/dashboard/recent-activity?_force_refresh=true`,
+          null,
+          { headers }
+        );
+      } catch (refreshErr) {
+        console.warn('Failed to refresh dashboard data:', refreshErr);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error verifying user (attempt ${attempts + 1}/${maxAttempts}):`, error);
+      
+      // Track the attempt
+      attempts++;
+      
+      // If it's a CORS or network error and we have retries left, wait and retry
+      const isCorsOrNetworkError = 
+        (error.message && error.message.includes('CORS')) || 
+        (error.message && error.message.includes('Network Error')) ||
+        (!error.response && error.request);
+      
+      if (isCorsOrNetworkError && attempts < maxAttempts) {
+        // Calculate backoff with exponential increase
+        const waitTime = backoffMs * Math.pow(2, attempts - 1);
+        console.log(`CORS/Network error detected, retrying in ${waitTime}ms...`);
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
+      // If we've exhausted retries or it's not a CORS/network error, throw with helpful message
+      if (error.message && error.message.includes('CORS')) {
+        throw new Error('CORS error: Unable to verify user due to cross-origin restrictions. Please try again.');
+      } else if (error.isTimeout || (error.message && error.message.includes('timeout'))) {
+        throw new Error('Request timed out. The server took too long to respond.');
+      } else if (error.response) {
+        // Use the server's error message if available
+        const errorMessage = error.response.data?.detail || 'Failed to verify user';
+        throw new Error(errorMessage);
+      } else {
+        throw error;
+      }
     }
   }
+  
+  throw new Error(`Failed to verify user after ${maxAttempts} attempts. Please try again later.`);
 };
 
 export const getUserById = async (userId) => {
