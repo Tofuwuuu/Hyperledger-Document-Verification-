@@ -7,6 +7,7 @@ import base64
 import logging
 import json
 import traceback
+from datetime import datetime
 
 from app.models.registration import Registration, RegistrationCreate, RegistrationUpdate, RegistrationWithUser
 from app.models.common import PyObjectId
@@ -18,14 +19,17 @@ from app.config.database import get_database_async
 from app.models.student import Student
 from app.repositories.student_repository import StudentRepository
 from app.models.attendance import AttendanceCreate
+from app.schemas import EventCreate, RegistrationOut
+from app.config.database import get_database
+from app.core.auth import get_current_active_user, get_admin_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.post("/registrations", response_model=Registration)
+@router.post("/registrations", response_model=Dict[str, Any])
 async def register_for_event(
     registration: RegistrationCreate,
-    current_user: Union[User, Dict[str, Any]] = Depends(get_current_active_user)
+    current_user: Dict[str, Any] = Depends(get_current_active_user)
 ):
     """
     Register current user for an event.
@@ -34,82 +38,90 @@ async def register_for_event(
     logger.info("=" * 50)
     logger.info(f"REGISTRATION ATTEMPT - Event: {registration.event_id}")
     
-    # Handle both User model and dictionary types
-    user_id = None
-    is_verified = False
-    student_id = None
-    user_email = None
+    # Get user information
+    user_id = current_user.get("_id") or current_user.get("id")
+    is_verified = current_user.get("is_verified", False)
+    student_id = current_user.get("student_id")
+    user_email = current_user.get("email")
+    
+    logger.info(f"USER INFO - ID: {user_id}, Email: {user_email}")
+    logger.info(f"USER DETAILS - Verified: {is_verified}, Student ID: {student_id}")
+        
+    # Check if we have a valid user ID
+    if not user_id:
+        logger.warning("Registration rejected - Missing user ID")
+        raise HTTPException(
+            status_code=422,
+            detail="User identification is missing. Please try logging out and back in."
+        )
+    
+    # Check if user is verified
+    if not is_verified:
+        logger.warning(f"Registration rejected - User {user_id} is not verified")
+        raise HTTPException(
+            status_code=422, 
+            detail="Your account is not verified. Please verify your account before registering for events."
+        )
+    
+    # Check if user has a student ID
+    if not student_id:
+        logger.warning(f"Registration rejected - User {user_id} has no student ID")
+        raise HTTPException(
+            status_code=422, 
+            detail="You must have a student ID in your profile to register for events."
+        )
     
     try:
-        if isinstance(current_user, User):
-            user_id = current_user.id
-            is_verified = current_user.is_verified
-            student_id = current_user.student_id
-            user_email = current_user.email
-            logger.info(f"USER INFO (Model) - ID: {user_id}, Email: {user_email}")
-            logger.info(f"USER DETAILS (Model) - Verified: {is_verified}, Student ID: {student_id}")
-        else:
-            # Dictionary case
-            user_id = current_user.get("_id") or current_user.get("id")
-            is_verified = current_user.get("is_verified", False)
-            student_id = current_user.get("student_id")
-            user_email = current_user.get("email")
-            logger.info(f"USER INFO (Dict) - ID: {user_id}, Email: {user_email}")
-            logger.info(f"USER DETAILS (Dict) - Verified: {is_verified}, Student ID: {student_id}")
-        
-        # Convert the user data to string for logging, handling both model and dict cases safely
-        user_data_str = ""
-        try:
-            if hasattr(current_user, "dict") and callable(getattr(current_user, "dict")):
-                user_data_str = json.dumps(current_user.dict(), default=str)
-            else:
-                user_data_str = json.dumps(current_user, default=str)
-        except Exception as e:
-            user_data_str = f"Error serializing user data: {str(e)}"
-            
-        logger.info(f"USER DATA: {user_data_str}")
-        logger.info("=" * 50)
-        
-        # Check if we have a valid user ID
-        if not user_id:
-            logger.warning("Registration rejected - Missing user ID")
-            raise HTTPException(
-                status_code=422,
-                detail="User identification is missing. Please try logging out and back in."
-            )
-        
-        # Check if user is verified
-        if not is_verified:
-            logger.warning(f"Registration rejected - User {user_id} is not verified")
-            raise HTTPException(
-                status_code=422, 
-                detail="Your account is not verified. Please verify your account before registering for events."
-            )
-        
-        # Check if user has a student ID
-        if not student_id:
-            logger.warning(f"Registration rejected - User {user_id} has no student ID")
-            raise HTTPException(
-                status_code=422, 
-                detail="You must have a student ID in your profile to register for events."
-            )
+        db = get_database()
         
         # Ensure the event exists
-        event = await EventRepository.get_event(registration.event_id)
+        event = await db.events.find_one({"_id": registration.event_id})
         if not event:
             logger.warning(f"Registration rejected - Event {registration.event_id} not found")
             raise HTTPException(status_code=404, detail="Event not found")
         
-        # Set the user_id to the current user
-        registration.user_id = user_id
+        # Check if the user is already registered for this event
+        existing_registration = await db.registrations.find_one({
+            "event_id": registration.event_id,
+            "user_id": user_id
+        })
+        
+        if existing_registration:
+            logger.warning(f"Registration rejected - User {user_id} already registered for event {registration.event_id}")
+            raise HTTPException(
+                status_code=400, 
+                detail="You are already registered for this event"
+            )
         
         # Check if event has reached maximum capacity
-        if event.max_attendees and event.registration_count >= event.max_attendees:
+        if event.get("max_participants") and event.get("participant_count", 0) >= event.get("max_participants"):
             logger.warning(f"Registration rejected - Event {registration.event_id} has reached maximum capacity")
             raise HTTPException(status_code=400, detail="Event has reached maximum capacity")
         
-        logger.info(f"Registration approved for event {registration.event_id} by user {user_id}")
-        return await RegistrationRepository.create_registration(registration)
+        # Create registration document
+        now = datetime.utcnow()
+        registration_doc = {
+            "_id": str(datetime.now().timestamp()),
+            "event_id": registration.event_id,
+            "user_id": user_id,
+            "registration_date": now,
+            "notes": registration.notes,
+            "attended": False,
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        # Insert registration and update event participant count
+        await db.registrations.insert_one(registration_doc)
+        
+        # Update event participant count
+        await db.events.update_one(
+            {"_id": registration.event_id},
+            {"$inc": {"participant_count": 1}}
+        )
+        
+        logger.info(f"Registration successful for event {registration.event_id} by user {user_id}")
+        return registration_doc
     except Exception as e:
         if isinstance(e, HTTPException):
             # Rethrow HTTP exceptions directly
@@ -124,101 +136,57 @@ async def register_for_event(
 
 @router.get("/registrations/all", response_model=List[Dict[str, Any]])
 async def get_all_event_registrations(
-    current_user: User = Depends(get_admin_user)
+    current_user: Dict[str, Any] = Depends(get_admin_user)
 ):
     """
     Get all event registrations across all events (admin only).
     """
     try:
-        # Handle both User object and dictionary cases for current_user
-        user_id = None
-        if isinstance(current_user, User):
-            user_id = current_user.id
-        else:
-            # For dictionary case, try both 'id' and '_id'
-            user_id = current_user.get("id") or current_user.get("_id") or "admin_bypass"
-            
+        # Get user id
+        user_id = current_user.get("id") or current_user.get("_id") or "admin_bypass"
         logger.info(f"Fetching all event registrations for admin user: {user_id}")
         
-        # Log database connection attempt
-        db = await get_database_async()
-        logger.info("Database connection established successfully")
+        # Get database connection
+        db = get_database()
         
-        # Check if the collection exists and count documents
-        collection_exists = RegistrationRepository.collection_name in await db.list_collection_names()
-        if not collection_exists:
-            logger.warning(f"Collection '{RegistrationRepository.collection_name}' does not exist in database")
-            return []
-            
-        # Count documents in collection for debugging
-        doc_count = await db[RegistrationRepository.collection_name].count_documents({})
-        logger.info(f"Total documents in collection: {doc_count}")
+        # Find all registrations
+        registrations = []
+        async for reg in db.registrations.find({}):
+            registrations.append(reg)
         
-        # Fetch registrations
-        registrations = await RegistrationRepository.get_all_registrations()
         logger.info(f"Retrieved {len(registrations)} total registrations")
-        
-        # Log detailed summary by status
-        status_counts = {}
-        for reg in registrations:
-            status = reg.get('status', 'unknown')
-            status_counts[status] = status_counts.get(status, 0) + 1
-        
-        logger.info(f"Registration status counts: {status_counts}")
-        
-        # Include some metadata in response for front-end debugging
-        if not registrations:
-            # Return empty list with metadata for debugging
-            return registrations
-            
         return registrations
     except Exception as e:
         logger.error(f"Failed to fetch all registrations: {str(e)}", exc_info=True)
-        # Include more diagnostic information in the error
-        error_message = f"Failed to fetch registrations: {str(e)}"
-        
-        # Check if this is a database connection error
-        if "database" in str(e).lower() or "mongo" in str(e).lower() or "connection" in str(e).lower():
-            error_message = "Database connection error. Please check if MongoDB is running properly."
-            
-        raise HTTPException(status_code=500, detail=error_message)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch registrations: {str(e)}")
 
 @router.get("/registrations/user", response_model=List[Dict[str, Any]])
 async def get_user_registrations(
-    current_user: User = Depends(get_current_active_user)
+    current_user: Dict[str, Any] = Depends(get_current_active_user)
 ):
     """
     Get all registrations for the current user.
     """
     try:
-        # Handle both User object and dictionary cases
-        user_id = None
-        if isinstance(current_user, User):
-            user_id = current_user.id
-        else:
-            # For dictionary case, try both 'id' and '_id'
-            user_id = current_user.get("id") or current_user.get("_id")
-            
-        if not user_id:
-            logger.error("User ID not found in current_user object")
-            raise HTTPException(
-                status_code=400, 
-                detail="User ID not found. Please login again."
-            )
-            
-        logger.info(f"Fetching registrations for user ID: {user_id}")
-        registrations = await RegistrationRepository.get_user_registrations(user_id)
-        logger.info(f"Retrieved {len(registrations)} registrations for user {user_id}")
+        user_id = current_user.get("id") or current_user.get("_id")
         
-        if not registrations:
-            logger.info(f"No registrations found for user {user_id}")
+        db = get_database()
         
+        # Find all registrations for this user
+        registrations = []
+        async for reg in db.registrations.find({"user_id": user_id}):
+            # Get event details for each registration
+            event = await db.events.find_one({"_id": reg["event_id"]})
+            if event:
+                reg["event"] = event
+            registrations.append(reg)
+            
         return registrations
     except Exception as e:
-        logger.error(f"Error fetching user registrations: {str(e)}", exc_info=True)
+        logger.error(f"Error fetching user registrations: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch registrations: {str(e)}"
+            status_code=500, 
+            detail=f"Could not fetch your registrations: {str(e)}"
         )
 
 @router.get("/registrations/event/{event_id}", response_model=List[RegistrationWithUser])

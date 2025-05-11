@@ -1,21 +1,24 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, APIRouter
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from app.utils.csrf import csrf_protect
 from app.schemas import EventCreate
-from app.database import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.utils.utils import generate_url_slug
-from app.dependencies import get_current_active_user, get_database
+from app.config.database import get_database
+from app.core.auth import get_admin_user, get_current_user
 import json
 import traceback
 import logging
 
 logger = logging.getLogger(__name__)
 
+router = APIRouter()
+
 @router.post("/events", status_code=201)
 async def create_event(
     event: EventCreate,
-    current_user: User = Depends(get_admin_user)
+    current_user: dict = Depends(get_admin_user)
 ):
     """
     Create a new event (admin only).
@@ -39,9 +42,39 @@ async def create_event(
         event_dict = event.dict()
         logger.info(f"Event data: {json.dumps(event_dict, default=str)}")
         
-        created_event = await EventRepository.create_event(event, user_id)
-        logger.info(f"Event created successfully with ID: {created_event.get('_id')}")
-        return created_event
+        # Get database connection
+        db = get_database()
+        
+        # Generate a URL slug based on the event title
+        slug = generate_url_slug(event.title)
+        
+        # Create event document
+        now = datetime.utcnow()
+        event_document = {
+            "_id": str(datetime.now().timestamp()),
+            "title": event.title,
+            "description": event.description,
+            "event_date": event.event_date,
+            "location": event.location,
+            "registration_deadline": event.registration_deadline,
+            "max_participants": event.max_participants,
+            "is_active": event.is_active,
+            "event_type": event.event_type,
+            "registration_url": event.registration_url,
+            "image_url": event.image_url,
+            "tags": event.tags or [],
+            "creator_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+            "slug": slug,
+            "participant_count": 0
+        }
+        
+        # Insert event into database
+        await db.events.insert_one(event_document)
+        
+        logger.info(f"Event created successfully with ID: {event_document['_id']}")
+        return event_document
     except Exception as e:
         logger.error(f"Error creating event: {str(e)}")
         logger.error(traceback.format_exc())
