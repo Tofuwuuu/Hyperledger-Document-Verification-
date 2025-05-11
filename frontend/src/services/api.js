@@ -85,6 +85,14 @@ api.interceptors.response.use(
         data: response.data
       });
     }
+    
+    // Check for CSRF token in response headers and store it
+    const csrfToken = response.headers['x-csrf-token'];
+    if (csrfToken) {
+      localStorage.setItem('csrf_token', csrfToken);
+      console.log('CSRF token stored from response headers');
+    }
+    
     return response;
   },
   async (error) => {

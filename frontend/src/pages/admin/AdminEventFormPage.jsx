@@ -33,8 +33,11 @@ const AdminEventFormPage = () => {
       // Fetch CSRF token for form submission
       try {
         console.log('Fetching CSRF token for event form');
-        await axios.get(`${API_URL}/auth/csrf-token`, { withCredentials: true });
-        console.log('CSRF token obtained');
+        const response = await axios.get(`${API_URL}/auth/csrf-token`, { withCredentials: true });
+        if (response.data && response.data.csrf_token) {
+          localStorage.setItem('csrf_token', response.data.csrf_token);
+          console.log('CSRF token obtained and stored');
+        }
       } catch (error) {
         console.error('Error fetching CSRF token:', error);
         // Continue anyway
