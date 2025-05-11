@@ -151,7 +151,11 @@ async def csrf_middleware(request: Request, call_next):
         "/api/v1/auth/verify-reset-token",
         "/api/v1/auth/reset-password-confirm",
         "/api/v1/auth/verify-user/",  # Skip for user verification endpoint
-        "/api/v1/admin/"  # Skip for all admin endpoints
+        "/api/v1/events",            # Skip for events API endpoints
+        "/api/v1/events/",           # Skip for event-specific endpoints with IDs
+        "/api/v1/registrations",     # Skip for event registration endpoints
+        "/api/v1/registrations/",    # Skip for registration-specific endpoints
+        "/api/v1/admin/"             # Skip for all admin endpoints
     ]
     
     for path in skip_paths:
