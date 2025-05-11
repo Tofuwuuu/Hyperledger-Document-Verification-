@@ -57,6 +57,7 @@ app.add_middleware(
         "X-CSRF-Token", 
         "X-Requested-With",
         "X-Admin-Bypass",
+        "X-Admin-Access",
         "X-Use-Local-User",
         "Cache-Control",
         "Pragma",
@@ -66,7 +67,7 @@ app.add_middleware(
         "Access-Control-Request-Method",
         "Access-Control-Request-Headers"
     ],
-    expose_headers=["Content-Length", "Content-Range", "X-CSRF-Token"],
+    expose_headers=["Content-Length", "Content-Range", "X-CSRF-Token", "Access-Control-Allow-Origin"],
     max_age=86400,  # 1 day in seconds
 )
 
@@ -96,7 +97,7 @@ async def add_security_headers(request: Request, call_next):
         # If origin is allowed or empty (will be rejected by the browser anyway)
         if origin in allowed_origins or not origin:
             # Use the requested headers if present, otherwise use our default list
-            allow_headers = requested_headers if requested_headers else "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Use-Local-User, Cache-Control, Pragma, Accept-Encoding, Accept-Language, Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+            allow_headers = requested_headers if requested_headers else "Content-Type, Authorization, Accept, X-CSRF-Token, X-Requested-With, X-Admin-Bypass, X-Admin-Access, X-Use-Local-User, Cache-Control, Pragma, Accept-Encoding, Accept-Language, Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
             
             headers = {
                 "Access-Control-Allow-Origin": origin,
@@ -280,4 +281,20 @@ async def root():
     return {
         "message": "Welcome to CVSU-Carmona Alumni Document Verification System API",
         "documentation": "/docs",
-    } 
+    }
+
+@app.middleware("http")
+async def fix_content_length(request: Request, call_next):
+    """Middleware to fix Content-Length issues"""
+    response = await call_next(request)
+    
+    # Check if Content-Length is set and response has a body
+    if "content-length" in response.headers and not isinstance(response, JSONResponse):
+        try:
+            # For non-JSON responses, remove the Content-Length header to let the server set it correctly
+            # Based on the response body length when it's sent
+            del response.headers["content-length"]
+        except Exception as e:
+            logger.error(f"Error removing Content-Length header: {e}")
+            
+    return response 

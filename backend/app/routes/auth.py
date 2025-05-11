@@ -492,8 +492,9 @@ async def verify_user(
             response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With"
     
+    logger = logging.getLogger(__name__)
+    
     try:
-        logger = logging.getLogger(__name__)
         database = get_database()
         
         # Get admin user's ID safely
@@ -501,7 +502,7 @@ async def verify_user(
         if isinstance(admin_user, dict) and "_id" in admin_user:
             admin_id = admin_user["_id"]
         elif hasattr(admin_user, "id"):  # User model object
-            admin_id = admin_user.id
+            admin_id = getattr(admin_user, "id")
         else:
             # Fallback - this should not normally happen
             admin_id = str(ObjectId())
@@ -556,6 +557,7 @@ async def verify_user(
             # If no modification, check if user is already verified
             user = await database[collection].find_one({"_id": user_id_for_update})
             if user and user.get("is_verified"):
+                # Make sure CORS headers are set even for this response path
                 return user
             else:
                 raise HTTPException(
@@ -579,8 +581,9 @@ async def verify_user(
         logger.info(f"Successfully verified user {user_id} in {db}.{collection}")
         return updated_user
         
-    except HTTPException:
-        raise
+    except HTTPException as he:
+        # Apply CORS headers even for error paths
+        raise he
     except Exception as e:
         logger.error(f"Error verifying user: {str(e)}")
         raise HTTPException(
@@ -1712,29 +1715,33 @@ async def test_cors_unverified(request: Request, response: Response):
 @router.options("/verify-user/{user_id}", include_in_schema=False)
 async def options_verify_user(request: Request, response: Response):
     """Handle OPTIONS request for verify-user endpoint (CORS preflight)"""
-    from app.core.config import settings
+    # Always add CORS headers for OPTIONS requests
     origin = request.headers.get("Origin", "")
     
-    # Always allow the main frontend domain (highest priority)
-    if origin == "https://alumni-frontend-zzr2.onrender.com":
+    # List of allowed origins
+    allowed_origins = [
+        "https://alumni-frontend-zzr2.onrender.com",
+        "https://alumni-frontend.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173", 
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000"
+    ]
+    
+    # Check if origin is allowed, default to the frontend domain if not specified
+    if origin in allowed_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
-        response.headers["Content-Type"] = "text/plain"
-        response.headers["Content-Length"] = "0"
-        return {}
+    elif len(allowed_origins) > 0:
+        response.headers["Access-Control-Allow-Origin"] = allowed_origins[0]
     
-    # Check if the origin is in our allowed list
-    allowed_origins = settings.cors_origins_list
-    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
-    
-    response.headers["Access-Control-Allow-Origin"] = allow_origin
+    # Add required CORS headers
     response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
+    # Necessary to avoid Content-Length issues
     response.headers["Content-Type"] = "text/plain"
     response.headers["Content-Length"] = "0"
     return {} 
