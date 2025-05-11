@@ -28,59 +28,39 @@ export default function AdminUserVerificationPage() {
     console.log('Starting to fetch unverified users from cvsu_alumni.users database...');
     
     try {
-      console.log('Calling authService.getUnverifiedUsers()');
-      const users = await authService.getUnverifiedUsers();
+      // Add a timeout to prevent UI from hanging indefinitely
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      
+      console.log('Calling authService.getUnverifiedUsers() with timeout');
+      const users = await authService.getUnverifiedUsers(controller.signal);
+      clearTimeout(timeoutId);
+      
       console.log('Response from getUnverifiedUsers:', users);
       console.log('Number of unverified users received:', Array.isArray(users) ? users.length : 'Not an array');
       
       if (Array.isArray(users) && users.length > 0) {
-        console.log('First user in response:', users[0]);
+        console.log('Users received successfully, first user:', users[0]);
         setUnverifiedUsers(users);
       } else {
-        // If API returns empty array, try to fetch specific users directly
-        console.log('API returned no users, attempting to fetch specific users directly');
-        
-        try {
-          // Get API URL from environment variables
-          let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-          baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-          const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
-          
-          // Add a timestamp to prevent caching
-          const timestamp = new Date().getTime();
-          
-          // Try a direct query to fetch unverified users
-          const directUrl = `${apiUrl}/auth/unverified-users?_t=${timestamp}&direct=true`;
-          console.log('Attempting direct user fetch from:', directUrl);
-          
-          const directResponse = await fetch(directUrl, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache'
-            }
-          });
-          
-          if (directResponse.ok) {
-            const directUsers = await directResponse.json();
-            if (Array.isArray(directUsers) && directUsers.length > 0) {
-              console.log(`Direct fetch successful, found ${directUsers.length} users`);
-              setUnverifiedUsers(directUsers);
-              return;
-            }
-          }
-          console.log('Direct fetch failed or returned no users');
-        } catch (directErr) {
-          console.error('Error with direct fetch:', directErr);
-        }
-        
-        // If direct fetch failed, notify the user
+        // If API returns empty array, show appropriate message
+        console.log('API returned no users');
         setUnverifiedUsers([]);
-        setError('No unverified users found. Try refreshing or contact system administrator.');
+        setError('No unverified users found. All users have been verified.');
       }
     } catch (err) {
       console.error('Error fetching unverified users:', err);
-      setError(err.message || 'Failed to load unverified users');
+      
+      if (err.name === 'AbortError') {
+        setError('Request timed out. The server took too long to respond.');
+      } else if (err.response && err.response.status === 413) {
+        setError('Response too large. Please contact administrator to fix backend pagination.');
+      } else if (err.message && err.message.includes('Content-Length')) {
+        setError('Server response error. Please contact administrator to check the backend logs.');
+      } else {
+        setError(err.message || 'Failed to load unverified users. Please try again later.');
+      }
+      
       setUnverifiedUsers([]);
     } finally {
       setLoading(false);

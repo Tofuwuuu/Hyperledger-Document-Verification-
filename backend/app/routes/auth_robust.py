@@ -195,103 +195,16 @@ def get_fallback_users() -> List[Dict[str, Any]]:
     logger = logging.getLogger(__name__)
     logger.info("Using database fallback for user data")
     
-    async def fetch_users_from_db():
-        try:
-            # Get database connection
-            db = get_database()
-            
-            # IDs of known unverified users
-            user_ids = [
-                "681ec28749c2b2c3dd0f500c",  # Joe Marlou
-                "681ec5e5906ca55959123a1a",  # Johndoe
-                "681fa5ae8d75ad66fa728ae7"   # Test
-            ]
-            
-            # Try to fetch users from database
-            users = []
-            for user_id in user_ids:
-                user = await db.users.find_one({"_id": user_id})
-                if user:
-                    # Format the user data
-                    user_data = {
-                        "id": str(user["_id"]),
-                        "_id": str(user["_id"]),
-                        "email": user.get("email", ""),
-                        "full_name": user.get("full_name", ""),
-                        "student_id": user.get("student_id", ""),
-                        "department": user.get("department", ""),
-                        "year_graduated": user.get("year_graduated", ""),
-                        "is_verified": False,
-                        "verification_pending": True
-                    }
-                    
-                    # Add created_at if present
-                    if "created_at" in user:
-                        if isinstance(user["created_at"], datetime):
-                            user_data["created_at"] = user["created_at"].isoformat()
-                        else:
-                            user_data["created_at"] = str(user["created_at"])
-                    
-                    users.append(user_data)
-            
-            return users
-        except Exception as e:
-            logger.error(f"Error fetching fallback users from database: {e}")
-            return []
-    
-    # Run the async function in an event loop
-    import asyncio
-    loop = asyncio.get_event_loop()
-    users = loop.run_until_complete(fetch_users_from_db())
-    
-    # If we couldn't get users from the database, use minimal data
-    if not users:
-        logger.warning("Could not fetch fallback users from database, using minimal data")
-        
-        # Get unverified users from database by is_verified status
-        try:
-            # Try one more time with a synchronous connection
-            # Connect to MongoDB
-            uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-            db_name = os.getenv("DATABASE_NAME", "cvsu_alumni")
-            mongo_client = MongoClient(uri)
-            db = mongo_client[db_name]
-            
-            # Query for unverified users
-            unverified_users = list(db.users.find(
-                {"is_verified": False}, 
-                {"_id": 1, "email": 1, "full_name": 1, "student_id": 1}
-            ).limit(3))
-            
-            if unverified_users:
-                logger.info(f"Found {len(unverified_users)} unverified users with synchronous connection")
-                result = []
-                for user in unverified_users:
-                    result.append({
-                        "id": str(user["_id"]),
-                        "_id": str(user["_id"]),
-                        "email": user.get("email", ""),
-                        "full_name": user.get("full_name", ""),
-                        "student_id": user.get("student_id", ""),
-                        "is_verified": False,
-                        "verification_pending": True
-                    })
-                return result
-                
-        except Exception as e:
-            logger.error(f"Error in synchronous fallback: {e}")
-            
-        # Only if all else fails, return minimal data structure without actual values
-        return [
-            {
-                "id": "",
-                "_id": "",
-                "email": "",
-                "full_name": "User record unavailable",
-                "student_id": "",
-                "is_verified": False,
-                "verification_pending": True
-            }
-        ]
-    
-    return users 
+    # Avoid running async code in a sync function
+    # Return minimal data without trying to access database
+    return [
+        {
+            "id": "placeholder_id_1",
+            "_id": "placeholder_id_1",
+            "email": "placeholder@example.com",
+            "full_name": "Unverified User",
+            "student_id": "Student ID pending",
+            "is_verified": False,
+            "verification_pending": True
+        }
+    ] 

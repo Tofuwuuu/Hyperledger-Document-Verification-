@@ -583,187 +583,75 @@ async def get_unverified_users(
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)  # Set logging level to DEBUG for more details
         
-        # Log headers to help debug authentication issues
-        if request:
-            logger.info(f"Request headers: {dict(request.headers.items())}")
-        
-        admin_email = admin_user.get('email', 'Unknown admin')
-        logger.info(f"Admin authenticated: {admin_email}")
-        logger.info(f"Starting unverified users query with params - db: {db}, collection: {collection}, filter: {filter}")
-        
-        # Parse custom filter if provided
-        custom_filter = {}
-        if filter:
-            try:
-                field, value = filter.split(':', 1)
-                # Convert string value to appropriate type
-                if value.lower() == 'true':
-                    value = True
-                elif value.lower() == 'false':
-                    value = False
-                elif value.isdigit():
-                    value = int(value)
-                custom_filter[field] = value
-                logger.info(f"Using custom filter: {custom_filter}")
-            except Exception as e:
-                logger.error(f"Error parsing custom filter '{filter}': {e}")
-                
         # Get database connection
         database = get_database()
         if not database:
             logger.error("Failed to get database connection")
             return []  # Return empty list instead of raising error
         
-        # Determine which database and collection to use
-        target_db = database
-        if db:
-            logger.info(f"Using custom database: {db}")
-            # For security, we only allow accessing specific databases
-            if db not in ['cvsu_alumni']:
-                logger.error(f"Attempt to access unauthorized database: {db}")
-                raise HTTPException(status_code=403, detail="Access to this database is not allowed")
-                
         # Determine collection to use
         target_collection = 'users'  # Default
-        if collection:
-            logger.info(f"Using custom collection: {collection}")
-            # For security, we only allow accessing specific collections
-            if collection not in ['users', 'alumni']:
-                logger.error(f"Attempt to access unauthorized collection: {collection}")
-                raise HTTPException(status_code=403, detail="Access to this collection is not allowed")
+        if collection and collection in ['users', 'alumni']:
             target_collection = collection
-
-        # Build the query based on custom filter or use default
-        if custom_filter:
-            query = custom_filter
-            logger.info(f"Using custom filter query: {query}")
-        else:
-            # Check if we need to handle a special case with is_verified=false
-            if filter and 'is_verified:false' in filter.lower():
-                query = {"is_verified": False}
-                logger.info(f"Using simplified is_verified=False query")
-            else:
-                query = {"$or": [
-                    {"is_verified": False},
-                    {"is_verified": {"$exists": False}},
-                    {"is_verified": None},
-                    {"verification_pending": True}
-                ]}
-                logger.info(f"Using default $or query: {query}")
             
-        # First check if any matching documents exist with a simple count
-        count = await database[target_collection].count_documents(query)
-        logger.info(f"Found {count} documents matching the query before cursor")
+        # Build a simple query - avoid complex logic that could cause response issues
+        query = {"is_verified": False}
         
-        # Return known unverified users if query returns 0 results
-        if count == 0:
-            logger.warning("No results found despite having unverified users, trying direct query")
-            
-            # Try to get any users with is_verified=False from the database
-            try:
-                direct_query = {"is_verified": False}
-                logger.info(f"Trying direct query by status: {direct_query}")
-                
-                cursor = database[target_collection].find(
-                    direct_query,
-                    {"password": 0, "hashed_password": 0}
-                ).limit(10)
-                
-                users = []
-                async for user in cursor:
-                    # Convert ObjectId to string
-                    if "_id" in user:
-                        user["id"] = str(user["_id"])
-                        user["_id"] = str(user["_id"])
-                    
-                    # Ensure created_at is properly formatted
-                    if "created_at" in user and user["created_at"]:
-                        if isinstance(user["created_at"], datetime):
-                            user["created_at"] = user["created_at"].isoformat()
-                    
-                    users.append(user)
-                
-                if users:
-                    logger.info(f"Found {len(users)} users with direct status query")
-                    return users
-            except Exception as direct_err:
-                logger.error(f"Error executing direct query: {direct_err}")
-                
-        # Execute the query against the specified collection
+        # Execute a simple query with strict limits
         try:
+            # Limit fields returned to reduce response size
+            projection = {
+                "password": 0, 
+                "hashed_password": 0,
+                "reset_token": 0,
+                "reset_token_expires": 0
+            }
+            
+            # Apply a smaller limit to ensure response isn't too large
+            actual_limit = min(limit, 20)
+            
             cursor = database[target_collection].find(
                 query,
-                {"password": 0, "hashed_password": 0}  # Exclude sensitive fields
-            ).sort("created_at", -1).limit(limit)
+                projection
+            ).limit(actual_limit)
             
-            # Convert to list of dicts and format for response
+            # Convert to list of dicts with minimal processing
             users = []
-            async for user in cursor:
-                # Convert ObjectId to string
-                if "_id" in user:
-                    user["id"] = str(user["_id"])
-                    user["_id"] = str(user["_id"])
-                
-                # Ensure created_at is properly formatted
-                if "created_at" in user and user["created_at"]:
-                    if isinstance(user["created_at"], datetime):
-                        user["created_at"] = user["created_at"].isoformat()
-                
-                users.append(user)
-                
-            logger.info(f"Found {len(users)} unverified users after processing cursor")
-            if len(users) > 0:
-                logger.info(f"First unverified user: {users[0].get('email')}")
-            else:
-                logger.warning("No users found despite database having unverified users")
-                
-                # As a last resort, fetch specific records by verification status directly
-                logger.info("Attempting direct fetch of unverified users")
-                try:
-                    # Try direct MongoDB queries for unverified users
-                    specific_users = []
-                    
-                    # Query with different data type variations for is_verified
-                    for query_value in [False, "false", "False", 0, "0"]:
-                        cursor = database[target_collection].find(
-                            {"is_verified": query_value}, 
-                            {"password": 0, "hashed_password": 0}
-                        ).limit(3)
-                        
-                        async for user in cursor:
-                            # Process user record
+            try:
+                async for user in cursor:
+                    # Minimal data transformation to prevent errors
+                    try:
+                        if "_id" in user:
                             user["id"] = str(user["_id"])
                             user["_id"] = str(user["_id"])
-                            user["is_verified"] = False  # Normalize to boolean
-                            user["verification_pending"] = True
-                            if "created_at" in user and isinstance(user["created_at"], datetime):
+                        
+                        # Ensure is_verified is always a boolean
+                        user["is_verified"] = False
+                        
+                        # Format dates if present
+                        if "created_at" in user and user["created_at"]:
+                            if isinstance(user["created_at"], datetime):
                                 user["created_at"] = user["created_at"].isoformat()
-                            specific_users.append(user)
                             
-                        # If we found any users, return them
-                        if specific_users:
-                            logger.info(f"Found {len(specific_users)} users with query value: {query_value}")
-                            return specific_users
-                    
-                    # If we still have no users, return empty list
-                    logger.warning("Could not find any unverified users with any query")
-                    return []
-                    
-                except Exception as e:
-                    logger.error(f"Error in direct fetch: {e}")
-                    return []
-            
+                        users.append(user)
+                    except Exception as transform_err:
+                        logger.error(f"Error transforming user: {transform_err}")
+                        # Skip this user but continue processing others
+                        continue
+            except Exception as cursor_err:
+                logger.error(f"Error processing cursor: {cursor_err}")
+                return []
+                
+            logger.info(f"Found {len(users)} unverified users")
             return users
             
         except Exception as query_err:
             logger.error(f"Error executing query: {query_err}")
             return []
             
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Unexpected error in get_unverified_users: {str(e)}")
-        return []  # Return empty list instead of raising error to avoid frontend crashes
+        return []  # Return empty list to avoid frontend errors
 
 def get_mock_users():
     """Return mock unverified users for testing"""

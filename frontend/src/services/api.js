@@ -174,16 +174,28 @@ export const apiService = {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    // Create a merged config that ensures the abort signal is passed through
+    const mergedConfig = {
+      ...config,
+      timeout: config.timeout || 15000, // Default timeout of 15 seconds
+    };
+    
+    // Add the signal if provided
+    if (config.signal) {
+      mergedConfig.signal = config.signal;
+      console.log('Using abort signal for request');
+    }
+    
     try {
       let response;
       if (method.toLowerCase() === 'get') {
-        response = await api.get(url, config);
+        response = await api.get(url, mergedConfig);
       } else if (method.toLowerCase() === 'post') {
-        response = await api.post(url, data, config);
+        response = await api.post(url, data, mergedConfig);
       } else if (method.toLowerCase() === 'put') {
-        response = await api.put(url, data, config);
+        response = await api.put(url, data, mergedConfig);
       } else if (method.toLowerCase() === 'delete') {
-        response = await api.delete(url, config);
+        response = await api.delete(url, mergedConfig);
       } else {
         throw new Error(`Unsupported method: ${method}`);
       }
@@ -192,6 +204,12 @@ export const apiService = {
       return response;
     } catch (error) {
       console.error('API error:', error);
+      
+      // Check for abort error
+      if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+        console.error('Request aborted or timed out');
+        error.isTimeout = true;
+      }
       
       // Enhanced error handling
       if (error.response) {

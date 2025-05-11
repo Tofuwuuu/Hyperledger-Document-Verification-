@@ -136,7 +136,7 @@ export const changePassword = async (passwordData) => {
 };
 
 // New functions for user verification
-export const getUnverifiedUsers = async () => {
+export const getUnverifiedUsers = async (signal) => {
   try {
     // Get the token and check if it's a valid token
     const token = getToken();
@@ -154,24 +154,24 @@ export const getUnverifiedUsers = async () => {
     headers['X-Admin-Access'] = 'true';
     console.log('Adding X-Admin-Access header for admin verification');
     
-    // Log the full API URL and query parameters
-    const fullUrl = `${API_URL}/auth/unverified-users?db=cvsu_alumni&collection=users&filter=is_verified:false`;
-    console.log('Making API request to:', fullUrl);
+    // Use a simplified query with fewer parameters to reduce response size
+    const simpleUrl = `${API_URL}/auth/unverified-users?limit=10`;
+    console.log('Making API request to:', simpleUrl);
     console.log('Request headers:', headers);
     
     try {
-      // Modify the endpoint to specifically query cvsu_alumni.users with is_verified=false
+      // Use simplified query parameters with smaller limit and timeout support
       const response = await apiService.withCORS(
         'get', 
-        '/auth/unverified-users?db=cvsu_alumni&collection=users&filter=is_verified:false', 
+        '/auth/unverified-users?limit=10', 
         null, 
-        { headers }
+        { 
+          headers,
+          signal // Pass the abort signal for timeout support
+        }
       );
       
       console.log('Unverified users response status:', response.status);
-      console.log('Full response:', response);
-      console.log('Response data type:', typeof response.data);
-      console.log('Is response.data an array?', Array.isArray(response.data));
       
       if (Array.isArray(response.data)) {
         console.log('Number of users in response:', response.data.length);
@@ -188,23 +188,27 @@ export const getUnverifiedUsers = async () => {
     } catch (apiError) {
       console.error('API Error fetching unverified users:', apiError);
       
+      if (apiError.name === 'AbortError' || apiError.code === 'ECONNABORTED') {
+        console.error('Request timed out');
+        throw new Error('Request timed out. Server took too long to respond.');
+      }
+      
       if (apiError.response) {
         console.error('Response status:', apiError.response.status);
         console.error('Response headers:', apiError.response.headers);
-        console.error('Response data:', apiError.response.data);
-      } else if (apiError.request) {
-        console.error('Request was made but no response received');
-        console.error('Request details:', apiError.request);
-      } else {
-        console.error('Error setting up request:', apiError.message);
-      }
+        
+        // Handle specific HTTP errors
+        if (apiError.response.status === 413) {
+          throw new Error('Response too large. Please contact administrator.');
+        }
+      } 
       
-      // Return empty array instead of mock data
-      return [];
+      // Propagate the error for better handling in the component
+      throw apiError;
     }
   } catch (error) {
     console.error('Get unverified users general error:', error);
-    return []; // Return empty array for any other errors
+    throw error; // Propagate the error instead of returning empty array
   }
 };
 
