@@ -35,139 +35,61 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // Get API URLs with fallbacks for possible deployment URLs
-      const baseUrlOptions = [
-        import.meta.env.VITE_API_URL,
+      console.log('Loading unverified users...');
+      
+      // Using axios directly with explicit CORS headers
+      const response = await axios.get(
         'https://final-rkpz.onrender.com/api/v1',
-        'https://alumni-api-klrk.onrender.com/api/v1',
-        'http://localhost:8000/api/v1'
-      ];
-      
-      // Check if we have a user ID
-      const userId = currentUser._id || currentUser.id;
-      
-      if (userId) {
-        console.log(`Attempting to fetch admin profile for user ID: ${userId}`);
-        
-        let profileData = null;
-        let lastError = null;
-        
-        // Try each API URL until one works
-        for (const baseUrl of baseUrlOptions) {
-          if (!baseUrl) continue;
-          
-          const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
-          
-          try {
-            console.log(`Trying API URL: ${apiUrl}`);
-            
-            // Try to get the actual user profile from the API
-            const response = await fetch(`${apiUrl}/admin/users/${userId}`, {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'X-Admin-Bypass': 'true'
-              }
-            });
-            
-            if (response.ok) {
-              profileData = await response.json();
-              console.log('Successfully fetched user profile from API:', profileData);
-              break; // Exit loop on success
-            } else {
-              const errorText = await response.text();
-              console.warn(`Failed with ${response.status} using ${apiUrl}: ${errorText}`);
-              lastError = new Error(`Server returned ${response.status}`);
-            }
-          } catch (apiError) {
-            console.error(`Error fetching user profile from ${apiUrl}:`, apiError);
-            lastError = apiError;
-            // Continue to next URL
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'X-Admin-Bypass': 'true'
           }
         }
+      );
+      
+      if (response.ok) {
+        const data = await response.data;
+        console.log('Successfully fetched user profile from API:', data);
         
-        if (profileData) {
-          // Use the successfully fetched profile data
-          setProfile({
-            id: profileData._id || profileData.id,
-            full_name: profileData.full_name,
-            employee_id: profileData.employee_id || '',
-            department: profileData.department || 'IT Department',
-            position: profileData.position || 'System Administrator',
-            email: profileData.email,
-            phone: profileData.phone || '',
-            address: profileData.address || '',
-            bio: profileData.bio || '',
-            profile_picture: profileData.profile_picture || ''
-          });
-          
-          setInitialProfile({
-            id: profileData._id || profileData.id,
-            full_name: profileData.full_name,
-            employee_id: profileData.employee_id || '',
-            department: profileData.department || 'IT Department',
-            position: profileData.position || 'System Administrator',
-            email: profileData.email,
-            phone: profileData.phone || '',
-            address: profileData.address || '',
-            bio: profileData.bio || '',
-            profile_picture: profileData.profile_picture || ''
-          });
-          
-          // Get the base URL without /api/v1 for profile picture
-          const baseUrl = baseUrlOptions.find(url => url && profileData)?.replace('/api/v1', '') || '';
-          
-          if (profileData.profile_picture) {
-            setPreviewUrl(`${baseUrl}/${profileData.profile_picture}`);
-          }
-          
-          return;
+        setProfile({
+          id: data._id || data.id,
+          full_name: data.full_name,
+          employee_id: data.employee_id || '',
+          department: data.department || 'IT Department',
+          position: data.position || 'System Administrator',
+          email: data.email,
+          phone: data.phone || '',
+          address: data.address || '',
+          bio: data.bio || '',
+          profile_picture: data.profile_picture || ''
+        });
+        
+        setInitialProfile({
+          id: data._id || data.id,
+          full_name: data.full_name,
+          employee_id: data.employee_id || '',
+          department: data.department || 'IT Department',
+          position: data.position || 'System Administrator',
+          email: data.email,
+          phone: data.phone || '',
+          address: data.address || '',
+          bio: data.bio || '',
+          profile_picture: data.profile_picture || ''
+        });
+        
+        // Get the base URL without /api/v1 for profile picture
+        const baseUrl = data.profile_picture ? 'https://final-rkpz.onrender.com' : '';
+        
+        if (data.profile_picture) {
+          setPreviewUrl(`${baseUrl}/${data.profile_picture}`);
         }
-      }
-      
-      // Fallback to using currentUser if API calls fail
-      console.log('Using fallback from currentUser object');
-      const adminData = {
-        _id: currentUser._id || currentUser.id,
-        full_name: currentUser.full_name || 'System Administrator',
-        employee_id: currentUser.employee_id || '',
-        department: currentUser.department || 'IT Department',
-        position: currentUser.position || 'System Administrator',
-        email: currentUser.email || 'admin@cvsu.edu.ph',
-        phone: currentUser.phone || '',
-        address: currentUser.address || '',
-        bio: currentUser.bio || '',
-        profile_picture: currentUser.profile_picture || ''
-      };
-      
-      setProfile({
-        id: adminData._id,
-        full_name: adminData.full_name,
-        employee_id: adminData.employee_id,
-        department: adminData.department,
-        position: adminData.position,
-        email: adminData.email,
-        phone: adminData.phone,
-        address: adminData.address,
-        bio: adminData.bio,
-        profile_picture: adminData.profile_picture
-      });
-      
-      setInitialProfile({
-        id: adminData._id,
-        full_name: adminData.full_name,
-        employee_id: adminData.employee_id,
-        department: adminData.department,
-        position: adminData.position,
-        email: adminData.email,
-        phone: adminData.phone,
-        address: adminData.address,
-        bio: adminData.bio,
-        profile_picture: adminData.profile_picture
-      });
-      
-      if (adminData.profile_picture) {
-        const baseUrl = baseUrlOptions[0]?.replace('/api/v1', '') || '';
-        setPreviewUrl(`${baseUrl}/${adminData.profile_picture}`);
+        
+        return;
+      } else {
+        const errorText = await response.text();
+        console.warn(`Failed with ${response.status} using https://final-rkpz.onrender.com: ${errorText}`);
+        throw new Error(`Server returned ${response.status}`);
       }
     } catch (error) {
       console.error('Error fetching admin profile:', error);
@@ -212,78 +134,55 @@ export default function AdminProfilePage() {
     
     setIsUploading(true);
     try {
-      // Get API URLs with fallbacks for possible deployment URLs
-      const baseUrlOptions = [
-        import.meta.env.VITE_API_URL,
+      console.log('Loading unverified users...');
+      
+      // Using axios directly with explicit CORS headers
+      const response = await axios.get(
         'https://final-rkpz.onrender.com/api/v1',
-        'https://alumni-api-klrk.onrender.com/api/v1',
-        'http://localhost:8000/api/v1'
-      ];
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'X-Admin-Bypass': 'true'
+          }
+        }
+      );
       
-      console.log(`Uploading profile picture for user ID: ${profile.id}`);
-      
-      // Create a FormData object to upload the file
-      const formData = new FormData();
-      formData.append('profile_picture', profilePicture);
-      
-      let response = null;
-      let lastError = null;
-      
-      // Try each API URL until one works
-      for (const baseUrl of baseUrlOptions) {
-        if (!baseUrl) continue;
+      if (response.ok) {
+        const data = await response.data;
+        console.log('Successfully fetched user profile from API:', data);
         
-        const apiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+        // Create a FormData object to upload the file
+        const formData = new FormData();
+        formData.append('profile_picture', profilePicture);
         
-        try {
-          console.log(`Trying API URL for upload: ${apiUrl}`);
-          
-          // Upload the profile picture
-          response = await fetch(`${apiUrl}/admin/users/${profile.id}/profile-picture`, {
-            method: 'POST',
+        // Make the verification API call
+        const verificationResponse = await axios.post(
+          'https://final-rkpz.onrender.com/api/v1',
+          formData,
+          {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'X-Admin-Bypass': 'true'
-            },
-            body: formData
-          });
-          
-          if (response.ok) {
-            console.log(`Successfully uploaded profile picture using: ${apiUrl}`);
-            break; // Exit loop on success
-          } else {
-            const errorText = await response.text();
-            console.warn(`Failed with ${response.status} using ${apiUrl}: ${errorText}`);
-            lastError = new Error(`Server returned ${response.status}`);
+            }
           }
-        } catch (e) {
-          console.warn(`API call failed for ${apiUrl}:`, e);
-          lastError = e;
-          // Continue to the next URL
+        );
+        
+        if (verificationResponse.ok) {
+          console.log('Profile picture uploaded successfully');
+          setSuccessMessage('Profile picture updated successfully!');
+          setProfilePicture(null);
+          
+          // Refetch the profile to get the updated picture URL
+          fetchAdminProfile();
+        } else {
+          const errorText = await verificationResponse.text();
+          console.warn(`Failed with ${verificationResponse.status} using https://final-rkpz.onrender.com: ${errorText}`);
+          throw new Error(`Server returned ${verificationResponse.status}`);
         }
-      }
-      
-      if (response && response.ok) {
-        let result;
-        try {
-          result = await response.json();
-        } catch (e) {
-          console.warn('Could not parse response JSON:', e);
-          result = { success: true };
-        }
-        
-        console.log('Profile picture uploaded successfully:', result);
-        
-        setSuccessMessage('Profile picture updated successfully!');
-        setProfilePicture(null);
-        
-        // Refetch the profile to get the updated picture URL
-        fetchAdminProfile();
       } else {
-        // Handle the case where all attempts failed
-        console.error('All API endpoints failed for profile picture upload');
-        setErrorMessage('Failed to upload profile picture. Please try again later.');
-        throw lastError || new Error('All API endpoints failed');
+        const errorText = await response.text();
+        console.warn(`Failed with ${response.status} using https://final-rkpz.onrender.com: ${errorText}`);
+        throw new Error(`Server returned ${response.status}`);
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
@@ -314,99 +213,72 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // Get the API URL from environment with fallbacks for possible deployment URLs
-      const baseUrlOptions = [
-        import.meta.env.VITE_API_URL,
+      console.log('Loading unverified users...');
+      
+      // Using axios directly with explicit CORS headers
+      const response = await axios.get(
         'https://final-rkpz.onrender.com/api/v1',
-        'https://alumni-api-klrk.onrender.com/api/v1',
-        'http://localhost:8000/api/v1'
-      ];
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'X-Admin-Bypass': 'true'
+          }
+        }
+      );
       
-      // Find the first working URL
-      let apiUrl = baseUrlOptions[0];
-      
-      console.log('Attempting to save profile:', profile);
-      
-      // Format profile data for the API
-      const profileData = {
-        full_name: profile.full_name,
-        email: profile.email,
-        department: profile.department,
-        position: profile.position,
-        phone: profile.phone,
-        address: profile.address,
-        bio: profile.bio,
-        employee_id: profile.employee_id
-      };
-      
-      // Try to update the user with each base URL if needed
-      let response = null;
-      let lastError = null;
-      
-      for (const baseUrl of baseUrlOptions) {
-        if (!baseUrl) continue;
+      if (response.ok) {
+        const data = await response.data;
+        console.log('Successfully fetched user profile from API:', data);
         
-        const currentApiUrl = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+        // Format profile data for the API
+        const profileData = {
+          full_name: profile.full_name,
+          email: profile.email,
+          department: profile.department,
+          position: profile.position,
+          phone: profile.phone,
+          address: profile.address,
+          bio: profile.bio,
+          employee_id: profile.employee_id
+        };
         
-        try {
-          console.log(`Trying API URL: ${currentApiUrl}`);
-          
-          // Make the API call to update the user
-          response = await fetch(`${currentApiUrl}/admin/users/${profile.id}`, {
-            method: 'PUT',
+        // Update the user using the API
+        const updateResponse = await axios.put(
+          'https://final-rkpz.onrender.com/api/v1',
+          profileData,
+          {
             headers: {
-              'Content-Type': 'application/json',
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'X-Admin-Bypass': 'true'
-            },
-            body: JSON.stringify(profileData)
-          });
-          
-          if (response.ok) {
-            console.log(`Successfully updated profile using: ${currentApiUrl}`);
-            break; // If successful, exit the loop
-          } else {
-            const errorText = await response.text();
-            console.warn(`Failed with ${response.status} using ${currentApiUrl}: ${errorText}`);
-            lastError = new Error(`Server returned ${response.status}`);
+            }
           }
-        } catch (e) {
-          console.warn(`API call failed for ${currentApiUrl}:`, e);
-          lastError = e;
-          // Continue to the next URL
+        );
+        
+        if (updateResponse.ok) {
+          console.log('Profile updated successfully');
+          
+          // Update local storage user data to reflect changes
+          const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          const updatedStoredUser = {
+            ...storedUser,
+            ...profileData
+          };
+          localStorage.setItem('user', JSON.stringify(updatedStoredUser));
+          
+          setSuccessMessage('Profile updated successfully!');
+          setIsEditing(false);
+          
+          // Refetch the profile to get the latest data
+          fetchAdminProfile();
+        } else {
+          const errorText = await updateResponse.text();
+          console.warn(`Failed with ${updateResponse.status} using https://final-rkpz.onrender.com: ${errorText}`);
+          throw new Error(`Server returned ${updateResponse.status}`);
         }
-      }
-      
-      if (response && response.ok) {
-        let updatedUser;
-        try {
-          updatedUser = await response.json();
-        } catch (e) {
-          // If we can't parse JSON, still treat as success but with warning
-          console.warn('Could not parse response JSON:', e);
-          updatedUser = { ...profileData, id: profile.id };
-        }
-        
-        console.log('Profile updated successfully:', updatedUser);
-        
-        // Update local storage user data to reflect changes
-        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        const updatedStoredUser = {
-          ...storedUser,
-          ...profileData
-        };
-        localStorage.setItem('user', JSON.stringify(updatedStoredUser));
-        
-        setSuccessMessage('Profile updated successfully!');
-        setIsEditing(false);
-        
-        // Refetch the profile to get the latest data
-        fetchAdminProfile();
       } else {
-        // Handle the case where all attempts failed
-        console.error('All API endpoints failed for profile update');
-        setErrorMessage('Failed to update profile. Please try again later.');
-        throw lastError || new Error('All API endpoints failed');
+        const errorText = await response.text();
+        console.warn(`Failed with ${response.status} using https://final-rkpz.onrender.com: ${errorText}`);
+        throw new Error(`Server returned ${response.status}`);
       }
     } catch (error) {
       console.error('Error updating admin profile:', error);
