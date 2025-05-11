@@ -1,12 +1,19 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Heading, VStack, Box, Text, Button, Spinner, useToast, Center, Table, Thead, Tbody, Tr, Th, Td, Badge, HStack, Link, Input, Textarea } from '@chakra-ui/react';
+import AdminLayout from '../../components/admin/AdminLayout';
+import { format, parseISO } from 'date-fns';
+import { API_URL } from '../../config/api';
+import axios from 'axios';
+import { getToken } from '../../utils/token';
+import UserNotFoundCTA from '../../components/shared/UserNotFoundCTA';
+import { authService, verifyUser } from '../../services/authService';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 
   UserIcon 
 } from '@heroicons/react/24/outline';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import * as authService from '../../services/authService';
 
 export default function AdminUserVerificationPage() {
   const [unverifiedUsers, setUnverifiedUsers] = useState([]);
@@ -19,6 +26,21 @@ export default function AdminUserVerificationPage() {
 
   useEffect(() => {
     console.log('AdminUserVerificationPage component mounted. Fetching unverified users...');
+    
+    // Fetch CSRF token first to ensure it's available for any future requests
+    const fetchCsrfToken = async () => {
+      try {
+        console.log('Fetching CSRF token for admin verification page');
+        const response = await authService.getCsrfToken();
+        console.log('CSRF token obtained:', response ? 'success' : 'failed');
+      } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+        // Continue even if CSRF fetch fails
+      }
+    };
+    
+    // Execute both operations
+    fetchCsrfToken();
     fetchUnverifiedUsers();
   }, []);
 

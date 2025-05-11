@@ -263,9 +263,26 @@ export const verifyUser = async (userId, notes = '') => {
     try {
       console.log(`Sending verification request for userId: ${userId}, notes: ${notes} (Attempt ${attempts + 1}/${maxAttempts})`);
       
+      // Try to get a CSRF token first
+      try {
+        console.log('Fetching CSRF token');
+        await apiService.get('/auth/csrf-token');
+        console.log('CSRF token obtained');
+      } catch (csrfError) {
+        console.warn('Error obtaining CSRF token:', csrfError);
+        // Continue even if CSRF token fetch fails
+      }
+      
       // Set up headers with auth
       const headers = getAuthHeader();
       headers['X-Admin-Access'] = 'true';
+      
+      // Add CSRF token if available
+      const csrfToken = localStorage.getItem('csrf_token');
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+        console.log('Added CSRF token to request');
+      }
       
       // Use withCORS to handle CORS issues better
       const response = await apiService.withCORS(
@@ -300,6 +317,22 @@ export const verifyUser = async (userId, notes = '') => {
       // Track the attempt
       attempts++;
       
+      // Check if it's a CSRF error
+      const isCsrfError = 
+        error.message && error.message.includes('CSRF token missing or invalid');
+      
+      // If it's a CSRF error, try to get a new token before retrying
+      if (isCsrfError && attempts < maxAttempts) {
+        console.log('CSRF error detected, getting new token...');
+        try {
+          await apiService.get('/auth/csrf-token');
+          console.log('New CSRF token obtained, retrying...');
+          continue;
+        } catch (csrfError) {
+          console.error('Failed to get new CSRF token:', csrfError);
+        }
+      }
+      
       // If it's a CORS or network error and we have retries left, wait and retry
       const isCorsOrNetworkError = 
         (error.message && error.message.includes('CORS')) || 
@@ -317,7 +350,9 @@ export const verifyUser = async (userId, notes = '') => {
       }
       
       // If we've exhausted retries or it's not a CORS/network error, throw with helpful message
-      if (error.message && error.message.includes('CORS')) {
+      if (error.message && error.message.includes('CSRF')) {
+        throw new Error('CSRF error: Unable to verify user due to missing or invalid CSRF token. Please try refreshing the page.');
+      } else if (error.message && error.message.includes('CORS')) {
         throw new Error('CORS error: Unable to verify user due to cross-origin restrictions. Please try again.');
       } else if (error.isTimeout || (error.message && error.message.includes('timeout'))) {
         throw new Error('Request timed out. The server took too long to respond.');
@@ -386,6 +421,28 @@ export const resetPassword = async (token, password, confirm_password) => {
     return response.data;
   } catch (error) {
     console.error('Password reset error:', error);
+    throw error;
+  }
+};
+
+export const getCsrfToken = async () => {
+  try {
+    console.log('Getting CSRF token from server');
+    const response = await axios.get(`${API_URL}/auth/csrf-token`, {
+      withCredentials: true,
+    });
+    
+    if (response.data && response.data.csrf_token) {
+      // Store in localStorage for later use
+      localStorage.setItem('csrf_token', response.data.csrf_token);
+      console.log('CSRF token stored in localStorage');
+      return response.data.csrf_token;
+    } else {
+      console.error('Invalid CSRF token response:', response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error getting CSRF token:', error);
     throw error;
   }
 }; 

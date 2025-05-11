@@ -168,14 +168,22 @@ export const apiService = {
     const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
     console.log('Full URL:', fullUrl);
     
+    // Ensure we have headers
+    if (!config.headers) {
+      config.headers = {};
+    }
+    
     // Ensure we're using the token
     const token = localStorage.getItem('token');
     if (token) {
-      // Make sure headers object exists before trying to add to it
-      if (!config.headers) {
-        config.headers = {};
-      }
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add CSRF token if available
+    const csrfToken = localStorage.getItem('csrf_token');
+    if (csrfToken && !config.headers['X-CSRF-Token']) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+      console.log('Added CSRF token to request');
     }
     
     // Create a merged config with specific CORS settings
@@ -224,6 +232,26 @@ export const apiService = {
           console.error('Request aborted or timed out');
           error.isTimeout = true;
           throw error; // Don't retry timeouts or aborted requests
+        }
+        
+        // Check for CSRF errors specifically
+        const isCsrfError = error.response?.data?.detail?.includes('CSRF token');
+        if (isCsrfError && retries < maxRetries) {
+          console.warn('CSRF error detected, will try to get a new token...');
+          
+          try {
+            const tokenResponse = await api.get('/auth/csrf-token');
+            if (tokenResponse.data && tokenResponse.data.csrf_token) {
+              console.log('Successfully got new CSRF token');
+              // Update config with new token
+              mergedConfig.headers['X-CSRF-Token'] = tokenResponse.data.csrf_token;
+              retries++;
+              await new Promise(resolve => setTimeout(resolve, 500));
+              continue;
+            }
+          } catch (tokenError) {
+            console.error('Failed to get new CSRF token:', tokenError);
+          }
         }
         
         // Check for CORS errors specifically
