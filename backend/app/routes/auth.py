@@ -575,11 +575,31 @@ async def get_unverified_users(
     limit: int = Query(50, ge=1, le=100),
     db: str = Query(None, description="Database name (e.g., cvsu_alumni)"),
     collection: str = Query(None, description="Collection name (e.g., users)"),
-    filter: str = Query(None, description="Filter in format field:value (e.g., is_verified:false)")
+    filter: str = Query(None, description="Filter in format field:value (e.g., is_verified:false)"),
+    response: Response = None
 ):
     """
     Get all unverified users (admin only)
     """
+    # Add explicit CORS headers for this endpoint
+    if response and request and "origin" in request.headers:
+        origin = request.headers.get("origin")
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With"
+    
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     
@@ -1582,4 +1602,65 @@ async def test_mongo_query(
         
     except Exception as e:
         logger.error(f"Error in test-mongo-query endpoint: {str(e)}")
-        return {"error": str(e)} 
+        return {"error": str(e)}
+
+@router.options("/unverified-users", include_in_schema=False)
+async def options_unverified_users(request: Request, response: Response):
+    """Handle OPTIONS request for unverified-users endpoint (CORS preflight)"""
+    from app.core.config import settings
+    origin = request.headers.get("Origin", "")
+    
+    # Always allow the main frontend domain (highest priority)
+    if origin == "https://alumni-frontend-zzr2.onrender.com":
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
+        response.headers["Content-Type"] = "text/plain"
+        response.headers["Content-Length"] = "0"
+        return {}
+    
+    # Check if the origin is in our allowed list
+    allowed_origins = settings.cors_origins_list
+    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
+    
+    response.headers["Access-Control-Allow-Origin"] = allow_origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
+    response.headers["Content-Type"] = "text/plain"
+    response.headers["Content-Length"] = "0"
+    return {}
+
+@router.get("/cors-test", tags=["Debug"])
+async def test_cors_unverified(request: Request, response: Response):
+    """Test endpoint to verify CORS is specifically working for the unverified users feature."""
+    # Add explicit CORS headers
+    if request and "origin" in request.headers:
+        origin = request.headers.get("origin")
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    # Return the request headers to help with debugging
+    headers = {k: v for k, v in request.headers.items()}
+    
+    return {
+        "status": "success",
+        "message": "CORS is configured correctly for unverified users if you can see this message",
+        "request_headers": headers,
+        "response_headers": dict(response.headers),
+        "timestamp": datetime.utcnow().isoformat()
+    } 
