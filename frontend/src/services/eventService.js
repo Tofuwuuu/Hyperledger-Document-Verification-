@@ -49,16 +49,6 @@ export const createEvent = async (eventData) => {
   try {
     console.log('Creating event with data:', JSON.stringify(eventData));
     
-    // Try to get a CSRF token first
-    try {
-      console.log('Fetching CSRF token for event creation');
-      await api.get('/auth/csrf-token');
-      console.log('CSRF token obtained');
-    } catch (csrfError) {
-      console.warn('Error obtaining CSRF token:', csrfError);
-      // Continue even if CSRF token fetch fails
-    }
-    
     // Make sure all date fields are properly formatted
     const cleanedData = {
       ...eventData,
@@ -77,18 +67,27 @@ export const createEvent = async (eventData) => {
     
     console.log('Sending cleaned event data:', JSON.stringify(cleanedData));
     
-    // Add CSRF token if available
-    const csrfToken = localStorage.getItem('csrf_token');
-    const headers = {};
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
-      console.log('Added CSRF token to request');
+    // First, explicitly fetch a CSRF token and ensure it's stored
+    try {
+      const tokenResponse = await api.get('/auth/csrf-token', { 
+        withCredentials: true 
+      });
+      
+      if (tokenResponse.data && tokenResponse.data.csrf_token) {
+        localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
+        console.log('CSRF token obtained and stored:', tokenResponse.data.csrf_token);
+      }
+    } catch (csrfError) {
+      console.warn('Error obtaining initial CSRF token:', csrfError);
+      // Continue anyway, the withCORS method will retry
     }
     
-    // Use api instance to include admin headers
-    const response = await api.post(`/events`, cleanedData, {
-      headers,
-      timeout: 10000 // 10 second timeout
+    // Import apiService from the current file's context
+    const { apiService } = await import('./api');
+    
+    // Use the withCORS method which has built-in CSRF handling and retries
+    const response = await apiService.withCORS('post', '/events', cleanedData, {
+      timeout: 15000 // Increase timeout to 15 seconds
     });
     
     console.log('Event creation successful:', response.data);
@@ -96,13 +95,13 @@ export const createEvent = async (eventData) => {
   } catch (error) {
     console.error('Error creating event:', error);
     if (error.response) {
-      console.error('Response data:', error.response.data);
-      console.error('Response status:', error.response.status);
-      console.error('Response headers:', error.response.headers);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+      console.error('Response headers:', error.response?.headers);
       
       // If it's a CSRF error, provide a more helpful error message
-      if (error.response.status === 403 && 
-          error.response.data?.detail?.includes('CSRF token')) {
+      if (error.response?.status === 403 && 
+          error.response?.data?.detail?.includes('CSRF token')) {
         error.userMessage = 'CSRF validation failed. Please try refreshing the page and submitting again.';
       }
     } else if (error.request) {
@@ -116,28 +115,27 @@ export const updateEvent = async (eventId, eventData) => {
   try {
     console.log(`Updating event ${eventId} with data:`, JSON.stringify(eventData));
     
-    // Try to get a CSRF token first
+    // First, explicitly fetch a CSRF token and ensure it's stored
     try {
-      console.log('Fetching CSRF token for event update');
-      await api.get('/auth/csrf-token');
-      console.log('CSRF token obtained');
+      const tokenResponse = await api.get('/auth/csrf-token', { 
+        withCredentials: true 
+      });
+      
+      if (tokenResponse.data && tokenResponse.data.csrf_token) {
+        localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
+        console.log('CSRF token obtained and stored:', tokenResponse.data.csrf_token);
+      }
     } catch (csrfError) {
-      console.warn('Error obtaining CSRF token:', csrfError);
-      // Continue even if CSRF token fetch fails
+      console.warn('Error obtaining initial CSRF token:', csrfError);
+      // Continue anyway, the withCORS method will retry
     }
     
-    // Add CSRF token if available
-    const csrfToken = localStorage.getItem('csrf_token');
-    const headers = {};
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
-      console.log('Added CSRF token to request');
-    }
+    // Import apiService from the current file's context
+    const { apiService } = await import('./api');
     
-    // Use api instance to include admin headers
-    const response = await api.put(`/events/${eventId}`, eventData, {
-      headers,
-      timeout: 10000 // 10 second timeout
+    // Use the withCORS method which has built-in CSRF handling and retries
+    const response = await apiService.withCORS('put', `/events/${eventId}`, eventData, {
+      timeout: 15000 // Increase timeout to 15 seconds
     });
     
     console.log('Event update successful:', response.data);
@@ -145,12 +143,12 @@ export const updateEvent = async (eventId, eventData) => {
   } catch (error) {
     console.error(`Error updating event with ID ${eventId}:`, error);
     if (error.response) {
-      console.error('Response data:', error.response.data);
-      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
       
       // If it's a CSRF error, provide a more helpful error message
-      if (error.response.status === 403 && 
-          error.response.data?.detail?.includes('CSRF token')) {
+      if (error.response?.status === 403 && 
+          error.response?.data?.detail?.includes('CSRF token')) {
         error.userMessage = 'CSRF validation failed. Please try refreshing the page and submitting again.';
       }
     }
@@ -162,28 +160,27 @@ export const deleteEvent = async (eventId) => {
   try {
     console.log(`Deleting event ${eventId}`);
     
-    // Try to get a CSRF token first
+    // First, explicitly fetch a CSRF token and ensure it's stored
     try {
-      console.log('Fetching CSRF token for event deletion');
-      await api.get('/auth/csrf-token');
-      console.log('CSRF token obtained');
+      const tokenResponse = await api.get('/auth/csrf-token', { 
+        withCredentials: true 
+      });
+      
+      if (tokenResponse.data && tokenResponse.data.csrf_token) {
+        localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
+        console.log('CSRF token obtained and stored:', tokenResponse.data.csrf_token);
+      }
     } catch (csrfError) {
-      console.warn('Error obtaining CSRF token:', csrfError);
-      // Continue even if CSRF token fetch fails
+      console.warn('Error obtaining initial CSRF token:', csrfError);
+      // Continue anyway, the withCORS method will retry
     }
     
-    // Add CSRF token if available
-    const csrfToken = localStorage.getItem('csrf_token');
-    const headers = {};
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
-      console.log('Added CSRF token to request');
-    }
+    // Import apiService from the current file's context
+    const { apiService } = await import('./api');
     
-    // Use api instance to include admin headers
-    const response = await api.delete(`/events/${eventId}`, {
-      headers,
-      timeout: 10000 // 10 second timeout
+    // Use the withCORS method which has built-in CSRF handling and retries
+    const response = await apiService.withCORS('delete', `/events/${eventId}`, null, {
+      timeout: 15000 // Increase timeout to 15 seconds
     });
     
     console.log('Event deletion successful');
@@ -191,12 +188,12 @@ export const deleteEvent = async (eventId) => {
   } catch (error) {
     console.error(`Error deleting event with ID ${eventId}:`, error);
     if (error.response) {
-      console.error('Response data:', error.response.data);
-      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
       
       // If it's a CSRF error, provide a more helpful error message
-      if (error.response.status === 403 && 
-          error.response.data?.detail?.includes('CSRF token')) {
+      if (error.response?.status === 403 && 
+          error.response?.data?.detail?.includes('CSRF token')) {
         error.userMessage = 'CSRF validation failed. Please try refreshing the page and submitting again.';
       }
     }
