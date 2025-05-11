@@ -1,7 +1,25 @@
-from fastapi import Request
+from fastapi import Request, FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import logging
+import os
+from app.api.api import api_router
+from app.core.config import settings
 
+# Initialize FastAPI app
+app = FastAPI(title="Alumni System API")
+
+# Set up CORS
+origins = os.getenv("CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Set up logging
 logger = logging.getLogger(__name__)
 
 @app.middleware("http")
@@ -55,3 +73,10 @@ async def csrf_middleware(request: Request, call_next):
     # Continue with the request
     logger.info(f"CSRF validation PASSED for {request.method} {request_path}")
     return await call_next(request) 
+
+# Include API router
+app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Alumni System API. Go to /docs for the API documentation."} 
