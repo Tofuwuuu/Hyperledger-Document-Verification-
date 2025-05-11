@@ -73,4 +73,17 @@ from .role import (
     RoleOut,
     AssignPermissionRequest,
     RolePaginatedResponse
+)
+
+# Import event schemas
+from .event import (
+    EventBase,
+    EventCreate,
+    EventUpdate,
+    EventInDB,
+    EventOut,
+    EventSearchParams,
+    EventSearchResult,
+    RegistrationCreate,
+    RegistrationOut
 ) 
