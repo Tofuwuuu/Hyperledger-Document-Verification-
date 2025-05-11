@@ -212,35 +212,44 @@ async def mongo_heartbeat():
 # Setup events
 @app.on_event("startup")
 async def startup_db_client():
-    """
-    Connect to the database and initialize startup services.
-    This function handles database connection, database initialization,
-    and starts background tasks.
-    """
-    logger.info("Application starting up...")
+    """Connect to MongoDB on startup."""
+    # Clear handlers to prevent duplicated logs 
+    logging.getLogger("uvicorn").handlers.clear()
     
-    # Attempt to connect to MongoDB
-    connection_success = await connect_to_mongo()
+    # Set up MongoDB connection
+    logging.info("Starting application, connecting to MongoDB...")
     
-    if connection_success:
-        try:
-            # Initialize database structure
-            await initialize_database()
-            # Create database indexes for performance
-            await create_indexes()
-            # Initialize roles and permissions
-            await init_permissions()
-            logger.info("Database initialization completed successfully")
-        except Exception as e:
-            logger.error(f"Error during database initialization: {e}")
-            logger.warning("Continuing with limited functionality")
-    else:
-        logger.warning("Database connection failed, starting with limited functionality")
+    # Connect to MongoDB
+    connected = await connect_to_mongo()
+    
+    # Add enhanced logging for MongoDB
+    if connected:
+        logging.info("MongoDB connection successful!")
         
-    # Start the heartbeat task - this will try to reconnect if needed
-    asyncio.create_task(mongo_heartbeat())
-    
-    logger.info("Application startup completed")
+        # Log MongoDB version to verify we're connecting to the right database
+        try:
+            db = get_database()
+            if db is not None:  # Using proper check
+                server_info = await db.command("serverStatus")
+                version = server_info.get("version", "Unknown")
+                logging.info(f"Connected to MongoDB version: {version}")
+                
+                # Log collection stats
+                collections = await db.list_collection_names()
+                logging.info(f"Available collections: {collections}")
+                
+                # Check for unverified users to help with debugging
+                try:
+                    unverified_count = await db.users.count_documents({"is_verified": False})
+                    logging.info(f"Found {unverified_count} unverified users in database")
+                except Exception as e:
+                    logging.error(f"Error checking unverified users: {e}")
+            else:
+                logging.error("Database connection object is None despite successful connection")
+        except Exception as e:
+            logging.error(f"Error getting MongoDB server info: {e}")
+    else:
+        logging.error("Failed to connect to MongoDB during startup")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

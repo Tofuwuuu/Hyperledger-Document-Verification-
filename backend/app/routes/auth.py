@@ -7,6 +7,7 @@ import logging
 import uuid
 import secrets
 import jwt
+import os
 
 from app.schemas import (
     UserCreate, 
@@ -579,21 +580,50 @@ async def get_unverified_users(
     """
     Get all unverified users (admin only)
     """
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    
+    # Enhanced debugging for unverified users endpoint
+    logger.info("==== UNVERIFIED USERS ENDPOINT CALLED ====")
+    logger.info(f"Request headers: {dict(request.headers) if request else 'No request object'}")
+    logger.info(f"Admin user ID: {admin_user.get('_id', 'Unknown')}, Email: {admin_user.get('email', 'Unknown')}")
+    logger.info(f"Parameters: limit={limit}, db={db}, collection={collection}, filter={filter}")
+    
     try:
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.DEBUG)  # Set logging level to DEBUG for more details
-        
         # Get database connection
         database = get_database()
-        if not database:
+        if database is None:  # Fixed: MongoDB objects don't support boolean testing
             logger.error("Failed to get database connection")
             return []  # Return empty list instead of raising error
         
-        # Build a minimal query
+        # Build query for unverified users
         query = {"is_verified": False}
+        logger.info(f"Using query: {query}")
+        
+        # Log current user verification status across the database
+        try:
+            total_users = await database.users.count_documents({})
+            unverified_users = await database.users.count_documents({"is_verified": False})
+            verification_pending = await database.users.count_documents({"verification_pending": True})
+            
+            logger.info(f"Database stats - Total users: {total_users}, Unverified: {unverified_users}, Pending verification: {verification_pending}")
+            
+            # Log all unverified users for debugging
+            unverified_cursor = database.users.find({"is_verified": False})
+            logger.info("Unverified users found in database:")
+            count = 0
+            async for u in unverified_cursor:
+                count += 1
+                logger.info(f"  User {count}: ID={u.get('_id')}, Email={u.get('email')}, Name={u.get('full_name')}")
+                if count >= 5:  # Limit to first 5 users
+                    break
+                    
+        except Exception as stats_err:
+            logger.error(f"Error getting database stats: {stats_err}")
         
         # Use a very small limit to prevent response size issues
         actual_limit = min(limit, 10)  # Never return more than 10 users at once
+        logger.info(f"Using actual limit: {actual_limit}")
         
         try:
             # Use a strict projection to only return necessary fields
@@ -604,26 +634,29 @@ async def get_unverified_users(
                 "student_id": 1, 
                 "created_at": 1,
                 "is_verified": 1
+                # Remove any additional fields to control response size
             }
             
-            # Find users and convert to list immediately to handle cursor errors
+            # Control content length by limiting fields and result set size
+            logger.info(f"Executing find query for unverified users with projection: {projection}")
             cursor = database.users.find(query, projection).limit(actual_limit)
             
             # Process results carefully
             users = []
             try:
-                # Convert cursor to list with timeout
+                # Convert cursor to list with stricter limit
+                logger.info("Converting cursor to list...")
                 raw_users = await cursor.to_list(length=actual_limit)
+                logger.info(f"Found {len(raw_users)} raw user records")
                 
-                # Process each user minimally
+                # Process each user minimally - only include essential fields
                 for raw_user in raw_users:
-                    # Create a new object with only essential data
+                    # Create a new object with only essential data and control string lengths
                     user = {
                         "id": str(raw_user["_id"]),
-                        "_id": str(raw_user["_id"]),
-                        "email": raw_user.get("email", ""),
-                        "full_name": raw_user.get("full_name", ""),
-                        "student_id": raw_user.get("student_id", ""),
+                        "email": raw_user.get("email", "")[:100],  # Limit string length
+                        "full_name": raw_user.get("full_name", "")[:100],  # Limit string length
+                        "student_id": raw_user.get("student_id", "")[:20],  # Limit string length
                         "is_verified": False  # Always false for this endpoint
                     }
                     
@@ -637,8 +670,13 @@ async def get_unverified_users(
                     
                     users.append(user)
                 
+                # If users array is empty, check if MOCK_DATA env var is set for testing
+                if not users and os.getenv("RETURN_MOCK_UNVERIFIED_USERS", "").lower() == "true":
+                    logger.info("No users found but RETURN_MOCK_UNVERIFIED_USERS is true, returning mock data")
+                    return get_mock_users()
+                
                 # Log for debugging    
-                logger.info(f"Found {len(users)} unverified users with minimal fields")
+                logger.info(f"Returning {len(users)} unverified users with minimal fields")
                 return users
                 
             except Exception as process_err:
