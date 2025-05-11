@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Heading, VStack, Box, Text, Button, Spinner, useToast, Center, Table, Thead, Tbody, Tr, Th, Td, Badge, HStack, Link, Input, Textarea } from '@chakra-ui/react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { format, parseISO } from 'date-fns';
-import { API_URL } from '../../config/api';
+import { API_URL } from '../../services/api';
 import axios from 'axios';
 import { getToken } from '../../utils/token';
 import UserNotFoundCTA from '../../components/shared/UserNotFoundCTA';
