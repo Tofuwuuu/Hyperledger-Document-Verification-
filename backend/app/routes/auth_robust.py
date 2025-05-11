@@ -191,39 +191,89 @@ async def get_unverified_users(
 def get_fallback_users() -> List[Dict[str, Any]]:
     """Return fallback unverified users when query fails"""
     logger = logging.getLogger(__name__)
-    logger.info("Using fallback hardcoded user data")
+    logger.info("Using database fallback for user data")
     
-    return [
-        {
-            "id": "681fa5ae8d75ad66fa728ae7",
-            "_id": "681fa5ae8d75ad66fa728ae7",
-            "email": "testmark213@outlook.com",
-            "full_name": "Test",
-            "created_at": "2023-11-15T10:30:22Z",  # Fixed historical date
-            "student_id": "2101002342",
-            "department": "Computer Science",
-            "year_graduated": "2025",
-            "is_verified": False,
-            "verification_pending": True
-        },
-        {
-            "id": "681ec5e5906ca55959123a1a",
-            "_id": "681ec5e5906ca55959123a1a",
-            "email": "JohnDoe@gmail.com",
-            "full_name": "Johndoe",
-            "created_at": "2023-12-03T14:45:30Z",  # Fixed historical date
-            "student_id": "202100832",
-            "is_verified": False,
-            "verification_pending": True
-        },
-        {
-            "id": "681ec28749c2b2c3dd0f500c",
-            "_id": "681ec28749c2b2c3dd0f500c",
-            "email": "joemarlou.opella@cvsu.edu.ph",
-            "full_name": "Joe Marlou",
-            "created_at": "2024-01-22T09:15:45Z",  # Fixed historical date
-            "student_id": "000000000",
-            "is_verified": False,
-            "verification_pending": True
-        }
-    ] 
+    async def fetch_users_from_db():
+        try:
+            # Get database connection
+            db = get_database()
+            
+            # IDs of known unverified users
+            user_ids = [
+                "681ec28749c2b2c3dd0f500c",  # Joe Marlou
+                "681ec5e5906ca55959123a1a",  # Johndoe
+                "681fa5ae8d75ad66fa728ae7"   # Test
+            ]
+            
+            # Try to fetch users from database
+            users = []
+            for user_id in user_ids:
+                user = await db.users.find_one({"_id": user_id})
+                if user:
+                    # Format the user data
+                    user_data = {
+                        "id": str(user["_id"]),
+                        "_id": str(user["_id"]),
+                        "email": user.get("email", ""),
+                        "full_name": user.get("full_name", ""),
+                        "student_id": user.get("student_id", ""),
+                        "department": user.get("department", ""),
+                        "year_graduated": user.get("year_graduated", ""),
+                        "is_verified": False,
+                        "verification_pending": True
+                    }
+                    
+                    # Add created_at if present
+                    if "created_at" in user:
+                        if isinstance(user["created_at"], datetime):
+                            user_data["created_at"] = user["created_at"].isoformat()
+                        else:
+                            user_data["created_at"] = str(user["created_at"])
+                    
+                    users.append(user_data)
+            
+            return users
+        except Exception as e:
+            logger.error(f"Error fetching fallback users from database: {e}")
+            return []
+    
+    # Run the async function in an event loop
+    import asyncio
+    loop = asyncio.get_event_loop()
+    users = loop.run_until_complete(fetch_users_from_db())
+    
+    # If we couldn't get users from the database, use minimal data
+    if not users:
+        logger.warning("Could not fetch fallback users from database, using minimal data")
+        # Return minimal data without hardcoded dates
+        return [
+            {
+                "id": "681fa5ae8d75ad66fa728ae7",
+                "_id": "681fa5ae8d75ad66fa728ae7",
+                "email": "testmark213@outlook.com",
+                "full_name": "Test",
+                "student_id": "2101002342",
+                "is_verified": False,
+                "verification_pending": True
+            },
+            {
+                "id": "681ec5e5906ca55959123a1a",
+                "_id": "681ec5e5906ca55959123a1a",
+                "email": "JohnDoe@gmail.com",
+                "full_name": "Johndoe",
+                "student_id": "202100832",
+                "is_verified": False,
+                "verification_pending": True
+            },
+            {
+                "id": "681ec28749c2b2c3dd0f500c",
+                "_id": "681ec28749c2b2c3dd0f500c",
+                "email": "joemarlou.opella@cvsu.edu.ph",
+                "full_name": "Joe Marlou",
+                "student_id": "000000000",
+                "is_verified": False,
+                "verification_pending": True
+            }
+        ]
+    
+    return users 

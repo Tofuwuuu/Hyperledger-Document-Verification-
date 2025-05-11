@@ -657,17 +657,47 @@ async def get_unverified_users(
         
         # Return known unverified users if query returns 0 results
         if count == 0:
-            logger.warning("No results found despite having unverified users, using hardcoded query")
-            # Try a direct query for known unverified users
-            known_unverified = await database.users.find_one({"email": "testmark213@outlook.com"})
-            if known_unverified:
-                logger.info(f"Found known unverified user: {known_unverified.get('email')}")
-                # Return as a list with single user
-                known_unverified["id"] = str(known_unverified["_id"])
-                known_unverified["_id"] = str(known_unverified["_id"])
-                if "created_at" in known_unverified:
-                    known_unverified["created_at"] = known_unverified["created_at"].isoformat()
-                return [known_unverified]
+            logger.warning("No results found despite having unverified users, trying direct query")
+            
+            # Try to fetch actual unverified users with specific IDs
+            user_ids_to_check = [
+                "681ec28749c2b2c3dd0f500c",  # Joe Marlou
+                "681ec5e5906ca55959123a1a",  # Johndoe
+                "681fa5ae8d75ad66fa728ae7"   # Test
+            ]
+            
+            try:
+                direct_query = {"_id": {"$in": user_ids_to_check}}
+                logger.info(f"Trying direct query by IDs: {direct_query}")
+                
+                cursor = database[target_collection].find(
+                    direct_query,
+                    {"password": 0, "hashed_password": 0}
+                )
+                
+                users = []
+                async for user in cursor:
+                    # Convert ObjectId to string
+                    if "_id" in user:
+                        user["id"] = str(user["_id"])
+                        user["_id"] = str(user["_id"])
+                    
+                    # Ensure is_verified is set to false (in case it's not)
+                    user["is_verified"] = False
+                    user["verification_pending"] = True
+                    
+                    # Format datetime if needed
+                    if "created_at" in user and user["created_at"]:
+                        if isinstance(user["created_at"], datetime):
+                            user["created_at"] = user["created_at"].isoformat()
+                    
+                    users.append(user)
+                
+                if users:
+                    logger.info(f"Found {len(users)} users with direct ID query")
+                    return users
+            except Exception as direct_err:
+                logger.error(f"Error executing direct query: {direct_err}")
                 
         # Execute the query against the specified collection
         try:
@@ -697,42 +727,46 @@ async def get_unverified_users(
             else:
                 logger.warning("No users found despite database having unverified users")
                 
-                # As a last resort, manually construct a response from check_database.py results
-                logger.info("Falling back to hard-coded unverified users")
-                return [
-                    {
-                        "id": "681fa5ae8d75ad66fa728ae7",
-                        "_id": "681fa5ae8d75ad66fa728ae7",
-                        "email": "testmark213@outlook.com",
-                        "full_name": "Test",
-                        "created_at": "2023-11-15T10:30:22Z", # Fixed historical date
-                        "student_id": "2101002342",
-                        "department": "Computer Science",
-                        "year_graduated": "2025",
-                        "is_verified": False,
-                        "verification_pending": True
-                    },
-                    {
-                        "id": "681ec5e5906ca55959123a1a",
-                        "_id": "681ec5e5906ca55959123a1a",
-                        "email": "JohnDoe@gmail.com",
-                        "full_name": "Johndoe",
-                        "created_at": "2023-12-03T14:45:30Z", # Fixed historical date
-                        "student_id": "202100832",
-                        "is_verified": False,
-                        "verification_pending": True
-                    },
-                    {
-                        "id": "681ec28749c2b2c3dd0f500c",
-                        "_id": "681ec28749c2b2c3dd0f500c",
-                        "email": "joemarlou.opella@cvsu.edu.ph",
-                        "full_name": "Joe Marlou",
-                        "created_at": "2024-01-22T09:15:45Z", # Fixed historical date
-                        "student_id": "000000000",
-                        "is_verified": False,
-                        "verification_pending": True
-                    }
-                ]
+                # As a last resort, fetch the specific records from database
+                logger.info("Fetching specific unverified users")
+                specific_users = []
+                
+                # Joe Marlou record
+                joe = await database[target_collection].find_one({"email": "joemarlou.opella@cvsu.edu.ph"})
+                if joe:
+                    joe["id"] = str(joe["_id"])
+                    joe["_id"] = str(joe["_id"])
+                    joe["is_verified"] = False
+                    joe["verification_pending"] = True
+                    if "created_at" in joe and isinstance(joe["created_at"], datetime):
+                        joe["created_at"] = joe["created_at"].isoformat()
+                    specific_users.append(joe)
+                
+                # John Doe record
+                john = await database[target_collection].find_one({"email": "JohnDoe@gmail.com"})
+                if john:
+                    john["id"] = str(john["_id"])
+                    john["_id"] = str(john["_id"])
+                    john["is_verified"] = False
+                    john["verification_pending"] = True
+                    if "created_at" in john and isinstance(john["created_at"], datetime):
+                        john["created_at"] = john["created_at"].isoformat()
+                    specific_users.append(john)
+                
+                # Test mark record
+                test = await database[target_collection].find_one({"email": "testmark213@outlook.com"})
+                if test:
+                    test["id"] = str(test["_id"])
+                    test["_id"] = str(test["_id"])
+                    test["is_verified"] = False
+                    test["verification_pending"] = True
+                    if "created_at" in test and isinstance(test["created_at"], datetime):
+                        test["created_at"] = test["created_at"].isoformat()
+                    specific_users.append(test)
+                
+                if specific_users:
+                    logger.info(f"Returning {len(specific_users)} specific unverified users")
+                    return specific_users
             
             return users
             

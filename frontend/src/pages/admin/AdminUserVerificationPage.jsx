@@ -37,90 +37,51 @@ export default function AdminUserVerificationPage() {
         console.log('First user in response:', users[0]);
         setUnverifiedUsers(users);
       } else {
-        // If API returns empty array, use hardcoded list of known unverified users
-        console.log('API returned no users, using hardcoded unverified users list');
+        // If API returns empty array, try to fetch specific users directly
+        console.log('API returned no users, attempting to fetch specific users directly');
         
-        const hardcodedUsers = [
-          {
-            id: "681fa5ae8d75ad66fa728ae7",
-            _id: "681fa5ae8d75ad66fa728ae7",
-            email: "testmark213@outlook.com",
-            full_name: "Test",
-            created_at: "2023-11-15T10:30:22Z",
-            student_id: "2101002342",
-            department: "Computer Science",
-            year_graduated: "2025",
-            is_verified: false,
-            verification_pending: true
-          },
-          {
-            id: "681ec5e5906ca55959123a1a",
-            _id: "681ec5e5906ca55959123a1a",
-            email: "JohnDoe@gmail.com",
-            full_name: "Johndoe",
-            created_at: "2023-12-03T14:45:30Z",
-            student_id: "202100832",
-            is_verified: false,
-            verification_pending: true
-          },
-          {
-            id: "681ec28749c2b2c3dd0f500c",
-            _id: "681ec28749c2b2c3dd0f500c",
-            email: "joemarlou.opella@cvsu.edu.ph",
-            full_name: "Joe Marlou",
-            created_at: "2024-01-22T09:15:45Z",
-            student_id: "000000000",
-            is_verified: false,
-            verification_pending: true
+        try {
+          // Get API URL from environment variables
+          let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+          baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+          const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+          
+          // Add a timestamp to prevent caching
+          const timestamp = new Date().getTime();
+          
+          // Try a direct query to fetch unverified users
+          const directUrl = `${apiUrl}/auth/unverified-users?_t=${timestamp}&direct=true`;
+          console.log('Attempting direct user fetch from:', directUrl);
+          
+          const directResponse = await fetch(directUrl, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          if (directResponse.ok) {
+            const directUsers = await directResponse.json();
+            if (Array.isArray(directUsers) && directUsers.length > 0) {
+              console.log(`Direct fetch successful, found ${directUsers.length} users`);
+              setUnverifiedUsers(directUsers);
+              return;
+            }
           }
-        ];
+          console.log('Direct fetch failed or returned no users');
+        } catch (directErr) {
+          console.error('Error with direct fetch:', directErr);
+        }
         
-        setUnverifiedUsers(hardcodedUsers);
-        console.log('Using hardcoded users:', hardcodedUsers.length);
+        // If direct fetch failed, notify the user
+        setUnverifiedUsers([]);
+        setError('No unverified users found. Try refreshing or contact system administrator.');
       }
     } catch (err) {
       console.error('Error fetching unverified users:', err);
       setError(err.message || 'Failed to load unverified users');
-      
-      // Even if there's an error, use hardcoded users as fallback
-      console.log('Error occurred, using hardcoded unverified users as fallback');
-      
-      const fallbackUsers = [
-        {
-          id: "681fa5ae8d75ad66fa728ae7",
-          _id: "681fa5ae8d75ad66fa728ae7",
-          email: "testmark213@outlook.com",
-          full_name: "Test",
-          created_at: "2023-11-15T10:30:22Z",
-          student_id: "2101002342",
-          department: "Computer Science",
-          year_graduated: "2025",
-          is_verified: false,
-          verification_pending: true
-        },
-        {
-          id: "681ec5e5906ca55959123a1a",
-          _id: "681ec5e5906ca55959123a1a",
-          email: "JohnDoe@gmail.com",
-          full_name: "Johndoe",
-          created_at: "2023-12-03T14:45:30Z",
-          student_id: "202100832",
-          is_verified: false,
-          verification_pending: true
-        },
-        {
-          id: "681ec28749c2b2c3dd0f500c",
-          _id: "681ec28749c2b2c3dd0f500c",
-          email: "joemarlou.opella@cvsu.edu.ph",
-          full_name: "Joe Marlou",
-          created_at: "2024-01-22T09:15:45Z",
-          student_id: "000000000",
-          is_verified: false,
-          verification_pending: true
-        }
-      ];
-      
-      setUnverifiedUsers(fallbackUsers);
+      setUnverifiedUsers([]);
     } finally {
       setLoading(false);
     }
