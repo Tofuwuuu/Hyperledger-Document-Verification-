@@ -5,7 +5,7 @@ import { format, parseISO } from 'date-fns';
 import { API_URL } from '../../services/api';
 import axios from 'axios';
 import { getAuthTokens } from '../../utils/authUtils';
-import { authService, verifyUser } from '../../services/authService';
+import { getUnverifiedUsers, verifyUser, getCsrfToken } from '../../services/authService';
 import { 
   CheckCircleIcon, 
   XCircleIcon, 
@@ -30,7 +30,7 @@ export default function AdminUserVerificationPage() {
     const fetchCsrfToken = async () => {
       try {
         console.log('Fetching CSRF token for admin verification page');
-        const response = await authService.getCsrfToken();
+        const response = await getCsrfToken();
         console.log('CSRF token obtained:', response ? 'success' : 'failed');
       } catch (error) {
         console.error('Error fetching CSRF token:', error);
@@ -98,8 +98,8 @@ export default function AdminUserVerificationPage() {
         controller.abort();
       }, 15000); // 15s timeout
       
-      console.log('Calling authService.getUnverifiedUsers() with timeout');
-      const users = await authService.getUnverifiedUsers(controller.signal);
+      console.log('Calling getUnverifiedUsers() with timeout');
+      const users = await getUnverifiedUsers(controller.signal);
       clearTimeout(timeoutId);
       
       console.log('Response from getUnverifiedUsers:', users);
@@ -230,7 +230,7 @@ export default function AdminUserVerificationPage() {
       console.log('Starting verification process for user:', selectedUser);
       
       // Call API to verify the user
-      const response = await authService.verifyUser(selectedUser.id, verificationNote);
+      const response = await verifyUser(selectedUser.id, verificationNote);
       console.log('Verification API response:', response);
       
       toast.success(`User ${selectedUser.full_name || selectedUser.email} verified successfully`);
