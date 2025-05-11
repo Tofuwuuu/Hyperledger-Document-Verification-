@@ -5,19 +5,24 @@ import logging
 import os
 from app.api.api import api_router
 from app.core.config import settings
+from app.cors_middleware import add_cors_middleware
 
 # Initialize FastAPI app
 app = FastAPI(title="Alumni System API")
 
-# Set up CORS
-origins = os.getenv("CORS_ORIGINS", "*").split(",")
+# Set up CORS with explicit frontend domain - standard approach
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["https://alumni-frontend-ybas.onrender.com", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+# Add custom CORS middleware as a backup
+add_cors_middleware(app, frontend_url="https://alumni-frontend-ybas.onrender.com")
 
 # Set up logging
 logger = logging.getLogger(__name__)
