@@ -4,7 +4,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { format, parseISO } from 'date-fns';
 import { API_URL } from '../../services/api';
 import axios from 'axios';
-import { getToken } from '../../utils/token';
+import { getAuthTokens } from '../../utils/authUtils';
 import { authService, verifyUser } from '../../services/authService';
 import { 
   CheckCircleIcon, 
