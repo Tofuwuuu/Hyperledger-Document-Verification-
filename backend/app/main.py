@@ -150,6 +150,7 @@ async def csrf_middleware(request: Request, call_next):
         "/api/v1/auth/reset-password",
         "/api/v1/auth/verify-reset-token",
         "/api/v1/auth/reset-password-confirm",
+        "/api/v1/auth/verify-user/",  # Skip for user verification endpoint
         "/api/v1/admin/"  # Skip for all admin endpoints
     ]
     
