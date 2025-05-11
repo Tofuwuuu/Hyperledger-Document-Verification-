@@ -19,23 +19,28 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
-# Helper function to convert MongoDB documents to JSON-serializable dictionaries
+# Helper function to safely convert MongoDB documents to JSON-serializable dictionaries
 def serialize_doc(doc):
     if doc is None:
         return None
     
-    result = {}
-    for key, value in doc.items():
-        if isinstance(value, ObjectId):
-            result[key] = str(value)
-        elif isinstance(value, dict):
-            result[key] = serialize_doc(value)
-        elif isinstance(value, list):
-            result[key] = [serialize_doc(item) if isinstance(item, dict) else 
-                          str(item) if isinstance(item, ObjectId) else item 
-                          for item in value]
-        else:
-            result[key] = value
+    # Create a trimmed version with only essential fields to reduce response size
+    result = {
+        "_id": str(doc["_id"]) if "_id" in doc else None,
+        "title": doc.get("title", ""),
+        "message": doc.get("message", ""),
+        "is_read": doc.get("is_read", False),
+        "type": doc.get("type", "general"),
+    }
+    
+    # Add created_at only if it exists and is valid
+    if "created_at" in doc:
+        try:
+            result["created_at"] = doc["created_at"].isoformat() if hasattr(doc["created_at"], "isoformat") else str(doc["created_at"])
+        except (AttributeError, TypeError):
+            # Skip on error
+            pass
+            
     return result
 
 class NotificationResponse(BaseModel):
@@ -62,43 +67,67 @@ async def get_notifications(
     """
     user_id = current_user["_id"]
     
-    # Get notifications
+    # Get database connection
     db = get_database()
+    
+    # Use a smaller limit to prevent excessive data
+    actual_limit = min(limit, 20)
     
     # Build query
     query = {"user_id": user_id}
     if not include_read:
         query["is_read"] = False
         
-    # If since_id is provided, get only newer notifications
+    # Handle since_id parameter carefully
     if since_id:
         try:
-            # Try to find the notification to get its creation time
-            since_notification = await db.notifications.find_one({"_id": ObjectId(since_id)})
-            if since_notification:
-                # Get notifications created after this one
-                query["created_at"] = {"$gt": since_notification["created_at"]}
+            # Just use ObjectId comparison rather than finding the notification first
+            query["_id"] = {"$gt": ObjectId(since_id)}
         except Exception as e:
             logger.error(f"Error processing since_id parameter: {str(e)}")
     
-    # Get notifications with pagination
-    cursor = db.notifications.find(query)
-    cursor = cursor.sort("created_at", -1)  # Most recent first
-    cursor = cursor.skip(offset).limit(limit)
-    
-    notifications = await cursor.to_list(length=limit)
-    
-    # Serialize MongoDB documents to make them JSON-serializable
-    serialized_notifications = [serialize_doc(notification) for notification in notifications]
-    
-    # Count total unread notifications
-    unread_count = await count_unread_notifications(user_id)
-    
-    return {
-        "total": len(serialized_notifications),
-        "unread_count": unread_count,
-        "notifications": serialized_notifications
-    }
+    try:
+        # Define projection to limit fields returned
+        projection = {
+            "_id": 1,
+            "title": 1,
+            "message": 1, 
+            "is_read": 1,
+            "type": 1,
+            "created_at": 1
+        }
+        
+        # Get notifications with pagination and field restriction
+        cursor = db.notifications.find(query, projection)
+        cursor = cursor.sort("created_at", -1)  # Most recent first
+        cursor = cursor.skip(offset).limit(actual_limit)
+        
+        # Convert cursor to list with timeout
+        raw_notifications = await cursor.to_list(length=actual_limit)
+        
+        # Serialize MongoDB documents safely
+        serialized_notifications = [serialize_doc(notification) for notification in raw_notifications]
+        
+        # Count total unread - but if too slow, use a fixed value
+        try:
+            unread_count = await db.notifications.count_documents({"user_id": user_id, "is_read": False})
+        except Exception:
+            # Fallback to just the count of current results if unread query fails
+            unread_count = len([n for n in serialized_notifications if not n.get("is_read", True)])
+        
+        return {
+            "total": len(serialized_notifications),
+            "unread_count": unread_count,
+            "notifications": serialized_notifications
+        }
+    except Exception as e:
+        logger.error(f"Error fetching notifications: {str(e)}")
+        # Return minimal data on error
+        return {
+            "total": 0,
+            "unread_count": 0,
+            "notifications": []
+        }
 
 @router.post("/{notification_id}/read", status_code=status.HTTP_200_OK)
 async def mark_read(

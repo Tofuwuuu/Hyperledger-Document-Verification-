@@ -207,3 +207,73 @@ class PollingService {
 const pollingService = new PollingService();
 
 export default pollingService; 
+
+// Let's implement a safer version of fetching notifications with smaller limit
+const fetchRecentNotifications = async (sinceId = null) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No token found, skipping notification polling');
+      return {
+        notifications: [],
+        unread_count: 0,
+        error: null
+      };
+    }
+    
+    // Get the API URL with a fallback
+    let baseUrl = localStorage.getItem('api_url') || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    
+    // Clean the URL
+    baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+    
+    // Add a timestamp to prevent caching and limit results to just 3 newest
+    const timestamp = new Date().getTime();
+    let url = `${apiUrl}/notifications?include_read=false&limit=3&_t=${timestamp}`;
+    
+    // If we have a sinceId, only get notifications newer than that
+    if (sinceId) {
+      url += `&since_id=${sinceId}`;
+    }
+    
+    // Set a 5-second timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      signal: controller.signal
+    });
+    
+    // Clear the timeout
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.error('Notification poll failed:', response.status);
+      return {
+        notifications: [],
+        unread_count: 0,
+        error: `Error ${response.status}`
+      };
+    }
+    
+    const data = await response.json();
+    return {
+      notifications: Array.isArray(data.notifications) ? data.notifications : [],
+      unread_count: data.unread_count || 0,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error polling notifications:', error);
+    return {
+      notifications: [],
+      unread_count: 0,
+      error: error.message
+    };
+  }
+}; 

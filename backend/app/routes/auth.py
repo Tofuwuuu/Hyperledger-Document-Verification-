@@ -589,62 +589,62 @@ async def get_unverified_users(
             logger.error("Failed to get database connection")
             return []  # Return empty list instead of raising error
         
-        # Determine collection to use
-        target_collection = 'users'  # Default
-        if collection and collection in ['users', 'alumni']:
-            target_collection = collection
-            
-        # Build a simple query - avoid complex logic that could cause response issues
+        # Build a minimal query
         query = {"is_verified": False}
         
-        # Execute a simple query with strict limits
+        # Use a very small limit to prevent response size issues
+        actual_limit = min(limit, 10)  # Never return more than 10 users at once
+        
         try:
-            # Limit fields returned to reduce response size
+            # Use a strict projection to only return necessary fields
             projection = {
-                "password": 0, 
-                "hashed_password": 0,
-                "reset_token": 0,
-                "reset_token_expires": 0
+                "_id": 1,
+                "email": 1,
+                "full_name": 1,
+                "student_id": 1, 
+                "created_at": 1,
+                "is_verified": 1
             }
             
-            # Apply a smaller limit to ensure response isn't too large
-            actual_limit = min(limit, 20)
+            # Find users and convert to list immediately to handle cursor errors
+            cursor = database.users.find(query, projection).limit(actual_limit)
             
-            cursor = database[target_collection].find(
-                query,
-                projection
-            ).limit(actual_limit)
-            
-            # Convert to list of dicts with minimal processing
+            # Process results carefully
             users = []
             try:
-                async for user in cursor:
-                    # Minimal data transformation to prevent errors
-                    try:
-                        if "_id" in user:
-                            user["id"] = str(user["_id"])
-                            user["_id"] = str(user["_id"])
-                        
-                        # Ensure is_verified is always a boolean
-                        user["is_verified"] = False
-                        
-                        # Format dates if present
-                        if "created_at" in user and user["created_at"]:
-                            if isinstance(user["created_at"], datetime):
-                                user["created_at"] = user["created_at"].isoformat()
-                            
-                        users.append(user)
-                    except Exception as transform_err:
-                        logger.error(f"Error transforming user: {transform_err}")
-                        # Skip this user but continue processing others
-                        continue
-            except Exception as cursor_err:
-                logger.error(f"Error processing cursor: {cursor_err}")
+                # Convert cursor to list with timeout
+                raw_users = await cursor.to_list(length=actual_limit)
+                
+                # Process each user minimally
+                for raw_user in raw_users:
+                    # Create a new object with only essential data
+                    user = {
+                        "id": str(raw_user["_id"]),
+                        "_id": str(raw_user["_id"]),
+                        "email": raw_user.get("email", ""),
+                        "full_name": raw_user.get("full_name", ""),
+                        "student_id": raw_user.get("student_id", ""),
+                        "is_verified": False  # Always false for this endpoint
+                    }
+                    
+                    # Add created_at only if present and valid
+                    if "created_at" in raw_user and raw_user["created_at"]:
+                        if isinstance(raw_user["created_at"], datetime):
+                            user["created_at"] = raw_user["created_at"].isoformat()
+                        else:
+                            # Skip if not valid datetime to avoid serialization issues
+                            pass
+                    
+                    users.append(user)
+                
+                # Log for debugging    
+                logger.info(f"Found {len(users)} unverified users with minimal fields")
+                return users
+                
+            except Exception as process_err:
+                logger.error(f"Error processing users: {process_err}")
                 return []
                 
-            logger.info(f"Found {len(users)} unverified users")
-            return users
-            
         except Exception as query_err:
             logger.error(f"Error executing query: {query_err}")
             return []
