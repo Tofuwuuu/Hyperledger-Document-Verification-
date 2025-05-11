@@ -163,29 +163,54 @@ export const apiService = {
   },
   // Specific method for CORS-sensitive endpoints
   withCORS: async (method, url, data = null, config = {}) => {
-    // Ensure CORS headers are set
-    const corsConfig = {
-      ...config,
-      withCredentials: true,
-      headers: {
-        ...config.headers,
-        'X-Requested-With': 'XMLHttpRequest',
-      }
-    };
+    console.log(`apiService.withCORS: ${method.toUpperCase()} ${url}`);
+    
+    const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
+    console.log('Full URL:', fullUrl);
+    
+    // Ensure we're using the token
+    const token = localStorage.getItem('token');
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     
     try {
+      let response;
       if (method.toLowerCase() === 'get') {
-        return await api.get(url, corsConfig);
+        response = await api.get(url, config);
       } else if (method.toLowerCase() === 'post') {
-        return await api.post(url, data, corsConfig);
+        response = await api.post(url, data, config);
       } else if (method.toLowerCase() === 'put') {
-        return await api.put(url, data, corsConfig);
+        response = await api.put(url, data, config);
       } else if (method.toLowerCase() === 'delete') {
-        return await api.delete(url, corsConfig);
+        response = await api.delete(url, config);
+      } else {
+        throw new Error(`Unsupported method: ${method}`);
       }
-      throw new Error(`Unsupported method: ${method}`);
+      
+      console.log(`API response (${response.status}):`, response.data);
+      return response;
     } catch (error) {
-      handleApiError(error, method, url, true);
+      console.error('API error:', error);
+      
+      // Enhanced error handling
+      if (error.response) {
+        // Request was made and server responded with an error
+        console.error('Response error:', error.response.status, error.response.data);
+        
+        // Check for specific error conditions
+        if (error.response.status === 401) {
+          // Authentication error
+          console.warn('Authentication error, might need to refresh token');
+        }
+      } else if (error.request) {
+        // Request was made but no response received (network error)
+        console.error('Network error - no response received');
+      } else {
+        // Error in setting up the request
+        console.error('Request setup error:', error.message);
+      }
+      
       throw error;
     }
   }

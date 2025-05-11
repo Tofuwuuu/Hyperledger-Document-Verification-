@@ -154,7 +154,9 @@ export const getUnverifiedUsers = async () => {
     headers['X-Admin-Access'] = 'true';
     console.log('Adding X-Admin-Access header for admin verification');
     
-    console.log('Starting request to get unverified users from cvsu_alumni.users database');
+    // Log the full API URL and query parameters
+    const fullUrl = `${API_URL}/auth/unverified-users?db=cvsu_alumni&collection=users&filter=is_verified:false`;
+    console.log('Making API request to:', fullUrl);
     console.log('Request headers:', headers);
     
     try {
@@ -166,7 +168,8 @@ export const getUnverifiedUsers = async () => {
         { headers }
       );
       
-      console.log('Unverified users response received:', response.status);
+      console.log('Unverified users response status:', response.status);
+      console.log('Full response:', response);
       console.log('Response data type:', typeof response.data);
       console.log('Is response.data an array?', Array.isArray(response.data));
       
@@ -174,6 +177,8 @@ export const getUnverifiedUsers = async () => {
         console.log('Number of users in response:', response.data.length);
         if (response.data.length > 0) {
           console.log('Sample user:', JSON.stringify(response.data[0]));
+        } else {
+          console.log('No unverified users found in response');
         }
         return response.data; // Return the array directly
       } else {

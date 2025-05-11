@@ -35,12 +35,49 @@ export default function AdminUserVerificationPage() {
       
       if (Array.isArray(users) && users.length > 0) {
         console.log('First user in response:', users[0]);
+        setUnverifiedUsers(users);
+      } else {
+        // Force refresh to ensure we're making a fresh request
+        console.log('No users found or empty array, trying direct API call...');
+        
+        // Make a direct API call as a fallback
+        try {
+          const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+          const apiUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+          const url = `${apiUrl}/api/v1/auth/unverified-users?db=cvsu_alumni&collection=users&filter=is_verified:false`;
+          
+          console.log('Fallback: Making direct API request to:', url);
+          
+          const response = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'X-Admin-Access': 'true'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Fallback API response:', data);
+            if (Array.isArray(data) && data.length > 0) {
+              console.log('Fallback found users:', data.length);
+              setUnverifiedUsers(data);
+            } else {
+              console.log('Fallback also found no users');
+              setUnverifiedUsers([]);
+            }
+          } else {
+            console.error('Fallback API error:', response.status);
+            setUnverifiedUsers([]);
+          }
+        } catch (fallbackErr) {
+          console.error('Error in fallback API call:', fallbackErr);
+          setUnverifiedUsers([]);
+        }
       }
-      
-      setUnverifiedUsers(users);
     } catch (err) {
       console.error('Error fetching unverified users:', err);
       setError(err.message || 'Failed to load unverified users');
+      setUnverifiedUsers([]);
     } finally {
       setLoading(false);
     }
