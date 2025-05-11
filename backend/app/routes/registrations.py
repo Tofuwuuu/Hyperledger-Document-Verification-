@@ -21,7 +21,6 @@ from app.repositories.student_repository import StudentRepository
 from app.models.attendance import AttendanceCreate
 from app.schemas import EventCreate, RegistrationOut
 from app.config.database import get_database
-from app.core.auth import get_current_active_user, get_admin_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

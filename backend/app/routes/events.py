@@ -6,7 +6,7 @@ from app.schemas import EventCreate
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.utils.utils import generate_url_slug
 from app.config.database import get_database
-from app.core.auth import get_admin_user, get_current_user
+from app.utils.auth import get_admin_user, get_current_user
 import json
 import traceback
 import logging
