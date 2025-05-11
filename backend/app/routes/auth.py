@@ -144,8 +144,17 @@ async def register(user_data: UserCreate):
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(), 
     remember: bool = Form(False),
-    response: Response = None
+    response: Response = None,
+    request: Request = None
 ):
+    # Add CORS headers directly
+    origin = request.headers.get("origin", "")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    
     try:
         db = get_database()
         
@@ -982,68 +991,25 @@ async def options_register(request: Request):
     }
 
 @router.options("/login", include_in_schema=False)
-async def options_login(request: Request):
-    """Handle OPTIONS request for login endpoint (CORS preflight)"""
-    from app.core.config import settings
-    origin = request.headers.get("Origin", "")
-    
-    # Always allow the main frontend domain
-    if origin == "https://alumni-frontend-zzr2.onrender.com":
-        return {
-            "allow": "POST, OPTIONS",
-            "content-type": "application/json",
-            "access-control-allow-origin": origin,
-            "access-control-allow-methods": "POST, OPTIONS",
-            "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
-            "access-control-allow-credentials": "true",
-            "access-control-max-age": "86400",  # 1 day in seconds
-        }
-    
-    # Check if the origin is in our allowed list
-    allowed_origins = settings.cors_origins_list
-    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
-    
-    return {
-        "allow": "POST, OPTIONS",
-        "content-type": "application/json",
-        "access-control-allow-origin": allow_origin,
-        "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With",
-        "access-control-allow-credentials": "true",
-        "access-control-max-age": "86400",  # 1 day in seconds
-    }
+async def options_login(request: Request, response: Response):
+    """Handle OPTIONS request for login endpoint"""
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-CSRF-Token"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "3600"
+    return {}
 
 @router.options("/{path:path}", include_in_schema=False)
-async def options_any(path: str, request: Request):
-    """Handle OPTIONS request for any auth endpoint (CORS preflight)"""
-    from app.core.config import settings
-    origin = request.headers.get("Origin", "")
-    
-    # Always allow the main frontend domain
-    if origin == "https://alumni-frontend-zzr2.onrender.com":
-        return {
-            "allow": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "content-type": "application/json",
-            "access-control-allow-origin": origin,
-            "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With", 
-            "access-control-allow-credentials": "true",
-            "access-control-max-age": "86400",  # 1 day in seconds
-        }
-    
-    # Check if the origin is in our allowed list
-    allowed_origins = settings.cors_origins_list
-    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
-    
-    return {
-        "allow": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-        "content-type": "application/json",
-        "access-control-allow-origin": allow_origin,
-        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-        "access-control-allow-headers": "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With", 
-        "access-control-allow-credentials": "true",
-        "access-control-max-age": "86400",  # 1 day in seconds
-    }
+async def options_any(path: str, request: Request, response: Response):
+    """Handle OPTIONS request for any other endpoint"""
+    origin = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "3600"
+    return {}
 
 @router.get("/test-cors", tags=["Debug"])
 async def test_cors():

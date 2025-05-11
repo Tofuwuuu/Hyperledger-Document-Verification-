@@ -10,24 +10,21 @@ from app.cors_middleware import add_cors_middleware
 # Initialize FastAPI app
 app = FastAPI(title="Alumni System API")
 
-# Set up CORS with explicit frontend domain - standard approach
+# TEMPORARY: Make CORS completely permissive for debugging
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://alumni-frontend-ybas.onrender.com", "http://localhost:3000"],
+    allow_origins=["*"],  # Allow all origins temporarily 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
 )
-
-# Add custom CORS middleware as a backup
-add_cors_middleware(app, frontend_url="https://alumni-frontend-ybas.onrender.com")
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
-@app.middleware("http")
+# Disable CSRF middleware for now to debug CORS
+# @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
     """Middleware to handle CSRF protection for non-GET methods"""
     # Skip CSRF check for safe methods (including OPTIONS)
@@ -78,6 +75,28 @@ async def csrf_middleware(request: Request, call_next):
     # Continue with the request
     logger.info(f"CSRF validation PASSED for {request.method} {request_path}")
     return await call_next(request) 
+
+# Add OPTIONS route handler for auth/login
+@app.options("/api/v1/auth/login")
+async def options_auth_login():
+    headers = {
+        "Access-Control-Allow-Origin": "https://alumni-frontend-ybas.onrender.com",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Credentials": "true",
+    }
+    return JSONResponse(content={}, headers=headers)
+
+# Add OPTIONS route handler for all routes
+@app.options("/{full_path:path}")
+async def options_all(full_path: str):
+    headers = {
+        "Access-Control-Allow-Origin": "https://alumni-frontend-ybas.onrender.com",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token",
+        "Access-Control-Allow-Credentials": "true",
+    }
+    return JSONResponse(content={}, headers=headers)
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
