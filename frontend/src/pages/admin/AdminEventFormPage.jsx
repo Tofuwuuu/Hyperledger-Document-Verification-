@@ -148,18 +148,71 @@ const AdminEventFormPage = () => {
         registration_url: formData.registration_url || null
       };
       
-      if (isEditMode) {
-        await updateEvent(eventId, eventData);
-        toast.success('Event updated successfully');
-      } else {
-        await createEvent(eventData);
-        toast.success('Event created successfully');
+      let apiCallResult;
+      let maxAttempts = 2;
+      let attempts = 0;
+      let success = false;
+      
+      while (!success && attempts < maxAttempts) {
+        attempts++;
+        try {
+          if (isEditMode) {
+            apiCallResult = await updateEvent(eventId, eventData);
+            success = true;
+            toast.success('Event updated successfully');
+          } else {
+            apiCallResult = await createEvent(eventData);
+            success = true;
+            toast.success('Event created successfully');
+          }
+        } catch (apiError) {
+          console.error(`Attempt ${attempts} failed:`, apiError);
+          
+          // Check if this is our final attempt
+          if (attempts >= maxAttempts) {
+            throw apiError; // Re-throw to be caught by outer catch block
+          }
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // If it's a CSRF error, try to refresh the token
+          if (apiError.response?.status === 403) {
+            try {
+              const tokenResponse = await axios.get(`${API_URL}/auth/csrf-token`, { 
+                withCredentials: true,
+                headers: {
+                  'Cache-Control': 'no-cache',
+                  'Pragma': 'no-cache'
+                }
+              });
+              
+              if (tokenResponse.data?.csrf_token) {
+                localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
+                console.log('New CSRF token obtained for retry');
+              }
+            } catch (tokenError) {
+              console.warn('Failed to refresh CSRF token for retry');
+            }
+          }
+        }
       }
       
+      // After successful API call
       navigate('/admin/events');
     } catch (err) {
       console.error(err);
-      toast.error(`Failed to ${isEditMode ? 'update' : 'create'} event. Please try again.`);
+      
+      // Provide specific error messages based on error type
+      if (err.response?.status === 403) {
+        toast.error('You don\'t have permission to perform this action. Please check if you\'re logged in as an admin.');
+      } else if (err.response?.status === 401) {
+        toast.error('Your session may have expired. Please try logging out and back in.');
+      } else if (err.message?.includes('Network Error')) {
+        toast.error('Network error. Please check your internet connection and try again.');
+      } else {
+        toast.error(`Failed to ${isEditMode ? 'update' : 'create'} event. Please try again.`);
+      }
     } finally {
       setLoading(false);
     }
