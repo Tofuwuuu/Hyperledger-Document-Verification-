@@ -199,7 +199,7 @@ def get_fallback_users() -> List[Dict[str, Any]]:
             "_id": "681fa5ae8d75ad66fa728ae7",
             "email": "testmark213@outlook.com",
             "full_name": "Test",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": "2023-11-15T10:30:22Z",  # Fixed historical date
             "student_id": "2101002342",
             "department": "Computer Science",
             "year_graduated": "2025",
@@ -211,7 +211,7 @@ def get_fallback_users() -> List[Dict[str, Any]]:
             "_id": "681ec5e5906ca55959123a1a",
             "email": "JohnDoe@gmail.com",
             "full_name": "Johndoe",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": "2023-12-03T14:45:30Z",  # Fixed historical date
             "student_id": "202100832",
             "is_verified": False,
             "verification_pending": True
@@ -221,7 +221,7 @@ def get_fallback_users() -> List[Dict[str, Any]]:
             "_id": "681ec28749c2b2c3dd0f500c",
             "email": "joemarlou.opella@cvsu.edu.ph",
             "full_name": "Joe Marlou",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": "2024-01-22T09:15:45Z",  # Fixed historical date
             "student_id": "000000000",
             "is_verified": False,
             "verification_pending": True
