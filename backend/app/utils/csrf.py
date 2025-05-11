@@ -1,16 +1,22 @@
 from typing import Optional
 from fastapi import Request, HTTPException, status, Depends
 import logging
+import secrets
 
 # Get logger
 logger = logging.getLogger(__name__)
 
-# Missing definitions for CSRF_HEADER_NAME and functions
+# CSRF constants
 CSRF_HEADER_NAME = "X-CSRF-Token"
+CSRF_COOKIE_NAME = "csrf_token"
+
+def generate_csrf_token() -> str:
+    """Generate a new CSRF token"""
+    return secrets.token_hex(32)
 
 def csrf_cookie(request: Request) -> Optional[str]:
     """Get the CSRF token from the cookie"""
-    return request.cookies.get("csrf_token")
+    return request.cookies.get(CSRF_COOKIE_NAME)
 
 def verify_csrf_token(header_token: str, cookie_token: str) -> bool:
     """Verify that the CSRF token in the header matches the one in the cookie"""
