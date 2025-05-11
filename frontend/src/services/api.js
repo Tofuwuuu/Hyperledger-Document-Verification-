@@ -170,14 +170,23 @@ export const apiService = {
     
     // Ensure we're using the token
     const token = localStorage.getItem('token');
-    if (token && config.headers) {
+    if (token) {
+      // Make sure headers object exists before trying to add to it
+      if (!config.headers) {
+        config.headers = {};
+      }
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Create a merged config that ensures the abort signal is passed through
+    // Create a merged config with specific CORS settings
     const mergedConfig = {
       ...config,
       timeout: config.timeout || 15000, // Default timeout of 15 seconds
+      withCredentials: true,
+      headers: {
+        ...(config.headers || {}),
+        'X-Requested-With': 'XMLHttpRequest'
+      }
     };
     
     // Add the signal if provided
@@ -186,50 +195,53 @@ export const apiService = {
       console.log('Using abort signal for request');
     }
     
-    try {
-      let response;
-      if (method.toLowerCase() === 'get') {
-        response = await api.get(url, mergedConfig);
-      } else if (method.toLowerCase() === 'post') {
-        response = await api.post(url, data, mergedConfig);
-      } else if (method.toLowerCase() === 'put') {
-        response = await api.put(url, data, mergedConfig);
-      } else if (method.toLowerCase() === 'delete') {
-        response = await api.delete(url, mergedConfig);
-      } else {
-        throw new Error(`Unsupported method: ${method}`);
-      }
-      
-      console.log(`API response (${response.status}):`, response.data);
-      return response;
-    } catch (error) {
-      console.error('API error:', error);
-      
-      // Check for abort error
-      if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
-        console.error('Request aborted or timed out');
-        error.isTimeout = true;
-      }
-      
-      // Enhanced error handling
-      if (error.response) {
-        // Request was made and server responded with an error
-        console.error('Response error:', error.response.status, error.response.data);
-        
-        // Check for specific error conditions
-        if (error.response.status === 401) {
-          // Authentication error
-          console.warn('Authentication error, might need to refresh token');
+    // Try the request with retries
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        let response;
+        if (method.toLowerCase() === 'get') {
+          response = await api.get(url, mergedConfig);
+        } else if (method.toLowerCase() === 'post') {
+          response = await api.post(url, data, mergedConfig);
+        } else if (method.toLowerCase() === 'put') {
+          response = await api.put(url, data, mergedConfig);
+        } else if (method.toLowerCase() === 'delete') {
+          response = await api.delete(url, mergedConfig);
+        } else {
+          throw new Error(`Unsupported method: ${method}`);
         }
-      } else if (error.request) {
-        // Request was made but no response received (network error)
-        console.error('Network error - no response received');
-      } else {
-        // Error in setting up the request
-        console.error('Request setup error:', error.message);
+        
+        console.log(`API response (${response.status}):`, response.data);
+        return response;
+      } catch (error) {
+        console.error(`API error (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+        
+        // Check for abort error
+        if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+          console.error('Request aborted or timed out');
+          error.isTimeout = true;
+          throw error; // Don't retry timeouts or aborted requests
+        }
+        
+        // Check for CORS errors specifically
+        const isCORSError = error.message && (
+          error.message.includes('CORS') || 
+          (error.response && error.response.status === 0)
+        );
+        
+        if (isCORSError && retries < maxRetries) {
+          console.warn(`CORS error detected, retrying (${retries + 1}/${maxRetries})...`);
+          retries++;
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        throw error;
       }
-      
-      throw error;
     }
   }
 };

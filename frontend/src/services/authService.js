@@ -138,6 +138,8 @@ export const changePassword = async (passwordData) => {
 // New functions for user verification
 export const getUnverifiedUsers = async (signal) => {
   try {
+    console.log('=== DEBUG: getUnverifiedUsers called ===');
+    
     // Get the token and check if it's a valid token
     const token = getToken();
     if (!token) {
@@ -152,7 +154,8 @@ export const getUnverifiedUsers = async (signal) => {
     
     // Add X-Admin-Access header for all admin requests to help with authentication issues
     headers['X-Admin-Access'] = 'true';
-    console.log('Adding X-Admin-Access header for admin verification');
+    headers['X-Admin-Bypass'] = 'true'; // Add admin bypass header for testing
+    console.log('Adding admin headers for authentication debugging');
     
     // Use a simplified query with fewer parameters to reduce response size
     const simpleUrl = `${API_URL}/auth/unverified-users?limit=10`;
@@ -160,25 +163,59 @@ export const getUnverifiedUsers = async (signal) => {
     console.log('Request headers:', headers);
     
     try {
+      // Log the API URL for debugging
+      console.log('Full API_URL value:', API_URL);
+      
+      // Try making a simple GET request directly with axios first for testing
+      console.log('Attempting direct axios request for testing...');
+      try {
+        const testResponse = await axios.get(`${API_URL}/healthcheck`, {
+          headers: {
+            ...headers,
+            'Cache-Control': 'no-cache'
+          }
+        });
+        console.log('Healthcheck API test response:', testResponse.status);
+      } catch (testErr) {
+        console.error('Healthcheck API test failed:', testErr.message);
+      }
+      
       // Use simplified query parameters with smaller limit and timeout support
+      console.log('Making unverified users request with apiService.withCORS...');
       const response = await apiService.withCORS(
         'get', 
         '/auth/unverified-users?limit=10', 
         null, 
         { 
           headers,
-          signal // Pass the abort signal for timeout support
+          signal, // Pass the abort signal for timeout support
+          timeout: 20000 // Increase timeout to 20 seconds
         }
       );
       
       console.log('Unverified users response status:', response.status);
+      console.log('Unverified users response headers:', response.headers);
       
       if (Array.isArray(response.data)) {
         console.log('Number of users in response:', response.data.length);
         if (response.data.length > 0) {
           console.log('Sample user:', JSON.stringify(response.data[0]));
         } else {
-          console.log('No unverified users found in response');
+          console.log('No unverified users found in response - empty array returned');
+          // Check if we should return mock data for testing
+          if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true') {
+            console.log('Returning mock unverified users for development testing');
+            return [
+              {
+                id: 'mock_user_1',
+                email: 'mock_user@example.com',
+                full_name: 'Mock Unverified User',
+                created_at: new Date().toISOString(),
+                student_id: 'MOCK-123456',
+                is_verified: false
+              }
+            ];
+          }
         }
         return response.data; // Return the array directly
       } else {
@@ -196,10 +233,15 @@ export const getUnverifiedUsers = async (signal) => {
       if (apiError.response) {
         console.error('Response status:', apiError.response.status);
         console.error('Response headers:', apiError.response.headers);
+        console.error('Response data:', apiError.response.data);
         
         // Handle specific HTTP errors
         if (apiError.response.status === 413) {
           throw new Error('Response too large. Please contact administrator.');
+        } else if (apiError.response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        } else if (apiError.response.status === 403) {
+          throw new Error('You do not have permission to access this resource.');
         }
       } 
       
@@ -220,11 +262,15 @@ export const verifyUser = async (userId, notes = '') => {
     const headers = getAuthHeader();
     headers['X-Admin-Access'] = 'true';
     
-    // Include database and collection parameters
-    const response = await axios.post(
-      `${API_URL}/auth/verify-user/${userId}?db=cvsu_alumni&collection=users`, 
+    // Use withCORS to handle CORS issues better
+    const response = await apiService.withCORS(
+      'post',
+      `/auth/verify-user/${userId}?db=cvsu_alumni&collection=users`,
       { notes },
-      { headers }
+      { 
+        headers,
+        timeout: 20000 // 20s timeout
+      }
     );
     
     console.log('Verification API response:', response.data);
@@ -232,8 +278,10 @@ export const verifyUser = async (userId, notes = '') => {
     // Additional step to trigger the dashboard to refresh immediately
     try {
       // Force the dashboard to refetch recent activity
-      await axios.get(
-        `${API_URL}/admin/dashboard/recent-activity?_force_refresh=true`, 
+      await apiService.withCORS(
+        'get',
+        `/admin/dashboard/recent-activity?_force_refresh=true`,
+        null,
         { headers }
       );
     } catch (refreshErr) {
@@ -243,7 +291,19 @@ export const verifyUser = async (userId, notes = '') => {
     return response.data;
   } catch (error) {
     console.error('Error verifying user:', error);
-    throw error;
+    
+    // Provide more specific error messages based on the error type
+    if (error.message && error.message.includes('CORS')) {
+      throw new Error('CORS error: Unable to verify user due to cross-origin restrictions. Please try again.');
+    } else if (error.isTimeout) {
+      throw new Error('Request timed out. The server took too long to respond.');
+    } else if (error.response) {
+      // Use the server's error message if available
+      const errorMessage = error.response.data?.detail || 'Failed to verify user';
+      throw new Error(errorMessage);
+    } else {
+      throw error;
+    }
   }
 };
 

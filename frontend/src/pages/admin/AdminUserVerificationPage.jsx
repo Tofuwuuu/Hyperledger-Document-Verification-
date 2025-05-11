@@ -18,19 +18,64 @@ export default function AdminUserVerificationPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('AdminUserVerificationPage component mounted. Fetching unverified users...');
     fetchUnverifiedUsers();
   }, []);
+
+  // TEMPORARY DEBUG FUNCTION - To help with API issues
+  const enableDebugMode = () => {
+    // Only allow in development mode for security
+    if (import.meta.env.MODE !== 'development') {
+      toast.error('Debug mode can only be enabled in development');
+      return;
+    }
+    
+    // Create mock unverified users for testing the UI
+    setUnverifiedUsers([
+      {
+        id: '1234567890abcdef',
+        email: 'test.user1@example.com',
+        full_name: 'Test Unverified User 1',
+        created_at: new Date().toISOString(),
+        student_id: 'TEST-12345',
+        is_verified: false
+      },
+      {
+        id: '0987654321fedcba',
+        email: 'test.user2@example.com',
+        full_name: 'Test Unverified User 2',
+        created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        student_id: 'TEST-67890',
+        is_verified: false
+      }
+    ]);
+    
+    // Clear any errors
+    setError(null);
+    setLoading(false);
+    
+    toast.info('Debug mode enabled with mock data');
+  };
 
   const fetchUnverifiedUsers = async () => {
     setLoading(true);
     setError(null);
     
-    console.log('Starting to fetch unverified users from cvsu_alumni.users database...');
+    console.log('==========================================');
+    console.log('Starting unverified users fetching process...');
+    console.log('API URL from config:', import.meta.env.VITE_API_URL || 'Not set');
     
     try {
+      // Log environment and auth state
+      console.log('Environment:', import.meta.env.MODE);
+      console.log('Token present:', !!localStorage.getItem('token'));
+      
       // Add a timeout to prevent UI from hanging indefinitely
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout triggered at 15s');
+        controller.abort();
+      }, 15000); // 15s timeout
       
       console.log('Calling authService.getUnverifiedUsers() with timeout');
       const users = await authService.getUnverifiedUsers(controller.signal);
@@ -42,19 +87,36 @@ export default function AdminUserVerificationPage() {
       if (Array.isArray(users) && users.length > 0) {
         console.log('Users received successfully, first user:', users[0]);
         setUnverifiedUsers(users);
+        setError(null);
       } else {
         // If API returns empty array, show appropriate message
-        console.log('API returned no users');
+        console.log('API returned no users (empty array)');
         setUnverifiedUsers([]);
         setError('No unverified users found. All users have been verified.');
+        
+        // Log this for easier debugging
+        console.log('Setting error state: No unverified users found. All users have been verified.');
       }
     } catch (err) {
       console.error('Error fetching unverified users:', err);
+      console.error('Error details:', {
+        name: err.name,
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data
+      });
       
       if (err.name === 'AbortError') {
         setError('Request timed out. The server took too long to respond.');
       } else if (err.response && err.response.status === 413) {
         setError('Response too large. Please contact administrator to fix backend pagination.');
+      } else if (err.response && err.response.status === 401) {
+        setError('Authentication failed. Please log in again as an administrator.');
+        // Auto-redirect to login after 3 seconds
+        setTimeout(() => {
+          console.log('Redirecting to login due to authentication error');
+          navigate('/login');
+        }, 3000);
       } else if (err.message && err.message.includes('Content-Length')) {
         setError('Server response error. Please contact administrator to check the backend logs.');
       } else {
@@ -64,6 +126,8 @@ export default function AdminUserVerificationPage() {
       setUnverifiedUsers([]);
     } finally {
       setLoading(false);
+      console.log('Unverified users fetch process completed.');
+      console.log('==========================================');
     }
   };
 
@@ -200,12 +264,34 @@ export default function AdminUserVerificationPage() {
               <h3 className="text-sm font-medium text-red-800">Error loading unverified users</h3>
               <div className="mt-2 text-sm text-red-700">
                 <p>{error}</p>
-                <button 
-                  onClick={fetchUnverifiedUsers}
-                  className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                >
-                  Retry
-                </button>
+                <div className="mt-3 flex space-x-2">
+                  <button 
+                    onClick={fetchUnverifiedUsers}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    Retry
+                  </button>
+                  
+                  {/* Debug button only shown in development mode */}
+                  {import.meta.env.MODE === 'development' && (
+                    <button 
+                      onClick={enableDebugMode}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Enable Debug Mode
+                    </button>
+                  )}
+                  
+                  {/* Direct database check button - development only */}
+                  {import.meta.env.MODE === 'development' && (
+                    <button 
+                      onClick={() => window.location.href='/admin'}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Back to Dashboard
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
