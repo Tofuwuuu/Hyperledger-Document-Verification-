@@ -659,21 +659,15 @@ async def get_unverified_users(
         if count == 0:
             logger.warning("No results found despite having unverified users, trying direct query")
             
-            # Try to fetch actual unverified users with specific IDs
-            user_ids_to_check = [
-                "681ec28749c2b2c3dd0f500c",  # Joe Marlou
-                "681ec5e5906ca55959123a1a",  # Johndoe
-                "681fa5ae8d75ad66fa728ae7"   # Test
-            ]
-            
+            # Try to get any users with is_verified=False from the database
             try:
-                direct_query = {"_id": {"$in": user_ids_to_check}}
-                logger.info(f"Trying direct query by IDs: {direct_query}")
+                direct_query = {"is_verified": False}
+                logger.info(f"Trying direct query by status: {direct_query}")
                 
                 cursor = database[target_collection].find(
                     direct_query,
                     {"password": 0, "hashed_password": 0}
-                )
+                ).limit(10)
                 
                 users = []
                 async for user in cursor:
@@ -682,11 +676,7 @@ async def get_unverified_users(
                         user["id"] = str(user["_id"])
                         user["_id"] = str(user["_id"])
                     
-                    # Ensure is_verified is set to false (in case it's not)
-                    user["is_verified"] = False
-                    user["verification_pending"] = True
-                    
-                    # Format datetime if needed
+                    # Ensure created_at is properly formatted
                     if "created_at" in user and user["created_at"]:
                         if isinstance(user["created_at"], datetime):
                             user["created_at"] = user["created_at"].isoformat()
@@ -694,7 +684,7 @@ async def get_unverified_users(
                     users.append(user)
                 
                 if users:
-                    logger.info(f"Found {len(users)} users with direct ID query")
+                    logger.info(f"Found {len(users)} users with direct status query")
                     return users
             except Exception as direct_err:
                 logger.error(f"Error executing direct query: {direct_err}")
@@ -727,46 +717,41 @@ async def get_unverified_users(
             else:
                 logger.warning("No users found despite database having unverified users")
                 
-                # As a last resort, fetch the specific records from database
-                logger.info("Fetching specific unverified users")
-                specific_users = []
-                
-                # Joe Marlou record
-                joe = await database[target_collection].find_one({"email": "joemarlou.opella@cvsu.edu.ph"})
-                if joe:
-                    joe["id"] = str(joe["_id"])
-                    joe["_id"] = str(joe["_id"])
-                    joe["is_verified"] = False
-                    joe["verification_pending"] = True
-                    if "created_at" in joe and isinstance(joe["created_at"], datetime):
-                        joe["created_at"] = joe["created_at"].isoformat()
-                    specific_users.append(joe)
-                
-                # John Doe record
-                john = await database[target_collection].find_one({"email": "JohnDoe@gmail.com"})
-                if john:
-                    john["id"] = str(john["_id"])
-                    john["_id"] = str(john["_id"])
-                    john["is_verified"] = False
-                    john["verification_pending"] = True
-                    if "created_at" in john and isinstance(john["created_at"], datetime):
-                        john["created_at"] = john["created_at"].isoformat()
-                    specific_users.append(john)
-                
-                # Test mark record
-                test = await database[target_collection].find_one({"email": "testmark213@outlook.com"})
-                if test:
-                    test["id"] = str(test["_id"])
-                    test["_id"] = str(test["_id"])
-                    test["is_verified"] = False
-                    test["verification_pending"] = True
-                    if "created_at" in test and isinstance(test["created_at"], datetime):
-                        test["created_at"] = test["created_at"].isoformat()
-                    specific_users.append(test)
-                
-                if specific_users:
-                    logger.info(f"Returning {len(specific_users)} specific unverified users")
-                    return specific_users
+                # As a last resort, fetch specific records by verification status directly
+                logger.info("Attempting direct fetch of unverified users")
+                try:
+                    # Try direct MongoDB queries for unverified users
+                    specific_users = []
+                    
+                    # Query with different data type variations for is_verified
+                    for query_value in [False, "false", "False", 0, "0"]:
+                        cursor = database[target_collection].find(
+                            {"is_verified": query_value}, 
+                            {"password": 0, "hashed_password": 0}
+                        ).limit(3)
+                        
+                        async for user in cursor:
+                            # Process user record
+                            user["id"] = str(user["_id"])
+                            user["_id"] = str(user["_id"])
+                            user["is_verified"] = False  # Normalize to boolean
+                            user["verification_pending"] = True
+                            if "created_at" in user and isinstance(user["created_at"], datetime):
+                                user["created_at"] = user["created_at"].isoformat()
+                            specific_users.append(user)
+                            
+                        # If we found any users, return them
+                        if specific_users:
+                            logger.info(f"Found {len(specific_users)} users with query value: {query_value}")
+                            return specific_users
+                    
+                    # If we still have no users, return empty list
+                    logger.warning("Could not find any unverified users with any query")
+                    return []
+                    
+                except Exception as e:
+                    logger.error(f"Error in direct fetch: {e}")
+                    return []
             
             return users
             
@@ -782,26 +767,24 @@ async def get_unverified_users(
 
 def get_mock_users():
     """Return mock unverified users for testing"""
+    # Create a simple function to generate random-looking data
+    from datetime import datetime
+    import uuid
+    
+    # Generate a random-looking ID
+    random_id = f"mock_{uuid.uuid4().hex[:16]}"
+    
+    # Return generic mock data without hardcoded values
     return [
         {
-            "id": "681fa5ae8d75ad66fa728ae7",  # Use the real ID from the message
-            "_id": "681fa5ae8d75ad66fa728ae7",
-            "email": "testmark213@outlook.com",  # Use the real email from the message
-            "full_name": "Test",  # Real name
+            "id": random_id,
+            "_id": random_id,
+            "email": "mock.user@example.com",
+            "full_name": "Mock User",
             "created_at": datetime.utcnow().isoformat(),
-            "student_id": "2101002342",  # Real student ID
-            "department": "Computer Science",
-            "year_graduated": "2025"  # Real graduation year
-        },
-        {
-            "id": f"mock_user_id_2",
-            "_id": f"mock_user_id_2",
-            "email": "student2@cvsu.edu.ph",
-            "full_name": "Mock Student 2",
-            "created_at": datetime.utcnow().isoformat(),
-            "student_id": "2023-0002",
-            "department": "Information Technology",
-            "year_graduated": "2023"
+            "student_id": f"MOCK-{uuid.uuid4().hex[:6].upper()}",
+            "department": "Test Department",
+            "year_graduated": str(datetime.utcnow().year)
         }
     ]
 

@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Header, Re
 from datetime import datetime
 from bson import ObjectId
 import logging
+from pymongo import MongoClient
+import os
 
 # This is a partial implementation - in production code, you'd import these
 # functions from your actual codebase
@@ -245,32 +247,48 @@ def get_fallback_users() -> List[Dict[str, Any]]:
     # If we couldn't get users from the database, use minimal data
     if not users:
         logger.warning("Could not fetch fallback users from database, using minimal data")
-        # Return minimal data without hardcoded dates
+        
+        # Get unverified users from database by is_verified status
+        try:
+            # Try one more time with a synchronous connection
+            # Connect to MongoDB
+            uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+            db_name = os.getenv("DATABASE_NAME", "cvsu_alumni")
+            mongo_client = MongoClient(uri)
+            db = mongo_client[db_name]
+            
+            # Query for unverified users
+            unverified_users = list(db.users.find(
+                {"is_verified": False}, 
+                {"_id": 1, "email": 1, "full_name": 1, "student_id": 1}
+            ).limit(3))
+            
+            if unverified_users:
+                logger.info(f"Found {len(unverified_users)} unverified users with synchronous connection")
+                result = []
+                for user in unverified_users:
+                    result.append({
+                        "id": str(user["_id"]),
+                        "_id": str(user["_id"]),
+                        "email": user.get("email", ""),
+                        "full_name": user.get("full_name", ""),
+                        "student_id": user.get("student_id", ""),
+                        "is_verified": False,
+                        "verification_pending": True
+                    })
+                return result
+                
+        except Exception as e:
+            logger.error(f"Error in synchronous fallback: {e}")
+            
+        # Only if all else fails, return minimal data structure without actual values
         return [
             {
-                "id": "681fa5ae8d75ad66fa728ae7",
-                "_id": "681fa5ae8d75ad66fa728ae7",
-                "email": "testmark213@outlook.com",
-                "full_name": "Test",
-                "student_id": "2101002342",
-                "is_verified": False,
-                "verification_pending": True
-            },
-            {
-                "id": "681ec5e5906ca55959123a1a",
-                "_id": "681ec5e5906ca55959123a1a",
-                "email": "JohnDoe@gmail.com",
-                "full_name": "Johndoe",
-                "student_id": "202100832",
-                "is_verified": False,
-                "verification_pending": True
-            },
-            {
-                "id": "681ec28749c2b2c3dd0f500c",
-                "_id": "681ec28749c2b2c3dd0f500c",
-                "email": "joemarlou.opella@cvsu.edu.ph",
-                "full_name": "Joe Marlou",
-                "student_id": "000000000",
+                "id": "",
+                "_id": "",
+                "email": "",
+                "full_name": "User record unavailable",
+                "student_id": "",
                 "is_verified": False,
                 "verification_pending": True
             }
