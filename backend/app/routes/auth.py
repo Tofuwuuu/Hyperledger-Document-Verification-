@@ -466,11 +466,32 @@ async def verify_user(
     admin_user: Dict[str, Any] = Depends(get_admin_user),
     notes: str = None,
     db: str = Query("cvsu_alumni", description="Database name (e.g., cvsu_alumni)"),
-    collection: str = Query("users", description="Collection name (e.g., users)")
+    collection: str = Query("users", description="Collection name (e.g., users)"),
+    request: Request = None,
+    response: Response = None
 ):
     """
     Verify a user account (admin only)
     """
+    # Add explicit CORS headers for this endpoint
+    if response and request and "origin" in request.headers:
+        origin = request.headers.get("origin")
+        allowed_origins = [
+            "https://alumni-frontend-zzr2.onrender.com",
+            "https://alumni-frontend.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5173", 
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ]
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With"
+    
     try:
         logger = logging.getLogger(__name__)
         database = get_database()
@@ -1686,4 +1707,34 @@ async def test_cors_unverified(request: Request, response: Response):
         "request_headers": headers,
         "response_headers": dict(response.headers),
         "timestamp": datetime.utcnow().isoformat()
-    } 
+    }
+
+@router.options("/verify-user/{user_id}", include_in_schema=False)
+async def options_verify_user(request: Request, response: Response):
+    """Handle OPTIONS request for verify-user endpoint (CORS preflight)"""
+    from app.core.config import settings
+    origin = request.headers.get("Origin", "")
+    
+    # Always allow the main frontend domain (highest priority)
+    if origin == "https://alumni-frontend-zzr2.onrender.com":
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
+        response.headers["Content-Type"] = "text/plain"
+        response.headers["Content-Length"] = "0"
+        return {}
+    
+    # Check if the origin is in our allowed list
+    allowed_origins = settings.cors_origins_list
+    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
+    
+    response.headers["Access-Control-Allow-Origin"] = allow_origin
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
+    response.headers["Content-Type"] = "text/plain"
+    response.headers["Content-Length"] = "0"
+    return {} 
