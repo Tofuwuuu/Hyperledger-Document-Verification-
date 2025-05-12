@@ -23,8 +23,6 @@ class Settings(BaseSettings):
     
     # CORS settings
     CORS_ORIGINS: Union[List[str], str] = [
-        # Allow wildcard for debugging
-        "*",
         # Specific domains
         "http://localhost:3000",
         "http://localhost:5173",  # Vite default port
