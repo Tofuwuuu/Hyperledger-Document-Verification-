@@ -218,8 +218,8 @@ export default function LoginPage() {
           
           <Formik
             initialValues={{
-              email: '',
-              password: '',
+              email: 'user@example.com', // Pre-filled with a valid mock user
+              password: 'secret', // Pre-filled with the correct password
               remember: false
             }}
             validationSchema={LoginSchema}

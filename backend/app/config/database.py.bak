@@ -66,9 +66,6 @@ client = None
 db = None
 mock_db = None
 
-# Disable mock database creation by default
-ALLOW_MOCK_DB = os.getenv("ALLOW_MOCK_DB", "false").lower() == "true"
-
 # Create a mock database instance for development/testing
 def create_mock_db():
     global mock_db
@@ -84,20 +81,9 @@ def create_mock_db():
             "_id": "60d21b4667d0d8992e610c85",
             "email": "admin@cvsu.edu.ph",
             "full_name": "Admin User",
-            "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW", # "password"
+            "hashed_password": "hashed_password",
             "is_active": True,
             "is_admin": True,
-            "is_verified": True,
-            "created_at": "2023-01-01T00:00:00.000Z",
-            "updated_at": "2023-01-01T00:00:00.000Z"
-        },
-        {
-            "_id": "60d21b4667d0d8992e610c86",
-            "email": "user@example.com",
-            "full_name": "Test User",
-            "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW", # "password"
-            "is_active": True,
-            "is_admin": False,
             "is_verified": True,
             "created_at": "2023-01-01T00:00:00.000Z",
             "updated_at": "2023-01-01T00:00:00.000Z"
@@ -116,12 +102,6 @@ def create_mock_db():
                     for user in mock_users:
                         if user['email'] == filter['email']:
                             return user
-                elif filter and '_id' in filter:
-                    user_id = filter['_id']
-                    if isinstance(user_id, str):
-                        for user in mock_users:
-                            if user['_id'] == user_id:
-                                return user
                 return None
             collection_mock.find_one = mock_find_one
         
@@ -160,33 +140,20 @@ def create_mock_db():
 async def connect_to_mongo():
     """Connect to MongoDB."""
     global client, db, MONGODB_DB, mock_db
-    
-    # Log detailed connection information
-    logger.info(f"Attempting to connect to MongoDB at {MONGODB_URL.split('@')[-1] if '@' in MONGODB_URL else 'localhost'}")
-    logger.info(f"Using database name: {MONGODB_DB}")
-    
-    # Check if MongoDB server is actually running
     try:
-        # Try with pymongo (synchronous) first for a direct connection test
-        from pymongo import MongoClient as SyncMongoClient
-        sync_client = SyncMongoClient(
-            MONGODB_URL,
-            serverSelectionTimeoutMS=5000,  # 5 second timeout for initial connection
-        )
+        logger.info(f"Attempting to connect to MongoDB at {MONGODB_URL.split('@')[-1] if '@' in MONGODB_URL else 'localhost'}")
         
-        # Test the connection with a simple command
-        sync_client.admin.command('ping')
-        logger.info("MongoDB server is available (sync client test successful)")
-        
-        # Now connect with the async client
+        # Set a server selection timeout (in milliseconds)
         client = AsyncIOMotorClient(
             MONGODB_URL,
-            serverSelectionTimeoutMS=30000,    # Increased timeout for server selection
-            connectTimeoutMS=30000,            # Increased connection timeout
-            socketTimeoutMS=60000,             # Increased socket timeout
-            maxIdleTimeMS=180000,              # Increased idle time
+            serverSelectionTimeoutMS=10000,    # Increased from 5s to 10s
+            connectTimeoutMS=20000,            # Increased from 10s to 20s
+            socketTimeoutMS=45000,             # Increased from 30s to 45s
+            maxIdleTimeMS=120000,              # Increased from 60s to 120s
             retryWrites=True,
-            retryReads=True                    # Add retry for read operations
+            retryReads=True,                   # Add retry for read operations
+            w="majority",                      # Ensure writes are acknowledged by a majority
+            journal=True                       # Ensure writes are written to the journal
         )
         
         # Test the connection
@@ -211,14 +178,32 @@ async def connect_to_mongo():
         logger.info(f"Available collections: {collections}")
         
         return True
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB at {MONGODB_URL}: {str(e)}")
-        logger.error(f"Database connection not established. MongoDB might not be running.")
-        logger.error(f"MongoDB database attempted: {MONGODB_DB}")
-        logger.error(f"Environment variables: DATABASE_URL exists: {bool(os.getenv('DATABASE_URL'))}, MONGODB_URI exists: {bool(os.getenv('MONGODB_URI'))}")
-        
-        # Don't create a mock database - let the app fail if MongoDB isn't available
+            
+    except ServerSelectionTimeoutError as e:
+        logger.error(f"MongoDB server selection timeout: {e}")
+        # Set db to None to indicate connection failure
         db = None
+        # Don't raise the exception to prevent app from crashing
+        logger.error("MongoDB connection failed but service will continue running with limited functionality")
+        # Create mock database for development/testing if allowed
+        if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+            mock_db = create_mock_db()
+        return False
+    except ConnectionFailure as e:
+        logger.error(f"MongoDB connection failure: {e}")
+        db = None
+        logger.error("MongoDB connection failed but service will continue running with limited functionality")
+        # Create mock database for development/testing if allowed
+        if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+            mock_db = create_mock_db()
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error connecting to MongoDB: {e}")
+        db = None
+        logger.error("MongoDB connection failed but service will continue running with limited functionality")
+        # Create mock database for development/testing if allowed
+        if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+            mock_db = create_mock_db()
         return False
 
 async def close_mongo_connection():
@@ -234,6 +219,11 @@ def get_database():
     
     if db is not None:
         return db
+    
+    # Return mock database if available
+    if mock_db is not None:
+        logger.warning("Using mock database for development/testing")
+        return mock_db
     
     # Report more detailed error information
     connection_url = MONGODB_URL
@@ -254,6 +244,11 @@ def get_database():
     logger.error(f"MongoDB database attempted: {MONGODB_DB}")
     logger.error(f"Environment variables: DATABASE_URL exists: {bool(os.getenv('DATABASE_URL'))}, MONGODB_URI exists: {bool(os.getenv('MONGODB_URI'))}")
     
+    # Create and return a mock database for development/testing if configured
+    if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+        mock_db = create_mock_db()
+        return mock_db
+        
     # This will be caught and handled by the routes
     raise ConnectionError("Database connection not established. Please check that MongoDB is running and check your connection settings.")
 
@@ -264,8 +259,18 @@ async def get_database_async():
     if db is not None:
         return db
     
+    # Return mock database if available
+    if mock_db is not None:
+        logger.warning("Using mock database for development/testing")
+        return mock_db
+    
     logger.error("Database connection not established. MongoDB might not be running.")
     logger.error(f"MongoDB database attempted: {MONGODB_DB}")
+    
+    # Create and return a mock database for development/testing if configured
+    if os.getenv("ALLOW_MOCK_DB", "").lower() == "true":
+        mock_db = create_mock_db()
+        return mock_db
     
     raise ConnectionError("Database connection not established. Please check that MongoDB is running.")
 
@@ -273,35 +278,32 @@ async def get_database_async():
 async def get_transaction_session():
     """
     Context manager for MongoDB transactions.
-    For standalone MongoDB installations that don't support transactions,
-    this provides a compatible interface that mimics a session without transactions.
+    Usage:
+        async with get_transaction_session() as session:
+            async with session.start_transaction():
+                # Perform multiple operations within the transaction
+                await db.collection.insert_one(doc1, session=session)
+                await db.collection.update_one(filter, update, session=session)
     """
     global client, mock_db
     
     if client is not None:
         try:
             session = await client.start_session()
-            
-            # Create a compatible context manager that works even without transactions
-            @asynccontextmanager
-            async def no_transaction_cm():
-                try:
-                    yield session
-                except Exception as e:
-                    logger.warning(f"Transaction simulation - error handled: {str(e)}")
-                    raise
-                    
-            # Set the start_transaction method on the session
-            session.start_transaction = no_transaction_cm
-            
             try:
                 yield session
             finally:
                 await session.end_session()
         except Exception as e:
-            logger.warning(f"Session creation failed (expected for standalone MongoDB): {str(e)}")
-            # For MongoDB installations that don't support sessions at all,
-            # return None as the session which tells the application to operate without transactions
-            yield None
+            logger.error(f"Error in transaction session: {str(e)}")
+            raise
+    elif mock_db is not None:
+        # Provide a mock session for development/testing
+        logger.warning("Using mock transaction session")
+        mock_session = MagicMock()
+        mock_session.start_transaction = MagicMock()
+        mock_session.__aenter__ = MagicMock(return_value=mock_session)
+        mock_session.__aexit__ = MagicMock(return_value=None)
+        yield mock_session
     else:
         raise ConnectionError("MongoDB client not initialized") 

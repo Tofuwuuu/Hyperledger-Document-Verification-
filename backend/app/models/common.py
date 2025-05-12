@@ -1,4 +1,5 @@
-from typing import Any, Optional, ClassVar, Annotated
+from typing import Any, Optional, ClassVar
+from typing_extensions import Annotated
 from pydantic import BaseModel, Field, GetJsonSchemaHandler
 from bson import ObjectId
 from bson.errors import InvalidId

@@ -147,94 +147,42 @@ export const getUnverifiedUsers = async (signal) => {
       return [];
     }
     
-    console.log('Using authentication token:', token.substring(0, 10) + '...');
-    
     // Set up headers with authentication
     const headers = getAuthHeader();
     
-    // Add X-Admin-Access header for all admin requests to help with authentication issues
+    // Add admin-specific headers
     headers['X-Admin-Access'] = 'true';
-    headers['X-Admin-Bypass'] = 'true'; // Add admin bypass header for testing
-    console.log('Adding admin headers for authentication debugging');
+    headers['X-Admin-Bypass'] = 'true';
     
-    // Use a simplified query with fewer parameters to reduce response size
-    const simpleUrl = `${API_URL}/auth/unverified-users?limit=10`;
-    console.log('Making API request to:', simpleUrl);
-    console.log('Request headers:', headers);
-    
+    // Use simplified approach with direct axios call instead of the service
     try {
-      // Log the API URL for debugging
-      console.log('Full API_URL value:', API_URL);
+      console.log('Making request to:', `${API_URL}/auth/unverified-users?limit=10`);
       
-      // Try making a simple GET request directly with axios first for testing
-      console.log('Attempting direct axios request for testing...');
-      try {
-        const testResponse = await axios.get(`${API_URL}/healthcheck`, {
-          headers: {
-            ...headers,
-            'Cache-Control': 'no-cache'
-          }
-        });
-        console.log('Healthcheck API test response:', testResponse.status);
-      } catch (testErr) {
-        console.error('Healthcheck API test failed:', testErr.message);
-      }
-      
-      // Use simplified query parameters with smaller limit and timeout support
-      console.log('Making unverified users request with apiService.withCORS...');
-      const response = await apiService.withCORS(
-        'get', 
-        '/auth/unverified-users?limit=10', 
-        null, 
-        { 
-          headers,
-          signal, // Pass the abort signal for timeout support
-          timeout: 20000 // Increase timeout to 20 seconds
-        }
-      );
+      const response = await axios({
+        method: 'get',
+        url: `${API_URL}/auth/unverified-users?limit=10`,
+        headers: headers,
+        withCredentials: true,
+        timeout: 30000,
+        signal: signal
+      });
       
       console.log('Unverified users response status:', response.status);
-      console.log('Unverified users response headers:', response.headers);
       
       if (Array.isArray(response.data)) {
-        console.log('Number of users in response:', response.data.length);
-        if (response.data.length > 0) {
-          console.log('Sample user:', JSON.stringify(response.data[0]));
-        } else {
-          console.log('No unverified users found in response - empty array returned');
-          // Check if we should return mock data for testing
-          if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true') {
-            console.log('Returning mock unverified users for development testing');
-            return [
-              {
-                id: 'mock_user_1',
-                email: 'mock_user@example.com',
-                full_name: 'Mock Unverified User',
-                created_at: new Date().toISOString(),
-                student_id: 'MOCK-123456',
-                is_verified: false
-              }
-            ];
-          }
-        }
-        return response.data; // Return the array directly
+        return response.data;
       } else {
         console.error('Unexpected response format (not an array):', response.data);
-        return []; // Return empty array if response is not an array
+        return []; 
       }
     } catch (apiError) {
       console.error('API Error fetching unverified users:', apiError);
       
       if (apiError.name === 'AbortError' || apiError.code === 'ECONNABORTED') {
-        console.error('Request timed out');
         throw new Error('Request timed out. Server took too long to respond.');
       }
       
       if (apiError.response) {
-        console.error('Response status:', apiError.response.status);
-        console.error('Response headers:', apiError.response.headers);
-        console.error('Response data:', apiError.response.data);
-        
         // Handle specific HTTP errors
         if (apiError.response.status === 413) {
           throw new Error('Response too large. Please contact administrator.');
@@ -245,12 +193,11 @@ export const getUnverifiedUsers = async (signal) => {
         }
       } 
       
-      // Propagate the error for better handling in the component
       throw apiError;
     }
   } catch (error) {
     console.error('Get unverified users general error:', error);
-    throw error; // Propagate the error instead of returning empty array
+    throw error;
   }
 };
 

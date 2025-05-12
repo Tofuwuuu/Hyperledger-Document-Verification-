@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, APIRouter
+from fastapi import Depends, HTTPException, APIRouter, Query
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from app.utils.csrf import csrf_protect
@@ -10,6 +10,7 @@ from app.utils.auth import get_admin_user, get_current_user
 import json
 import traceback
 import logging
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -93,4 +94,54 @@ async def create_event(
         raise HTTPException(
             status_code=500,
             detail=f"Could not create event: {str(e)}"
+        )
+
+@router.get("/events/upcoming", response_model=List[dict])
+async def get_upcoming_events(
+    limit: int = Query(5, ge=1, le=20),
+    skip: int = Query(0, ge=0)
+):
+    """
+    Get upcoming events (no authentication required).
+    This endpoint returns the upcoming events that are active, 
+    ordered by event date.
+    """
+    try:
+        logger.info(f"Getting upcoming events with limit={limit}, skip={skip}")
+        
+        # Get database connection
+        db = get_database()
+        
+        # Get current date
+        now = datetime.utcnow()
+        
+        # Define query for upcoming events (start_date > now and is_active=True)
+        query = {
+            "start_date": {"$gte": now},
+            "is_active": True
+        }
+        
+        # Get events from database
+        cursor = db.events.find(query).sort("start_date", 1).skip(skip).limit(limit)
+        
+        # Convert to list
+        events = []
+        async for event in cursor:
+            # Ensure _id is a string
+            event["_id"] = str(event["_id"])
+            # Convert dates to strings for JSON serialization
+            for key, value in event.items():
+                if isinstance(value, datetime):
+                    event[key] = value.isoformat()
+            events.append(event)
+        
+        logger.info(f"Found {len(events)} upcoming events")
+        return events
+    except Exception as e:
+        logger.error(f"Error getting upcoming events: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not retrieve upcoming events: {str(e)}"
         ) 

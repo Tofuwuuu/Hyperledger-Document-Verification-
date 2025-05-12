@@ -321,4 +321,11 @@ async def get_current_user_ws(token: str):
     except JWTError:
         raise Exception("Invalid token")
     except Exception as e:
-        raise Exception(f"Authentication failed: {str(e)}") 
+        raise Exception(f"Authentication failed: {str(e)}")
+
+# Add this function to provide compatibility with the import in main.py
+async def get_current_user_from_token(request: Request = None, authorization: str = Header(None)):
+    """
+    Get current user from token (compatibility wrapper for get_current_user)
+    """
+    return await get_current_user(request, authorization) 

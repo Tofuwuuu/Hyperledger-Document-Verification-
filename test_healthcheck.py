@@ -1,33 +1,32 @@
 import requests
+import sys
 
-# Test all health check endpoints
-base_url = 'https://alumni-api-klrk.onrender.com/api/v1/healthcheck'
-headers = {'Origin': 'https://alumni-frontend-zzr2.onrender.com'}
-endpoints = [
-    '/health',
-    '/health/db',
-    '/health/alumni'
-]
-
-for endpoint in endpoints:
-    url = base_url + endpoint
-    print(f"\n\nTesting endpoint: {url}")
-    
+def test_endpoint(url):
+    print(f"\nTesting endpoint: {url}")
     try:
-        # Make the request
-        r = requests.get(url, headers=headers)
-        
-        # Print status code
-        print(f'Status: {r.status_code}')
-        
-        # Print all headers
-        print('Headers:')
-        for k, v in r.headers.items():
-            print(f'  {k}: {v}')
-        
-        # Print response content
-        print('\nContent:')
-        print(r.text)
-        
+        response = requests.get(url, timeout=10)
+        print(f"Status: {response.status_code}")
+        print("Headers:")
+        for key, value in response.headers.items():
+            print(f"  {key}: {value}")
+        print("\nContent:")
+        print(response.text[:200])  # Print first 200 chars
+        return response.status_code
     except Exception as e:
-        print(f'Error: {e}') 
+        print(f"Error: {e}")
+        return None
+
+def main():
+    base_url = "http://localhost:8000"
+    
+    endpoints = [
+        f"{base_url}/api/v1/healthcheck",
+        f"{base_url}/api/v1/auth/test",
+        f"{base_url}/api/v1/users/test",
+    ]
+    
+    for url in endpoints:
+        status = test_endpoint(url)
+    
+if __name__ == "__main__":
+    main() 

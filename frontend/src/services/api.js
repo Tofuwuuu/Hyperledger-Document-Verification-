@@ -8,12 +8,22 @@ import {
 } from '../utils/authUtils';
 import { API_URL as CONFIG_API_URL } from '../config';
 
-// Base URL for the API - either from config import or environment
-const baseApiUrl = process.env.REACT_APP_API_URL || 'https://final-ecri.onrender.com';
-// Clean up URL format (remove trailing slash if present)
-const baseApiUrl_clean = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
-// Add /api/v1 only if it's not already included
-const API_BASE_URL = baseApiUrl_clean.includes('/api/v1') ? baseApiUrl_clean : `${baseApiUrl_clean}/api/v1`;
+// Base URL for the API - different for development vs production
+let API_BASE_URL;
+
+if (import.meta.env.DEV) {
+  // In development, use the proxy from Vite config
+  API_BASE_URL = '/api/v1';
+  console.log('Using Vite proxy for API calls in development');
+} else {
+  // In production, use the environment variable or config
+  const baseApiUrl = import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com';
+  // Clean up URL format (remove trailing slash if present)
+  const baseApiUrl_clean = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
+  // Add /api/v1 only if it's not already included
+  API_BASE_URL = baseApiUrl_clean.includes('/api/v1') ? baseApiUrl_clean : `${baseApiUrl_clean}/api/v1`;
+}
+
 // Use imported config URL or fallback to locally defined URL
 export const API_URL = CONFIG_API_URL || API_BASE_URL;
 console.log('API URL configured as:', API_URL); // Debug API URL
@@ -53,7 +63,7 @@ api.interceptors.request.use(
     config.withCredentials = true;
     
     // Debug current request in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.MODE === 'development') {
       console.log(`🚀 API Request [${config.method?.toUpperCase()}] ${config.url}`, { 
         headers: config.headers, 
         data: config.data,
@@ -79,7 +89,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     // Debug response in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.MODE === 'development') {
       console.log(`✅ API Response [${response.status}] ${response.config.url}`, { 
         headers: response.headers,
         data: response.data
@@ -97,7 +107,7 @@ api.interceptors.response.use(
   },
   async (error) => {
     // Debug error in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.MODE === 'development') {
       console.error(`❌ API Error [${error.response?.status || 'Network Error'}]`, { 
         message: error.message,
         response: error.response,

@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional, Union
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
 # Load .env file
@@ -42,20 +42,6 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: List[str] = ["*"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]
     
-    # Handle CORS origins from environment variable
-    @property
-    def cors_origins_list(self) -> List[str]:
-        """Convert CORS_ORIGINS to a list regardless of input type"""
-        if isinstance(self.CORS_ORIGINS, str):
-            if self.CORS_ORIGINS == "*":
-                # Return all origins for debugging
-                return ["*"]
-            return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
-        return self.CORS_ORIGINS
-    
-    # Frontend URL for redirects and QR codes
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    
     # Database settings
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     MONGODB_DB_NAME: str = os.getenv("MONGODB_DB", "cvsu_alumni")
@@ -90,9 +76,25 @@ class Settings(BaseSettings):
     JITSI_JWT_AUDIENCE: str = os.getenv("JITSI_JWT_AUDIENCE", "jitsi")
     JITSI_JWT_HOURS: int = int(os.getenv("JITSI_JWT_HOURS", "24"))
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    # Frontend URL for redirects and QR codes
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    
+    # Configure pydantic-settings v2
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
+    
+    # Handle CORS origins from environment variable
+    def get_cors_origins(self) -> List[str]:
+        """Convert CORS_ORIGINS to a list regardless of input type"""
+        if isinstance(self.CORS_ORIGINS, str):
+            if self.CORS_ORIGINS == "*":
+                # Return all origins for debugging
+                return ["*"]
+            return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        return self.CORS_ORIGINS
 
 # Create a global settings object
 settings = Settings() 

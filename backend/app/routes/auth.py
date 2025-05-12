@@ -110,25 +110,25 @@ async def register(user_data: UserCreate):
     }
     
     try:
-        # Use a transaction to ensure both user and alumni profile are created atomically
-        async with get_transaction_session() as session:
-            async with session.start_transaction():
-                # Insert user to database
-                await db.users.insert_one(new_user, session=session)
-                
-                # Create alumni profile
-                await db.alumni.insert_one(alumni_profile, session=session)
-                
-                # Create initial notification for welcome
-                await db.notifications.insert_one({
-                    "_id": str(ObjectId()),
-                    "user_id": user_id,
-                    "title": "Welcome to CVSU Alumni Portal",
-                    "message": f"Welcome {user_data.full_name}! Please complete your profile to get verified.",
-                    "is_read": False,
-                    "type": "welcome",
-                    "created_at": now
-                }, session=session)
+        # NEW: Insert documents individually instead of using a transaction
+        # This is more compatible with standalone MongoDB instances
+        
+        # Insert user to database
+        await db.users.insert_one(new_user)
+        
+        # Create alumni profile
+        await db.alumni.insert_one(alumni_profile)
+        
+        # Create initial notification for welcome
+        await db.notifications.insert_one({
+            "_id": str(ObjectId()),
+            "user_id": user_id,
+            "title": "Welcome to CVSU Alumni Portal",
+            "message": f"Welcome {user_data.full_name}! Please complete your profile to get verified.",
+            "is_read": False,
+            "type": "welcome",
+            "created_at": now
+        })
         
         # Return user without password
         return {**new_user, "id": new_user["_id"]}
@@ -156,10 +156,25 @@ async def login(
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     
     try:
-        db = get_database()
-        
         # Log login attempt (without password)
         logging.info(f"Login attempt for user: {form_data.username}, remember: {remember}")
+        
+        # Try to reconnect to MongoDB first
+        from app.config.database import connect_to_mongo
+        await connect_to_mongo()
+        
+        # Get database connection
+        try:
+            from app.config.database import get_database
+            db = get_database()
+            logging.info(f"Database connection established for login attempt: {form_data.username}")
+        except ConnectionError as db_error:
+            logging.error(f"Database connection error during login: {str(db_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database connection error. Please check if MongoDB is running and try again later.",
+                headers={"X-Error-Type": "mongodb_connection_error"}
+            )
         
         # Find user by username (email)
         user = await db.users.find_one({"email": form_data.username})
@@ -255,6 +270,11 @@ async def login(
         import traceback
         logging.error(f"Error traceback: {traceback.format_exc()}")
         
+        # Check if this is an HTTPException and return it properly
+        if isinstance(e, HTTPException):
+            raise e
+        
+        # Otherwise, raise a generic 500 error
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later."
@@ -483,16 +503,7 @@ async def verify_user(
     Verify a user account (admin only)
     """
     # Add explicit CORS headers for this endpoint - ALWAYS at the start, before any processing
-    allowed_origins = [
-        "https://alumni-frontend-zzr2.onrender.com",
-        "https://alumni-frontend.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173", 
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:3000"
-    ]
+    allowed_origins = settings.get_cors_origins()
     
     # If response is provided, set CORS headers unconditionally
     if response:
@@ -624,24 +635,14 @@ async def get_unverified_users(
     """
     Get all unverified users (admin only)
     """
-    # Add explicit CORS headers for this endpoint
-    if response and request and "origin" in request.headers:
-        origin = request.headers.get("origin")
-        allowed_origins = [
-            "https://alumni-frontend-zzr2.onrender.com",
-            "https://alumni-frontend.onrender.com",
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174",
-            "http://127.0.0.1:3000"
-        ]
-        if origin in allowed_origins:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Requested-With"
+    # Add explicit CORS headers for this endpoint - always set headers regardless of origin
+    if response:
+        # Always allow localhost for development
+        origin = request.headers.get("origin", "")
+        response.headers["Access-Control-Allow-Origin"] = origin or "http://localhost:5173"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
     
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
@@ -977,7 +978,7 @@ async def options_register(request: Request):
         }
     
     # Check if the origin is in our allowed list
-    allowed_origins = settings.cors_origins_list
+    allowed_origins = settings.get_cors_origins()
     allow_origin = origin if origin in allowed_origins else allowed_origins[0]
     
     return {
@@ -1630,25 +1631,11 @@ async def test_mongo_query(
 @router.options("/unverified-users", include_in_schema=False)
 async def options_unverified_users(request: Request, response: Response):
     """Handle OPTIONS request for unverified-users endpoint (CORS preflight)"""
-    from app.core.config import settings
+    # Always allow the frontend domains
     origin = request.headers.get("Origin", "")
     
-    # Always allow the main frontend domain (highest priority)
-    if origin == "https://alumni-frontend-zzr2.onrender.com":
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Max-Age"] = "86400"  # 1 day in seconds
-        response.headers["Content-Type"] = "text/plain"
-        response.headers["Content-Length"] = "0"
-        return {}
-    
-    # Check if the origin is in our allowed list
-    allowed_origins = settings.cors_origins_list
-    allow_origin = origin if origin in allowed_origins else allowed_origins[0]
-    
-    response.headers["Access-Control-Allow-Origin"] = allow_origin
+    # Set CORS headers unconditionally to support local development
+    response.headers["Access-Control-Allow-Origin"] = origin or "http://localhost:5173"
     response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Admin-Bypass, X-Admin-Access, X-Requested-With"
     response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -1663,16 +1650,7 @@ async def test_cors_unverified(request: Request, response: Response):
     # Add explicit CORS headers
     if request and "origin" in request.headers:
         origin = request.headers.get("origin")
-        allowed_origins = [
-            "https://alumni-frontend-zzr2.onrender.com",
-            "https://alumni-frontend.onrender.com",
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174",
-            "http://127.0.0.1:3000"
-        ]
+        allowed_origins = settings.get_cors_origins()
         if origin in allowed_origins:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -1692,16 +1670,7 @@ async def test_cors_unverified(request: Request, response: Response):
 async def options_verify_user(request: Request, response: Response):
     """Handle OPTIONS request for verify-user endpoint (CORS preflight)"""
     # Set CORS headers unconditionally for OPTIONS requests
-    allowed_origins = [
-        "https://alumni-frontend-zzr2.onrender.com",
-        "https://alumni-frontend.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173", 
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:3000"
-    ]
+    allowed_origins = settings.get_cors_origins()
     
     # Get the origin from request
     origin = request.headers.get("Origin", "")
