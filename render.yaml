@@ -1,19 +1,19 @@
 services:
   # Backend API service
   - type: web
-    name: alumni-api
+    name: final-ecri
     env: python
     buildCommand: pip install -r backend/requirements.txt
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: MONGODB_URI
-        value: mongodb+srv://dbRod:dekdek812@cluster0.hl5tp.mongodb.net/cvsu_alumni?retryWrites=true&w=majority
+        sync: false # Use the value from the Render dashboard environment variables
       - key: SECRET_KEY
         generateValue: true
       - key: NOTIFICATIONS_ENABLED
         value: "true"
       - key: CORS_ORIGINS
-        value: "*"
+        value: "https://alumni-frontend-4r7o.onrender.com,http://localhost:3000,http://localhost:5173"
       - key: PORT
         value: "10000"
 
@@ -30,7 +30,7 @@ services:
     envVars:
       - key: VITE_API_URL
         fromService:
-          name: alumni-api
+          name: final-ecri
           type: web
           envVarKey: RENDER_EXTERNAL_URL
           append: /api/v1

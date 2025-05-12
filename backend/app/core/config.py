@@ -32,9 +32,13 @@ class Settings(BaseSettings):
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "https://cvsu-alumni.vercel.app",
-        "https://alumni-frontend-zzr2.onrender.com",  # Add the specific render.com frontend URL
-        "http://alumni-frontend-zzr2.onrender.com",   # Also include HTTP version for completeness
-        "https://final-rkpz.onrender.com",            # Backend URL for same-origin reference
+        "https://alumni-frontend-4r7o.onrender.com",  # New frontend URL
+        "http://alumni-frontend-4r7o.onrender.com",   # HTTP version of new frontend URL
+        "https://final-ecri.onrender.com",            # New backend URL
+        "https://alumni-api-i4gs.onrender.com",       # Old backend URL (for backwards compatibility)
+        "https://alumni-frontend-zzr2.onrender.com",  # Old frontend URL (for backwards compatibility)
+        "http://alumni-frontend-zzr2.onrender.com",   # HTTP version of old frontend URL
+        "https://final-rkpz.onrender.com",            # Old backend URL for same-origin reference
         "https://alumni-api-klrk.onrender.com",       # Backend API alternative URL
         "https://alumni-api-klrk.onrender.com/api/v1", # Backend API with path
         "https://alumni-frontend.onrender.com"        # More general frontend URL pattern

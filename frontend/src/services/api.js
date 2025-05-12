@@ -9,7 +9,7 @@ import {
 import { API_URL as CONFIG_API_URL } from '../config';
 
 // Base URL for the API - either from config import or environment
-const baseApiUrl = process.env.REACT_APP_API_URL || 'https://final-rkpz.onrender.com';
+const baseApiUrl = process.env.REACT_APP_API_URL || 'https://final-ecri.onrender.com';
 // Clean up URL format (remove trailing slash if present)
 const baseApiUrl_clean = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 // Add /api/v1 only if it's not already included

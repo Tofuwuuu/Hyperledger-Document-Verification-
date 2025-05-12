@@ -202,7 +202,7 @@ export default function AdminDashboardPage() {
   const fetchUserActivity = async () => {
     try {
       // Get the API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com';
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included
@@ -257,7 +257,7 @@ export default function AdminDashboardPage() {
       console.log('fetchRecentActivity started...');
       
       // Get the API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com';
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included
@@ -305,7 +305,7 @@ export default function AdminDashboardPage() {
     
     try {
       // Get base API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'https://final-rkpz.onrender.com';
+      let baseUrl = import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com';
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included

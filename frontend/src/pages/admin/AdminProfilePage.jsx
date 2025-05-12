@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { API_URL } from '../../config';
 
 export default function AdminProfilePage() {
   const { currentUser } = useAuth();
@@ -35,11 +36,11 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      console.log('Loading unverified users...');
+      console.log('Loading admin profile...');
       
       // Using axios directly with explicit CORS headers
       const response = await axios.get(
-        'https://final-rkpz.onrender.com/api/v1',
+        `${API_URL}/admin/profile`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -79,7 +80,7 @@ export default function AdminProfilePage() {
         });
         
         // Get the base URL without /api/v1 for profile picture
-        const baseUrl = data.profile_picture ? 'https://final-rkpz.onrender.com' : '';
+        const baseUrl = data.profile_picture ? API_URL.replace('/api/v1', '') : '';
         
         if (data.profile_picture) {
           setPreviewUrl(`${baseUrl}/${data.profile_picture}`);
@@ -88,7 +89,7 @@ export default function AdminProfilePage() {
         return;
       } else {
         const errorText = await response.text();
-        console.warn(`Failed with ${response.status} using https://final-rkpz.onrender.com: ${errorText}`);
+        console.warn(`Failed with ${response.status} using ${API_URL}: ${errorText}`);
         throw new Error(`Server returned ${response.status}`);
       }
     } catch (error) {
@@ -134,54 +135,35 @@ export default function AdminProfilePage() {
     
     setIsUploading(true);
     try {
-      console.log('Loading unverified users...');
+      console.log('Uploading profile picture...');
       
-      // Using axios directly with explicit CORS headers
-      const response = await axios.get(
-        'https://final-rkpz.onrender.com/api/v1',
+      // Create a FormData object to upload the file
+      const formData = new FormData();
+      formData.append('profile_picture', profilePicture);
+      
+      // Make the profile picture upload API call
+      const response = await axios.post(
+        `${API_URL}/admin/profile/upload-picture`,
+        formData,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'X-Admin-Bypass': 'true'
+            'X-Admin-Bypass': 'true',
+            'Content-Type': 'multipart/form-data'
           }
         }
       );
       
       if (response.ok) {
-        const data = await response.data;
-        console.log('Successfully fetched user profile from API:', data);
+        console.log('Profile picture uploaded successfully');
+        setSuccessMessage('Profile picture updated successfully!');
+        setProfilePicture(null);
         
-        // Create a FormData object to upload the file
-        const formData = new FormData();
-        formData.append('profile_picture', profilePicture);
-        
-        // Make the verification API call
-        const verificationResponse = await axios.post(
-          'https://final-rkpz.onrender.com/api/v1',
-          formData,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'X-Admin-Bypass': 'true'
-            }
-          }
-        );
-        
-        if (verificationResponse.ok) {
-          console.log('Profile picture uploaded successfully');
-          setSuccessMessage('Profile picture updated successfully!');
-          setProfilePicture(null);
-          
-          // Refetch the profile to get the updated picture URL
-          fetchAdminProfile();
-        } else {
-          const errorText = await verificationResponse.text();
-          console.warn(`Failed with ${verificationResponse.status} using https://final-rkpz.onrender.com: ${errorText}`);
-          throw new Error(`Server returned ${verificationResponse.status}`);
-        }
+        // Refetch the profile to get the updated picture URL
+        fetchAdminProfile();
       } else {
         const errorText = await response.text();
-        console.warn(`Failed with ${response.status} using https://final-rkpz.onrender.com: ${errorText}`);
+        console.warn(`Failed with ${response.status} using ${API_URL}: ${errorText}`);
         throw new Error(`Server returned ${response.status}`);
       }
     } catch (error) {
@@ -213,11 +195,11 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      console.log('Loading unverified users...');
+      console.log('Loading admin profile...');
       
       // Using axios directly with explicit CORS headers
       const response = await axios.get(
-        'https://final-rkpz.onrender.com/api/v1',
+        `${API_URL}/admin/profile`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -244,7 +226,7 @@ export default function AdminProfilePage() {
         
         // Update the user using the API
         const updateResponse = await axios.put(
-          'https://final-rkpz.onrender.com/api/v1',
+          `${API_URL}/admin/profile`,
           profileData,
           {
             headers: {
@@ -272,12 +254,12 @@ export default function AdminProfilePage() {
           fetchAdminProfile();
         } else {
           const errorText = await updateResponse.text();
-          console.warn(`Failed with ${updateResponse.status} using https://final-rkpz.onrender.com: ${errorText}`);
+          console.warn(`Failed with ${updateResponse.status} using ${API_URL}: ${errorText}`);
           throw new Error(`Server returned ${updateResponse.status}`);
         }
       } else {
         const errorText = await response.text();
-        console.warn(`Failed with ${response.status} using https://final-rkpz.onrender.com: ${errorText}`);
+        console.warn(`Failed with ${response.status} using ${API_URL}: ${errorText}`);
         throw new Error(`Server returned ${response.status}`);
       }
     } catch (error) {
