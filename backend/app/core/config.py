@@ -35,12 +35,12 @@ class Settings(BaseSettings):
         "https://final-ecri.onrender.com",            # New backend URL
         "https://alumni-api-i4gs.onrender.com",       # Old backend URL (for backwards compatibility)
         "https://alumni-frontend-zzr2.onrender.com",  # Old frontend URL (for backwards compatibility)
-        "http://alumni-frontend-zzr2.onrender.com",   # HTTP version of old frontend URL
-        "https://final-rkpz.onrender.com",            # Old backend URL for same-origin reference
-        "https://alumni-api-klrk.onrender.com",       # Backend API alternative URL
-        "https://alumni-api-klrk.onrender.com/api/v1", # Backend API with path
-        "https://alumni-frontend.onrender.com"        # More general frontend URL pattern
+        "http://alumni-frontend-zzr2.onrender.com"    # HTTP version of old frontend URL
     ]
+    
+    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOW_METHODS: List[str] = ["*"]
+    CORS_ALLOW_HEADERS: List[str] = ["*"]
     
     # Handle CORS origins from environment variable
     @property
