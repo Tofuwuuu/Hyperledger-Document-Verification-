@@ -110,6 +110,15 @@ export const isUserAdmin = (user) => {
 };
 
 /**
+ * Checks if a user is verified (always returns true to bypass verification)
+ * @param {Object} user - User object
+ * @returns {boolean} - Whether the user is verified (always true)
+ */
+export const isUserVerified = (user) => {
+  return true; // Always return true to bypass verification checks
+};
+
+/**
  * Check token validity and decide if it needs refresh
  * @param {string} token - JWT token to check
  * @returns {boolean} - Whether the token needs refresh

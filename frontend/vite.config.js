@@ -23,7 +23,22 @@ export default defineConfig(({ mode }) => {
           target: API_BASE_URL,
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path
+          ws: true,
+          rewrite: (path) => {
+            // Fix path routing by removing any /api/v1 duplications
+            const parts = path.split('/api/v1');
+            // Keep only the first /api/v1 occurrence
+            if (parts.length > 1) {
+              const correctedPath = '/api/v1' + parts[parts.length - 1];
+              return correctedPath;
+            }
+            return path;
+          },
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.log('proxy error', err);
+            });
+          }
         }
       }
     }

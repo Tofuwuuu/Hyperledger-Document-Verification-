@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from app.api.routes import fabric, notifications, admin, roles, users, healthcheck
 
 # Use standard routes from the app.routes package
-from app.routes import auth, alumni, documents, verification, events, registrations
+from app.routes import auth, alumni, documents, verification, events, registrations, document_requests, meetings, references
 
 api_router = APIRouter()
 
@@ -22,4 +22,7 @@ api_router.include_router(alumni.router)
 api_router.include_router(documents.router)
 api_router.include_router(verification.router)
 api_router.include_router(events.router)
-api_router.include_router(registrations.router) 
+api_router.include_router(registrations.router)
+api_router.include_router(document_requests.router, prefix="/document-requests", tags=["document-requests"])
+api_router.include_router(meetings.router, tags=["meetings"])
+api_router.include_router(references.router, tags=["references"]) 

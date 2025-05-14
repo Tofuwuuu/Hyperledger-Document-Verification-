@@ -1,24 +1,42 @@
+#!/usr/bin/env python3
 import requests
+import json
 
-# Test the alumni endpoint with the appropriate Origin header
-url = 'https://alumni-api-klrk.onrender.com/api/v1/alumni/?limit=20&offset=0'
-headers = {'Origin': 'https://alumni-frontend-zzr2.onrender.com'}
+API_URL = 'http://localhost:8000/api/v1'
+TOKEN = 'YOUR_TOKEN_HERE'  # Replace with a real token
 
-try:
-    # Make the request
-    r = requests.get(url, headers=headers)
+def test_alumni_endpoint():
+    """Test the alumni API endpoint"""
+    url = f"{API_URL}/alumni"
     
-    # Print status code
-    print(f'Status: {r.status_code}')
+    # Test payload
+    payload = {
+        "user_id": "68236de4d8d6f1393876b83f",  # From error logs
+        "full_name": "Test User",
+        "student_id": "12345678",
+        "email": "test@example.com",
+        "graduation_year": 2023
+    }
     
-    # Print all headers
-    print('Headers:')
-    for k, v in r.headers.items():
-        print(f'  {k}: {v}')
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {TOKEN}'
+    }
     
-    # Print response content (truncated if too long)
-    print('\nContent (truncated):')
-    print(r.text[:500] if r.text else 'No content')
+    print(f"Testing API endpoint: POST {url}")
+    print(f"Payload: {json.dumps(payload, indent=2)}")
     
-except Exception as e:
-    print(f'Error: {e}') 
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        print(f"Status Code: {response.status_code}")
+        
+        try:
+            print(f"Response: {json.dumps(response.json(), indent=2)}")
+        except:
+            print(f"Raw response: {response.text}")
+    
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    test_alumni_endpoint() 

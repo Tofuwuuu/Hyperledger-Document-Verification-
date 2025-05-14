@@ -1,8 +1,9 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, validator
-from datetime import datetime
+from datetime import datetime, date
 import re
 from enum import Enum
+from app.utils.datetime_utils import ensure_timezone_aware, get_aware_current_datetime
 
 class Gender(str, Enum):
     MALE = "male"
@@ -64,15 +65,29 @@ class WorkExperience(BaseModel):
     is_current: bool = Field(False, description="Whether this is the current job")
     description: Optional[str] = Field(None, max_length=500, description="Job description")
     
+    @validator('start_date')
+    def validate_start_date(cls, v):
+        if v is None:
+            return None
+        return ensure_timezone_aware(v)
+    
     @validator('end_date')
     def validate_end_date(cls, v, values):
         if v is None:
             return v
         
-        if 'start_date' in values and v < values['start_date']:
-            raise ValueError('End date cannot be before start date')
+        # Make sure the date is timezone-aware
+        v = ensure_timezone_aware(v)
         
-        if v > datetime.now():
+        if 'start_date' in values and values['start_date'] is not None:
+            # Make sure start_date is also timezone-aware
+            start_date = ensure_timezone_aware(values['start_date'])
+            if v < start_date:
+                raise ValueError('End date cannot be before start date')
+        
+        # Get current date with timezone
+        current_date = get_aware_current_datetime()
+        if v > current_date:
             raise ValueError('End date cannot be in the future')
             
         return v
@@ -93,7 +108,13 @@ class Achievement(BaseModel):
     def validate_date(cls, v):
         if v is None:
             return v
-        if v > datetime.now():
+        
+        # Make sure the date is timezone-aware
+        v = ensure_timezone_aware(v)
+        
+        # Get current date with timezone
+        current_date = get_aware_current_datetime()
+        if v > current_date:
             raise ValueError('Achievement date cannot be in the future')
         return v
 
@@ -108,9 +129,9 @@ class AlumniBase(BaseModel):
     profile_picture: Optional[str] = Field(None, description="Profile picture file path")
     graduation_year: int = Field(..., ge=1948, le=datetime.now().year, description="Year of graduation")
     graduation_month: Optional[str] = Field(None, description="Month of graduation (April, September, November)")
-    department: str = Field(..., min_length=2, max_length=100, description="Academic department")
-    course: str = Field(..., min_length=2, max_length=100, description="Course or program")
-    batch: str = Field(..., min_length=2, max_length=20, description="Batch or class")
+    department: Optional[str] = Field(None, min_length=2, max_length=100, description="Academic department")
+    course: Optional[str] = Field(None, min_length=2, max_length=100, description="Course or program")
+    batch: Optional[str] = Field(None, min_length=2, max_length=20, description="Batch or class")
     social_media: Optional[List[SocialMedia]] = Field(None, description="Social media profiles")
     honors_awards: Optional[str] = Field(None, max_length=500, description="Honors or awards received")
     degree_reasons: Optional[List[str]] = Field(None, description="Reasons for pursuing the degree")
@@ -148,7 +169,7 @@ class AlumniBase(BaseModel):
     
     sex: Optional[Gender] = Field(None, description="Gender/Sex")
     civil_status: Optional[CivilStatus] = Field(None, description="Current civil status")
-    birthday: Optional[datetime] = Field(None, description="Date of birth")
+    birthday: Optional[date] = Field(None, description="Date of birth (YYYY-MM-DD)")
     region_of_origin: Optional[str] = Field(None, max_length=100, description="Region of origin")
     
     @validator('student_id')
@@ -186,23 +207,23 @@ class AlumniBase(BaseModel):
     @validator('birthday')
     def validate_birthday(cls, v):
         if v is None:
-            return v
+            return None
         
-        current_date = datetime.now()
+        # Get current date
+        current_date = datetime.now().date()
+        
         # Check if birthday is in the future
         if v > current_date:
             raise ValueError('Birthday cannot be in the future')
             
         # Check if the person is at least 16 years old (reasonable minimum age for alumni)
-        min_birth_year = current_date.year - 16
-        min_birth_date = datetime(min_birth_year, current_date.month, current_date.day)
+        min_birth_date = date(current_date.year - 16, current_date.month, current_date.day)
         if v > min_birth_date:
             raise ValueError('Alumni must be at least 16 years old')
             
         # Check if birthday is reasonable (not more than 100 years ago)
         max_age = 100
-        max_birth_year = current_date.year - max_age
-        max_birth_date = datetime(max_birth_year, current_date.month, current_date.day)
+        max_birth_date = date(current_date.year - max_age, current_date.month, current_date.day)
         if v < max_birth_date:
             raise ValueError(f'Birthday indicates age greater than {max_age} years')
             
@@ -279,7 +300,7 @@ class AlumniUpdate(BaseModel):
     
     sex: Optional[Gender] = Field(None, description="Gender/Sex")
     civil_status: Optional[CivilStatus] = Field(None, description="Current civil status")
-    birthday: Optional[datetime] = Field(None, description="Date of birth")
+    birthday: Optional[date] = Field(None, description="Date of birth (YYYY-MM-DD)")
     region_of_origin: Optional[str] = Field(None, max_length=100, description="Region of origin")
     
     @validator('phone')
@@ -302,23 +323,23 @@ class AlumniUpdate(BaseModel):
     @validator('birthday')
     def validate_birthday(cls, v):
         if v is None:
-            return v
+            return None
         
-        current_date = datetime.now()
+        # Get current date
+        current_date = datetime.now().date()
+        
         # Check if birthday is in the future
         if v > current_date:
             raise ValueError('Birthday cannot be in the future')
             
         # Check if the person is at least 16 years old (reasonable minimum age for alumni)
-        min_birth_year = current_date.year - 16
-        min_birth_date = datetime(min_birth_year, current_date.month, current_date.day)
+        min_birth_date = date(current_date.year - 16, current_date.month, current_date.day)
         if v > min_birth_date:
             raise ValueError('Alumni must be at least 16 years old')
             
         # Check if birthday is reasonable (not more than 100 years ago)
         max_age = 100
-        max_birth_year = current_date.year - max_age
-        max_birth_date = datetime(max_birth_year, current_date.month, current_date.day)
+        max_birth_date = date(current_date.year - max_age, current_date.month, current_date.day)
         if v < max_birth_date:
             raise ValueError(f'Birthday indicates age greater than {max_age} years')
             
@@ -348,9 +369,31 @@ class AlumniInDB(AlumniBase):
     achievements: Optional[List[Achievement]] = Field(None, description="Achievements and awards")
     created_at: datetime = Field(..., description="Profile creation timestamp")
     updated_at: datetime = Field(..., description="Profile last update timestamp")
+    profile_completed: bool = Field(False, description="Whether the profile has all required fields completed")
     
     model_config = {
-        "populate_by_name": True
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {
+            "example": {
+                "_id": "60d21b4967d0d8992e610c85",
+                "user_id": "60d21b4967d0d8992e610c84",
+                "student_id": "2016-12345",
+                "full_name": "John Doe",
+                "email": "john.doe@example.com",
+                "phone": "+639171234567",
+                "address": "123 Main St, Cavite City",
+                "bio": "Computer Science graduate with 3 years of experience in web development.",
+                "profile_picture": "uploads/profile_pictures/john_doe.jpg",
+                "graduation_year": 2020,
+                "department": "College of Computer Studies",
+                "course": "BS Computer Science",
+                "batch": "Batch 2020",
+                "created_at": "2021-06-22T09:30:00.000Z",
+                "updated_at": "2021-06-22T09:30:00.000Z",
+                "profile_completed": True
+            }
+        }
     }
 
 class AlumniOut(AlumniInDB):

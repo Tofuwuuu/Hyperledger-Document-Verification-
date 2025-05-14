@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, WebSocket, WebSocketDisconnect, status, Request, Response
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 from bson import ObjectId
@@ -48,8 +48,26 @@ class NotificationResponse(BaseModel):
     unread_count: int
     notifications: List[Dict[str, Any]]
 
+@router.options("/")
+async def options_notifications(request: Request, response: Response):
+    """
+    Handle OPTIONS requests for the notifications endpoint
+    """
+    origin = request.headers.get("origin", "*")
+    
+    # Set CORS headers
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return {}
+
 @router.get("/", response_model=NotificationResponse)
 async def get_notifications(
+    request: Request,
+    response: Response,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     include_read: bool = Query(False),
@@ -65,6 +83,11 @@ async def get_notifications(
         include_read: Whether to include notifications that have been marked as read
         since_id: If provided, only return notifications newer than this ID
     """
+    # Add CORS headers
+    origin = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     user_id = current_user["_id"]
     
     # Get database connection

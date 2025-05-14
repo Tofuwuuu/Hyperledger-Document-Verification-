@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, Response
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 import hashlib
 import uuid
+import logging
 
 from app.schemas import (
     DocumentCreate,
@@ -129,11 +130,37 @@ async def get_alumni_documents(
     # Get documents
     documents = await db.documents.find({"alumni_id": alumni_id}).to_list(None)
     
+    # Convert all ObjectIds to strings in the document list
+    for doc in documents:
+        for key, value in doc.items():
+            if isinstance(value, ObjectId):
+                doc[key] = str(value)
+                
+        # Also ensure _id is a string        
+        if "_id" in doc and isinstance(doc["_id"], ObjectId):
+            doc["_id"] = str(doc["_id"])
+    
     return documents
+
+# Add OPTIONS handler for the search endpoint
+@router.options("/search")
+async def options_search_documents(request: Request, response: Response):
+    """Handle OPTIONS requests for the search endpoint"""
+    origin = request.headers.get("origin", "*")
+    
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Admin-Bypass, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return {}
 
 # Search documents with filters
 @router.get("/search", response_model=DocumentSearchResult)
 async def search_documents(
+    request: Request,
+    response: Response,
     alumni_id: Optional[str] = Query(None, description="Filter by alumni ID"),
     document_type: Optional[DocumentType] = Query(None, description="Filter by document type"),
     verification_status: Optional[VerificationStatus] = Query(None, description="Filter by verification status"),
@@ -141,6 +168,14 @@ async def search_documents(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Searching documents with filters: alumni_id={alumni_id}, type={document_type}, status={verification_status}")
+    
+    # Add CORS headers
+    origin = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     db = get_database()
     
     # Build query
@@ -175,6 +210,16 @@ async def search_documents(
     
     # Get documents with pagination
     documents = await db.documents.find(query).skip(offset).limit(limit).to_list(None)
+    
+    # Convert all ObjectIds to strings in the document list
+    for doc in documents:
+        for key, value in doc.items():
+            if isinstance(value, ObjectId):
+                doc[key] = str(value)
+                
+        # Also ensure _id is a string        
+        if "_id" in doc and isinstance(doc["_id"], ObjectId):
+            doc["_id"] = str(doc["_id"])
     
     return {
         "results": documents,
@@ -265,6 +310,16 @@ async def get_all_pending_documents(
     # Get all pending documents
     documents = await db.documents.find({"verification_status": VerificationStatus.PENDING.value}).to_list(None)
     
+    # Convert all ObjectIds to strings in the document list
+    for doc in documents:
+        for key, value in doc.items():
+            if isinstance(value, ObjectId):
+                doc[key] = str(value)
+                
+        # Also ensure _id is a string        
+        if "_id" in doc and isinstance(doc["_id"], ObjectId):
+            doc["_id"] = str(doc["_id"])
+    
     return documents
 
 # Get document by ID
@@ -275,7 +330,7 @@ async def get_document(
 ):
     db = get_database()
     
-    # Find document
+    # Get document
     document = await db.documents.find_one({"_id": document_id})
     if not document:
         raise HTTPException(
@@ -283,22 +338,27 @@ async def get_document(
             detail="Document not found"
         )
     
-    # Verify alumni exists
-    alumni = await db.alumni.find_one({"_id": document["alumni_id"]})
-    if not alumni:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alumni profile not found"
-        )
+    # Check if user is authorized to view this document
+    is_admin = current_user.get("is_admin", False)
+    is_verified = document["verification_status"] == VerificationStatus.VERIFIED.value
     
-    # Check if user is viewing their own document or is an admin
-    if alumni["user_id"] != current_user["_id"] and not current_user.get("is_admin", False):
-        # If document is verified, anyone can view it
-        if document["verification_status"] != VerificationStatus.VERIFIED.value:
+    if not is_admin and not is_verified:
+        # Check if the user owns the document
+        alumni = await db.alumni.find_one({"_id": document["alumni_id"]})
+        if not alumni or alumni["user_id"] != current_user["_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to view this document"
             )
+    
+    # Convert all ObjectIds to strings in the document
+    for key, value in document.items():
+        if isinstance(value, ObjectId):
+            document[key] = str(value)
+            
+    # Also ensure _id is a string        
+    if "_id" in document and isinstance(document["_id"], ObjectId):
+        document["_id"] = str(document["_id"])
     
     return document
 
@@ -339,6 +399,15 @@ async def update_document(
     
     # Get updated document
     updated_document = await db.documents.find_one({"_id": document_id})
+    
+    # Convert all ObjectIds to strings in the document
+    for key, value in updated_document.items():
+        if isinstance(value, ObjectId):
+            updated_document[key] = str(value)
+            
+    # Also ensure _id is a string        
+    if "_id" in updated_document and isinstance(updated_document["_id"], ObjectId):
+        updated_document["_id"] = str(updated_document["_id"])
     
     return updated_document
 

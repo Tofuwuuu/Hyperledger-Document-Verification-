@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Path
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Path, Request, Response
 from fastapi.responses import JSONResponse, FileResponse
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import os
 from bson import ObjectId
+import logging
 
 from app.config.database import get_database, db, connect_to_mongo, get_transaction_session
 from app.models.document_request import (
@@ -168,20 +169,46 @@ async def get_document_requests(
         print(f"Error in get_document_requests: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@router.options("/admin")
+async def options_admin_document_requests(request: Request, response: Response):
+    """
+    Handle OPTIONS requests for the admin document requests endpoint
+    """
+    origin = request.headers.get("origin", "*")
+    
+    # Set CORS headers
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Admin-Bypass, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return {}
+
 @router.get("/admin", response_model=List[DocumentRequestOut])
 async def get_all_document_requests(
+    request: Request,
+    response: Response,
     status: Optional[str] = Query(None, description="Filter by status"),
     admin_user = Depends(get_admin_user)
 ):
     """
     Get all document requests (admin only)
     """
+    # Add CORS headers directly
+    origin = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Admin fetching document requests with status filter: {status}")
+    
     global db  # Add this line to ensure we're using the global db variable
     try:
         # Check if database connection is active
         if db is None:
             # Try to reconnect
-            print("Database connection lost, attempting to reconnect...")
+            logger.info("Database connection lost, attempting to reconnect...")
             await connect_to_mongo()
             
             # Important: Get the updated db reference after reconnection
@@ -190,7 +217,7 @@ async def get_all_document_requests(
             
         # If still None after reconnect attempt, fail
         if db is None:
-            print("Error: Database connection is not available")
+            logger.error("Database connection is not available")
             raise HTTPException(
                 status_code=500, 
                 detail="Database connection not available. Please check MongoDB connection."
@@ -208,12 +235,17 @@ async def get_all_document_requests(
         # Enrich with alumni information
         result = []
         for request in requests:
+            # Convert ObjectIds to strings to ensure serialization works
+            for key, value in request.items():
+                if isinstance(value, ObjectId):
+                    request[key] = str(value)
+            
             request_out = request.copy()
             
             # Safely get alumni information
             try:
                 alumni_id = request.get("alumni_id")
-                print(f"Looking up alumni with ID: {alumni_id}")
+                logger.info(f"Looking up alumni with ID: {alumni_id}")
                 
                 # Try both string ID and ObjectId formats
                 alumni = None
@@ -226,39 +258,39 @@ async def get_all_document_requests(
                     try:
                         alumni = await db.alumni.find_one({"_id": ObjectId(alumni_id)})
                     except Exception as e:
-                        print(f"Error converting alumni_id to ObjectId: {e}")
+                        logger.error(f"Error converting alumni_id to ObjectId: {e}")
                         
                 # If still not found, try looking up by string _id
                 if not alumni:
                     alumni = await db.alumni.find_one({"_id": str(alumni_id)})
                         
                 if alumni:
-                    print(f"Found alumni: {alumni.get('full_name')}")
+                    logger.info(f"Found alumni: {alumni.get('full_name')}")
                     request_out["alumni_name"] = alumni.get("full_name", "Unknown")
                     request_out["student_id"] = alumni.get("student_id", "N/A")
                     request_out["course"] = alumni.get("course", "N/A")
                     request_out["graduation_year"] = alumni.get("graduation_year", None)
                 else:
                     # Handle case where alumni not found
-                    print(f"Alumni not found for ID: {alumni_id}")
+                    logger.info(f"Alumni not found for ID: {alumni_id}")
                     request_out["alumni_name"] = "Unknown (Alumni not found)"
                     request_out["student_id"] = "N/A"
                     request_out["course"] = "N/A"
                     request_out["graduation_year"] = None
             except Exception as e:
                 # Handle errors getting alumni info
-                print(f"Error getting alumni info for request {request['_id']}: {str(e)}")
-                request_out["alumni_name"] = "Error retrieving alumni"
-                request_out["student_id"] = "Error"
-                request_out["course"] = "Error"
+                logger.error(f"Error getting alumni info for request {request['_id']}: {str(e)}")
+                request_out["alumni_name"] = "Error retrieving alumni info"
+                request_out["student_id"] = "N/A"
+                request_out["course"] = "N/A"
                 request_out["graduation_year"] = None
-            
+                
             result.append(request_out)
-        
+            
         return result
     except Exception as e:
         # Log the error for debugging
-        print(f"Error in get_all_document_requests: {str(e)}")
+        logger.error(f"Error in get_all_document_requests: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/{request_id}", response_model=DocumentRequestOut)

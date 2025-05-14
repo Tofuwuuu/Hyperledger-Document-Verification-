@@ -172,6 +172,30 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
           }
         }
         
+        // Check if profile already exists for this user
+        try {
+          const checkUserId = userId || currentUser._id;
+          console.log(`Checking if profile exists for user: ${checkUserId}`);
+          const checkResponse = await api.get(`/alumni/user/${checkUserId}`);
+          
+          if (checkResponse && checkResponse.data) {
+            console.log('Existing profile found:', checkResponse.data);
+            alert('An alumni profile already exists for this user. Redirecting to edit page.');
+            
+            // Navigate to edit page for the existing profile
+            const existingProfileId = checkResponse.data._id;
+            navigate(`/admin/alumni/${existingProfileId}/edit`);
+            return;
+          }
+        } catch (checkError) {
+          // Only proceed if we get a 404 (not found) error
+          if (checkError.response && checkError.response.status !== 404) {
+            console.error('Error checking for existing profile:', checkError);
+          } else {
+            console.log('No existing profile found, proceeding with creation');
+          }
+        }
+        
         // Create new alumni profile
         const profileData = {
           ...formData,
@@ -184,32 +208,31 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         
         // Format birthday correctly to prevent timezone issues
         if (profileData.birthday) {
-          try {
-            // Parse the date string - birthday is typically in YYYY-MM-DD format from the input
-            const [year, month, day] = profileData.birthday.split('T')[0].split('-').map(num => parseInt(num, 10));
-            
-            // Validate the date parts
-            if (isNaN(year) || isNaN(month) || isNaN(day)) {
-              console.error('Invalid date parts:', { year, month, day });
-              profileData.birthday = null;
-            } else {
-              // Create a date at noon UTC to avoid timezone issues (0-indexed month)
-              const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-              
-              // Format as YYYY-MM-DDT00:00:00Z using ISO format
-              profileData.birthday = date.toISOString().split('.')[0];
-              
-              console.log('Formatted birthday for API:', profileData.birthday);
-            }
-          } catch (e) {
-            console.error('Error formatting birthday:', e);
-            profileData.birthday = null;
-          }
+          // Just use the date portion (YYYY-MM-DD)
+          profileData.birthday = profileData.birthday.split('T')[0];
+          console.log('Formatted birthday for API:', profileData.birthday);
         }
         
         console.log('Creating new alumni profile with data:', profileData);
-        const response = await alumniService.createProfile(profileData);
-        navigate(`/admin/alumni`);
+        try {
+          // Try using the direct reliable endpoint first
+          const response = await api.post('/alumni/simple', profileData);
+          console.log('Profile created successfully with reliable endpoint');
+          navigate(`/admin/alumni`);
+          return;
+        } catch (createError) {
+          console.error('Error with reliable endpoint:', createError);
+          
+          if (createError.response?.data?.detail?.includes('already exists')) {
+            alert('An alumni profile already exists for this user. Please use the edit function instead.');
+            navigate(`/admin/alumni`);
+            return;
+          }
+          
+          // Fallback to the original createProfile method
+          const response = await alumniService.createProfile(profileData);
+          navigate(`/admin/alumni`);
+        }
       } else {
         // Update existing profile
         // According to the API, we need to include the ID in the data object
@@ -222,34 +245,26 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         
         // Format birthday correctly to prevent timezone issues
         if (updateData.birthday) {
-          try {
-            // Parse the date string - birthday is typically in YYYY-MM-DD format from the input
-            const [year, month, day] = updateData.birthday.split('T')[0].split('-').map(num => parseInt(num, 10));
-            
-            // Validate the date parts
-            if (isNaN(year) || isNaN(month) || isNaN(day)) {
-              console.error('Invalid date parts:', { year, month, day });
-              updateData.birthday = null;
-            } else {
-              // Create a date at noon UTC to avoid timezone issues (0-indexed month)
-              const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-              
-              // Format as YYYY-MM-DDT00:00:00Z using ISO format
-              updateData.birthday = date.toISOString().split('.')[0];
-              
-              console.log('Formatted birthday for API:', updateData.birthday);
-            }
-          } catch (e) {
-            console.error('Error formatting birthday:', e);
-            updateData.birthday = null;
-          }
+          // Just use the date portion (YYYY-MM-DD)
+          updateData.birthday = updateData.birthday.split('T')[0];
+          console.log('Formatted birthday for API:', updateData.birthday);
         }
         
         console.log('Updating alumni profile with data:', updateData);
-        const response = await alumniService.updateProfile(updateData);
-        setAlumni(response.data);
-        // Navigate back to alumni list
-        navigate(`/admin/alumni`);
+        try {
+          // Try using the direct reliable endpoint first
+          const response = await api.put(`/alumni/${profileId}/simple`, updateData);
+          console.log('Profile updated successfully with reliable endpoint');
+          setAlumni(response.data);
+          navigate(`/admin/alumni`);
+          return;
+        } catch (updateError) {
+          console.error('Error with reliable update endpoint:', updateError);
+          // Fallback to the original updateProfile method
+          const response = await alumniService.updateProfile(updateData);
+          setAlumni(response.data);
+          navigate(`/admin/alumni`);
+        }
       }
     } catch (error) {
       console.error('Error saving alumni profile:', error);
@@ -282,6 +297,8 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         } else {
           errorMessage += 'Validation error - please check all required fields';
         }
+      } else if (error.message && error.message.includes('405')) {
+        errorMessage = 'The API endpoint method is not allowed. The backend API may have changed.';
       } else {
         errorMessage += error.message || 'Please try again';
       }

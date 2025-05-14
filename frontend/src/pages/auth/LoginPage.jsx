@@ -218,8 +218,8 @@ export default function LoginPage() {
           
           <Formik
             initialValues={{
-              email: 'user@example.com', // Pre-filled with a valid mock user
-              password: 'secret', // Pre-filled with the correct password
+              email: '', // Empty email field
+              password: '', // Empty password field
               remember: false
             }}
             validationSchema={LoginSchema}
@@ -251,6 +251,7 @@ export default function LoginPage() {
                       name="email"
                       type="email"
                       autoComplete="email"
+                      placeholder="Enter your email address"
                       className={`form-input ${
                         errors.email && touched.email ? 'border-red-500' : ''
                       }`}
@@ -273,6 +274,7 @@ export default function LoginPage() {
                       name="password"
                       type="password"
                       autoComplete="current-password"
+                      placeholder="Enter your password"
                       className={`form-input ${
                         errors.password && touched.password ? 'border-red-500' : ''
                       }`}

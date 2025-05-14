@@ -7,6 +7,7 @@ import {
   isRememberedSession 
 } from '../utils/authUtils';
 import { API_URL as CONFIG_API_URL } from '../config';
+import { prepareProfileData } from '../utils/profile-helpers';
 
 // Base URL for the API - different for development vs production
 let API_BASE_URL;
@@ -396,7 +397,12 @@ export const authService = {
       const { remember, ...loginCredentials } = credentials;
       
       // Now use the MFA check endpoint which may return direct login or MFA challenge
-      const response = await api.post('/auth/login/mfa-check', loginCredentials);
+      const mfaCheckUrl = `${API_URL}/api/v1/auth/login/mfa-check`.replace('/api/v1/api/v1', '/api/v1');
+      const response = await axios.post(mfaCheckUrl, loginCredentials, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
       // If MFA is required, return the MFA challenge
       if (response.data.mfa_required) {
@@ -414,8 +420,13 @@ export const authService = {
       params.append('password', credentials.password);
       params.append('remember', remember !== undefined ? remember : false);
       
+      // Ensure proper URL format with no duplication
+      const loginUrl = `${API_URL}/api/v1/auth/login`.replace('/api/v1/api/v1', '/api/v1');
+      
+      console.log('Using login URL:', loginUrl);
+      
       // Make the login request with application/x-www-form-urlencoded format
-      const loginResponse = await api.post('/auth/login', params, {
+      const loginResponse = await axios.post(loginUrl, params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         }
@@ -496,13 +507,15 @@ export const authService = {
     try {
       console.log('Registration attempt with data:', userData);
       
-      // Removed CORS bypass for testing - all registrations now go to the backend
-      console.log('Sending registration request to:', `${API_URL}/auth/register`);
+      // Ensure proper URL format with no duplication
+      const registerUrl = `${API_URL}/api/v1/auth/register`.replace('/api/v1/api/v1', '/api/v1');
+      
+      console.log('Sending registration request to:', registerUrl);
       
       // Use direct axios instance to avoid interceptor issues
       const response = await axios({
         method: 'post',
-        url: `${API_URL}/auth/register`,
+        url: registerUrl,
         data: userData,
         headers: {
           'Content-Type': 'application/json'
@@ -538,7 +551,11 @@ export const authService = {
     }
     
     try {
-      const response = await axios.post(`${API_URL}/auth/refresh`);
+      // Ensure URL format is correct
+      const apiUrlBase = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+      const refreshUrl = `${apiUrlBase}/auth/refresh`;
+      
+      const response = await axios.post(refreshUrl);
       
       if (response.data.access_token) {
         // Store the refreshed tokens
@@ -735,8 +752,13 @@ export const authService = {
       
       console.log('Login params:', params.toString().replace(/password=[^&]+/, 'password=***HIDDEN***'));
       
+      // Fix: Use absolute URL to backend directly
+      const loginUrl = 'http://localhost:8000/api/v1/auth/login';
+      
+      console.log('Final login URL:', loginUrl);
+      
       // Make the direct request with no extra headers or processing
-      const response = await axios.post(`${API_URL}/auth/login`, params, {
+      const response = await axios.post(loginUrl, params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         },
@@ -794,37 +816,168 @@ export const authService = {
 
 // Alumni services
 export const alumniService = {
-  createProfile: async (profileData) => {
+  // Existing methods...
+  
+  // Reliable methods using simplified endpoints
+  createProfileReliable: async (profileData) => {
     try {
-      console.log('Creating alumni profile with data:', profileData);
-      // Additional validation before sending
-      if (!profileData.user_id) {
-        console.error('Missing user_id in profileData:', profileData);
-        throw new Error('User ID is required but missing');
+      // Ensure profile data has user_id and other required fields
+      const preparedData = await prepareProfileData(profileData);
+      
+      console.log('Creating alumni profile using reliable endpoint with data:', preparedData);
+      const response = await api.post('/alumni/simple', preparedData);
+      
+      if (response.data.success) {
+        console.log('Successfully created alumni profile with ID:', response.data.id);
+        return response;
+          } else {
+        console.error('Server reported error in profile creation:', response.data.message);
+        throw new Error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Error creating alumni profile (reliable endpoint):', error.message);
+      throw error;
+    }
+  },
+  
+  updateProfileReliable: async (profileData) => {
+    try {
+      // Define alumniId outside the try block so it's available in the catch block
+      const alumniId = profileData.id;
+      
+      // Check if alumni ID is valid
+      if (!alumniId || alumniId === 'undefined') {
+        console.error('Invalid or missing alumni ID:', alumniId);
+        throw new Error('Alumni ID is undefined or invalid. Cannot update profile.');
       }
       
-      // Use direct axios instance for better debugging
-      const response = await axios({
-        method: 'post',
-        url: `${API_URL}/alumni`,
-        data: profileData,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        timeout: 15000 // 15 second timeout
+      console.log(`Updating alumni profile using reliable endpoint ${alumniId}`, {
+        data: profileData
       });
       
-      console.log('Profile creation response:', response.data);
+      const response = await api.put(`/alumni/${alumniId}/simple`, profileData);
+      
+      if (response.data.success) {
+        console.log('Successfully updated alumni profile');
+        return {
+          data: {
+            ...profileData,
+            _id: alumniId
+          }
+        };
+      } else {
+        console.error('Server reported error in profile update:', response.data.message);
+        throw new Error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Error updating alumni profile (reliable endpoint):', error.message);
+      throw error;
+    }
+  },
+  
+  createProfile: async (profileData) => {
+    try {
+      // Ensure profile data has user_id and other required fields
+      const preparedData = await prepareProfileData(profileData);
+      
+      console.log('Creating alumni profile with data:', preparedData);
+      
+      // Check if profile already exists
+      try {
+        const existingProfile = await alumniService.getAlumniByUserId(preparedData.user_id);
+        if (existingProfile && existingProfile.data && existingProfile.status !== 404) {
+          console.warn('Alumni profile already exists for this user. Updating existing profile instead.');
+          
+          // Use the existing profile ID and update it instead
+          return alumniService.updateProfile({
+            ...preparedData,
+            id: existingProfile.data._id
+          });
+        }
+      } catch (existingProfileError) {
+        // If there's an error checking for an existing profile, just continue with create
+        console.log('Unable to check for existing profile:', existingProfileError.message);
+      }
+      
+      // Try reliable endpoint first
+      try {
+        const reliableResponse = await alumniService.createProfileReliable(preparedData);
+        console.log('Successfully created profile using reliable endpoint');
+        return reliableResponse;
+      } catch (reliableError) {
+        // Check if the error is "profile already exists"
+        if (reliableError.message && reliableError.message.includes('already exists')) {
+          console.warn('Profile already exists error from reliable endpoint. Trying to get and update profile instead.');
+          
+          // Try to get the existing profile and update it
+          try {
+            const existingProfile = await alumniService.getAlumniByUserId(preparedData.user_id);
+            if (existingProfile && existingProfile.data) {
+              return alumniService.updateProfile({
+                ...preparedData,
+                id: existingProfile.data._id
+              });
+            }
+          } catch (getProfileError) {
+            console.error('Failed to get existing profile:', getProfileError.message);
+          }
+        }
+        
+        console.warn('Reliable endpoint failed, falling back to standard endpoint:', reliableError.message);
+        // Fall back to standard endpoint
+      }
+      
+      // Standard endpoint as fallback
+      try {
+        const response = await api.post('/alumni', preparedData);
+        console.log('Profile created successfully using standard endpoint');
+        return response;
+      } catch (standardError) {
+        // If standard endpoint fails with 405, try again with the simplified endpoint
+        if (standardError.response && standardError.response.status === 405) {
+          console.warn('Standard endpoint returned 405, trying simplified endpoint as last resort');
+          return alumniService.createProfileReliable(preparedData);
+        }
+        throw standardError;
+      }
+    } catch (error) {
+      console.error('Error creating alumni profile:', error.message);
+      throw error;
+    }
+  },
+  
+  updateProfile: async (profileData) => {
+    try {
+      // Try reliable endpoint first
+      try {
+        const reliableResponse = await alumniService.updateProfileReliable(profileData);
+        console.log('Successfully updated profile using reliable endpoint');
+        return reliableResponse;
+      } catch (reliableError) {
+        console.warn('Reliable endpoint failed, falling back to standard endpoint:', reliableError.message);
+        // Fall back to standard endpoint
+      }
+      
+    // Define alumniId outside the try block so it's available in the catch block
+    const alumniId = profileData.id;
+    
+      // Standard endpoint as fallback
+      // Check if alumni ID is valid
+      if (!alumniId || alumniId === 'undefined') {
+        console.error('Invalid or missing alumni ID:', alumniId);
+        throw new Error('Alumni ID is undefined or invalid. Cannot update profile.');
+      }
+      
+      console.log(`Updating alumni profile ${alumniId}`, {
+        data: profileData
+      });
+      
+      // Standard endpoint
+      const response = await api.put(`/alumni/${alumniId}`, profileData);
+      console.log('Profile updated successfully using standard endpoint');
       return response;
     } catch (error) {
-      console.error('Profile creation failed:', error.message);
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-      }
+      console.error('Error updating alumni profile:', error.message);
       throw error;
     }
   },
@@ -842,98 +995,44 @@ export const alumniService = {
   getAlumniByUserId: async (userId) => {
     try {
       console.log(`Fetching alumni profile for user ID: ${userId}`);
-      return api.get(`/alumni/user/${userId}`);
+      
+      // Try using withCORS method which has better CORS handling
+      try {
+        const response = await apiService.withCORS('get', `/alumni/user/${userId}`);
+        return response;
+      } catch (corsError) {
+        console.warn('Error with CORS-enabled request:', corsError);
+        
+        // Fall back to direct API call
+        try {
+          return await api.get(`/alumni/user/${userId}`);
+        } catch (directError) {
+          console.error(`Error fetching alumni profile with direct call:`, directError);
+          
+          // If we get a 404, return a structured error that can be caught
+          if (directError.response && directError.response.status === 404) {
+            return {
+              status: 404,
+              statusText: 'Not Found',
+              data: null
+            };
+          }
+          
+          throw directError;
+        }
+      }
     } catch (error) {
       console.error(`Error fetching alumni profile for user ${userId}:`, error);
-      throw error;
-    }
-  },
-  
-  updateProfile: async (profileData) => {
-    // Define alumniId outside the try block so it's available in the catch block
-    const alumniId = profileData.id;
-    
-    try {
-      // Check if alumni ID is valid
-      if (!alumniId || alumniId === 'undefined') {
-        console.error('Invalid or missing alumni ID:', alumniId);
-        throw new Error('Alumni ID is undefined or invalid. Cannot update profile.');
+      
+      // Don't throw if we have a 404 - this is not unexpected when creating a new profile
+      if (error.response && error.response.status === 404) {
+        return {
+          status: 404,
+          statusText: 'Not Found',
+          data: null
+        };
       }
       
-      // Log data before transformation
-      console.log(`Updating alumni profile ${alumniId}`, {
-        original: JSON.stringify(profileData)
-      });
-      
-      // Special handling for date fields and integers
-      if (profileData.birthday) {
-        console.log('Birthday field before sending:', profileData.birthday);
-        console.log('Birthday field type:', typeof profileData.birthday);
-        
-        // Try parsing the date to see if it's valid
-        try {
-          const testDate = new Date(profileData.birthday);
-          console.log('Parsed date is valid:', !isNaN(testDate.getTime()));
-          console.log('ISO string representation:', testDate.toISOString());
-        } catch (e) {
-          console.error('Error parsing birthday date:', e);
-        }
-      }
-      
-      if (profileData.csc_year) {
-        console.log('CSC Year:', profileData.csc_year, 'Type:', typeof profileData.csc_year);
-      }
-      
-      if (profileData.achievements) {
-        console.log('Achievements:', profileData.achievements, 'Type:', Array.isArray(profileData.achievements) ? 'array' : typeof profileData.achievements);
-      }
-      
-      // Use direct axios instance for better debugging
-      const response = await axios({
-        method: 'put',
-        url: `${API_URL}/alumni/${alumniId}`,
-        data: profileData,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        timeout: 15000 // 15 second timeout
-      });
-      
-      console.log('Profile update response:', response.data);
-      return response;
-    } catch (error) {
-      console.error(`Error updating alumni profile ${alumniId}:`, error.message);
-      if (error.response) {
-        // Improved error logging for validation errors
-        console.error('Error response data:', error.response.data);
-        if (error.response.data.detail) {
-          // Try to extract more detailed error info
-          if (Array.isArray(error.response.data.detail)) {
-            // FastAPI validation errors format
-            error.response.data.detail.forEach(item => {
-              // Log the field name, type of error, and expected type
-              console.error('Validation error detail:', JSON.stringify(item));
-              if (item.type.includes('type_error')) {
-                const fieldName = item.loc[item.loc.length - 1];
-                console.error(`Field ${fieldName} has wrong type: expected ${item.type.split('.')[1]}`);
-              }
-            });
-          } else if (typeof error.response.data.detail === 'object') {
-            console.error('Validation error object:', JSON.stringify(error.response.data.detail));
-            
-            // Log each field error separately for better debugging
-            Object.entries(error.response.data.detail).forEach(([field, message]) => {
-              console.error(`Field ${field} error:`, message);
-            });
-          } else {
-            console.error('Validation error message:', error.response.data.detail);
-          }
-        }
-        console.error('Error response status:', error.response.status);
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-      }
       throw error;
     }
   },

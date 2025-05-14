@@ -167,6 +167,65 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  // Function to forcefully fetch the latest user data from the server
+  const forceRefreshUserData = useCallback(async () => {
+    try {
+      const { accessToken } = getAuthTokens();
+      if (!accessToken) return null;
+      
+      // Check if we have a cached refresh timestamp to avoid refresh loops
+      const lastRefreshTime = sessionStorage.getItem('last_user_refresh');
+      const currentTime = new Date().getTime();
+      
+      // If we've refreshed in the last 10 seconds, use cached data
+      if (lastRefreshTime && (currentTime - parseInt(lastRefreshTime)) < 10000) {
+        console.log('Using cached user data (refreshed in last 10 seconds)');
+        return currentUser;
+      }
+      
+      // Add a cache-busting parameter 
+      const timestamp = currentTime;
+      
+      // Force fetch the latest user data from server
+      const response = await axios.get(`${API_URL}/auth/me?_t=${timestamp}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (response.data) {
+        // Get current stored data
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Check and update verification status consistently across storage locations
+        if (response.data.is_verified === true) {
+          sessionStorage.setItem('user_verified', 'true');
+          
+          // Make sure localStorage is updated too
+          if (!storedUser.is_verified) {
+            storedUser.is_verified = true;
+            localStorage.setItem('user', JSON.stringify(storedUser));
+          }
+        }
+        
+        // Update current user and localStorage
+        setCurrentUser(response.data);
+        localStorage.setItem('user', JSON.stringify(response.data));
+        console.log('User data forcefully refreshed:', response.data);
+        
+        // Record refresh timestamp
+        sessionStorage.setItem('last_user_refresh', currentTime.toString());
+        
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error forcefully refreshing user data:', error);
+      return null;
+    }
+  }, [currentUser]);
+
   // Define loadUserData at component level with useCallback
   const loadUserData = useCallback(async () => {
     const { accessToken } = getAuthTokens();
@@ -211,28 +270,64 @@ export const AuthProvider = ({ children }) => {
       }
       
       // For regular tokens, use API call
-      const userData = await authService.getCurrentUser();
-      console.log('User data loaded from API:', userData);
-      
-      if (userData) {
-        // Only ensure verification for specific accounts
-        if (userData.email === 'rodericksalise812@gmail.com' && !userData.is_verified) {
-          console.log('Special case: Setting verification status for', userData.email);
-          userData.is_verified = true;
-          // Update localStorage
-          localStorage.setItem('user', JSON.stringify(userData));
+      try {
+        // Check if we're in a recent refresh cycle to avoid API thrashing
+        const lastRefreshTime = sessionStorage.getItem('last_user_refresh');
+        const currentTime = new Date().getTime();
+        
+        // If we've refreshed in the last 5 seconds, use cached data
+        if (lastRefreshTime && (currentTime - parseInt(lastRefreshTime)) < 5000) {
+          console.log('Using cached user data (refreshed in last 5 seconds)');
+          const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          if (cachedUser && cachedUser.email) {
+            // Still need to update state
+            setCurrentUser(cachedUser);
+            setIsAuthenticated(true);
+            return cachedUser;
+          }
         }
         
-        setCurrentUser(userData);
-        setIsAuthenticated(true);
-        // Store user in local storage for persistence
-        localStorage.setItem('user', JSON.stringify(userData));
-        return userData;
-      } else {
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-        return null;
+        const userData = await authService.getCurrentUser();
+        console.log('User data loaded from API:', userData);
+        
+        if (userData) {
+          // Store user data
+          setCurrentUser(userData);
+          setIsAuthenticated(true);
+          
+          // Apply verification status from server consistently
+          if (userData.is_verified === true) {
+            // Ensure verification status is stored in both locations
+            sessionStorage.setItem('user_verified', 'true');
+          }
+          
+          // Store user in local storage for persistence
+          localStorage.setItem('user', JSON.stringify(userData));
+          
+          // Record this refresh
+          sessionStorage.setItem('last_user_refresh', currentTime.toString());
+          
+          return userData;
+        }
+      } catch (error) {
+        console.warn('API call failed, trying localStorage fallback:', error);
+        
+        // Fallback to localStorage if API fails
+        const localUser = JSON.parse(localStorage.getItem('user') || '{}');
+        if (localUser && localUser.email) {
+          console.log('User data loaded from localStorage fallback:', localUser);
+          setCurrentUser(localUser);
+          setIsAuthenticated(true);
+          return localUser;
+        }
+        
+        throw error; // Re-throw if fallback also fails
       }
+      
+      // If we get here, no valid user was found
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      return null;
     } catch (error) {
       console.error('Error loading user:', error);
       setCurrentUser(null);
@@ -261,61 +356,6 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(null);
       setIsAuthenticated(false);
       setLoading(false);
-    }
-  }, []);
-
-  // New function: Force refresh user data
-  const forceRefreshUserData = useCallback(async () => {
-    console.log('Force refreshing user data from API');
-    try {
-      const { accessToken } = getAuthTokens();
-      
-      // Check for admin or alumni bypass tokens that should use localStorage data
-      if (accessToken && (accessToken.startsWith('admin_access_token_') || 
-                           accessToken.startsWith('alumni_access_token_'))) {
-        console.log('Using bypass token - skipping API call for force refresh');
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        
-        if (userData && userData.email) {
-          console.log('Ensuring bypass user data has verified flag set to true');
-          // Make sure is_verified is set to true for bypass tokens
-          if (!userData.is_verified) {
-            userData.is_verified = true;
-            localStorage.setItem('user', JSON.stringify(userData));
-          }
-          
-          setCurrentUser(userData);
-          setIsAuthenticated(true);
-          return userData;
-        } else {
-          console.error('No valid user data found in localStorage for bypass token');
-          return null;
-        }
-      }
-      
-      // For regular tokens, use the aggressive reload
-      const userData = await authService.reloadUserWithFreshData();
-      
-      if (userData) {
-        // Only verify the specific account
-        if (userData.email === 'rodericksalise812@gmail.com' && !userData.is_verified) {
-          console.log('Special case: Setting verification status during refresh for rodericksalise812@gmail.com');
-          userData.is_verified = true;
-          // Update localStorage
-          localStorage.setItem('user', JSON.stringify(userData));
-        }
-        
-        setCurrentUser(userData);
-        setIsAuthenticated(true);
-        return userData;
-      } else {
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error during force refresh:', error);
-      return null;
     }
   }, []);
 

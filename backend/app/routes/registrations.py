@@ -203,55 +203,92 @@ async def get_event_registrations(
     
     return await RegistrationRepository.get_event_registrations(event_id)
 
+@router.options("/registrations/event/{event_id}/attendees")
+async def options_event_attendees(
+    request: Request,
+    response: Response,
+    event_id: str
+):
+    """
+    Handle OPTIONS requests for the event attendees endpoint
+    """
+    origin = request.headers.get("origin", "*")
+    
+    # Set CORS headers
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return {}
+
 @router.get("/registrations/event/{event_id}/attendees", response_model=Dict[str, Any])
 async def get_event_attendees(
+    request: Request,
+    response: Response,
     event_id: PyObjectId = Path(...),
-    current_user: User = Depends(get_admin_user)
+    current_user: Dict[str, Any] = Depends(get_admin_user)
 ):
     """
     Get detailed attendance information for all registrants of a specific event (admin only).
     Includes comprehensive user information and attendance status.
     """
-    # Ensure the event exists
-    event = await EventRepository.get_event(event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+    # Add CORS headers
+    origin = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     
-    attendees = await RegistrationRepository.get_detailed_event_attendees(event_id)
-    
-    # Calculate attendance statistics
-    total = len(attendees)
-    attended = sum(1 for a in attendees if a.get("status") == "attended")
-    registered = sum(1 for a in attendees if a.get("status") == "registered")
-    cancelled = sum(1 for a in attendees if a.get("status") == "cancelled")
-    
-    # Add statistics to response
-    stats = {
-        "total": total,
-        "attended": attended,
-        "registered": registered,
-        "cancelled": cancelled,
-        "attendance_rate": round((attended / total) * 100, 1) if total > 0 else 0
-    }
-    
-    # Include event details
-    event_details = {
-        "id": str(event.id),
-        "title": event.title,
-        "description": event.description,
-        "start_date": event.start_date,
-        "end_date": event.end_date,
-        "location": event.location,
-        "max_attendees": event.max_attendees,
-        "status": "active" if event.is_active else "inactive"
-    }
-    
-    # Return data with metadata
-    return {
-        "event": event_details,
-        "statistics": stats,
-        "attendees": attendees
-    }
+    try:
+        # Ensure the event exists
+        event_repo = await EventRepository.get_event(event_id)
+        if not event_repo:
+            raise HTTPException(status_code=404, detail="Event not found")
+        
+        attendees = await RegistrationRepository.get_detailed_event_attendees(event_id)
+        
+        # Calculate attendance statistics
+        total = len(attendees)
+        attended = sum(1 for a in attendees if a.get("status") == "attended")
+        registered = sum(1 for a in attendees if a.get("status") == "registered")
+        cancelled = sum(1 for a in attendees if a.get("status") == "cancelled")
+        
+        # Add statistics to response
+        stats = {
+            "total": total,
+            "attended": attended,
+            "registered": registered,
+            "cancelled": cancelled,
+            "attendance_rate": round((attended / total) * 100, 1) if total > 0 else 0
+        }
+        
+        # Get event_id as string
+        event_id_str = str(event_id)
+        
+        # Include event details - use dictionary access instead of attribute access
+        event_details = {
+            "id": event_id_str,
+            "title": event_repo.get("title", "Unknown Event"),
+            "description": event_repo.get("description", ""),
+            "start_date": event_repo.get("start_date", ""),
+            "end_date": event_repo.get("end_date", ""),
+            "location": event_repo.get("location", ""),
+            "max_attendees": event_repo.get("max_attendees", 0),
+            "status": "active" if event_repo.get("is_active", False) else "inactive"
+        }
+        
+        # Return data with metadata
+        return {
+            "event": event_details,
+            "statistics": stats,
+            "attendees": attendees
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error getting event attendees: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error getting event attendees: {str(e)}")
 
 @router.get("/registrations/{registration_id}", response_model=Registration)
 async def get_registration(

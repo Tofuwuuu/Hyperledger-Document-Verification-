@@ -50,6 +50,8 @@ from app.utils.mfa import (
     verify_mfa_session,
     mask_email
 )
+# Import settings for CORS configuration
+from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -684,7 +686,7 @@ async def get_unverified_users(
             return []  # Return empty list instead of raising error
         
         # Build query for unverified users
-        query = {"is_verified": False}
+        query = {"is_verified": False, "verification_pending": True}
         logger.info(f"Using query: {query}")
         
         # Log current user verification status across the database

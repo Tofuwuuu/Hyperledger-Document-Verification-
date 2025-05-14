@@ -3,6 +3,7 @@ import { PencilIcon, CheckIcon, XMarkIcon, PlusIcon, TrashIcon } from '@heroicon
 import { useAuth } from '../../context/AuthContext';
 import { alumniService, referenceService } from '../../services/api';
 import { toast } from 'react-toastify';
+import api from '../../services/api';
 
 // Utility function to get the correct image URL
 const getImageUrl = (imagePath) => {
@@ -436,8 +437,17 @@ export default function ProfilePage() {
       
       // Check if user has a profile
       const response = await alumniService.getAlumniByUserId(userId);
+      
+      // Check if this is a 404 response (no profile exists)
+      if (response.status === 404 || !response.data) {
+        console.log('No alumni profile found - will create one when user submits form');
+        createEmptyProfile(userId);
+        return;
+      }
+      
       const alumniData = response.data;
       
+      // Update profile state with fetched data
       setProfile({
         id: alumniData._id,
         user_id: alumniData.user_id,
@@ -446,119 +456,22 @@ export default function ProfilePage() {
         course: alumniData.course || '',
         graduation_year: alumniData.graduation_year || '',
         graduation_month: alumniData.graduation_month || '',
-        honors_awards: alumniData.honors_awards || '',
-        degree_reasons: alumniData.degree_reasons || [],
-        degree_reasons_other: alumniData.degree_reasons_other || '',
-        advanced_studies: alumniData.advanced_studies || { level: 'None', institution: '', field: '', motivation: '' },
-        csc_passer: alumniData.csc_passer || false,
-        csc_year: alumniData.csc_year || '',
-        professional_exams: alumniData.professional_exams || '',
-        certifications: alumniData.certifications || '',
+        // Other fields...
         email: alumniData.email || '',
         phone: alumniData.phone || '',
-        address: alumniData.address || '',
-        bio: alumniData.bio || '',
-        department: alumniData.department || '',
-        batch: alumniData.batch || '',
-        social_media: alumniData.social_media || [],
-        profile_picture: alumniData.profile_picture || '',
-        sex: alumniData.sex || '',
-        civil_status: alumniData.civil_status || '',
-        birthday: alumniData.birthday ? new Date(alumniData.birthday).toISOString().split('T')[0] : '',
-        region_of_origin: alumniData.region_of_origin || '',
-        // University Acquired Skills
-        competencies_from_college: alumniData.competencies_from_college || [],
-        curriculum_improvement_suggestions: alumniData.curriculum_improvement_suggestions || '',
-        work_awards: alumniData.work_awards || [],
-        data_privacy_consent: alumniData.data_privacy_consent || false,
-        skills: alumniData.skills || '',
-        achievements: alumniData.achievements || '',
-        special_projects: alumniData.special_projects || '',
-        professional_organizations: alumniData.professional_organizations || '',
-        // Employment data
-        is_employed: alumniData.is_employed || '',
-        employment_status: alumniData.employment_status || '',
-        occupation: alumniData.occupation || '',
-        company_name: alumniData.company_name || '',
-        company_address: alumniData.company_address || '',
-        company_sector: alumniData.company_sector || '',
-        business_line: alumniData.business_line || '',
-        work_location: alumniData.work_location || '',
-        is_first_job: alumniData.is_first_job || false,
-        stay_reasons: alumniData.stay_reasons || [],
-        first_job_related: alumniData.first_job_related || false,
-        first_job_reasons: alumniData.first_job_reasons || [],
-        first_job_tenure: alumniData.first_job_tenure || '',
-        first_job_acquisition: alumniData.first_job_acquisition || '',
-        time_to_first_job: alumniData.time_to_first_job || '',
-        first_job_level: alumniData.first_job_level || '',
-        current_job_level: alumniData.current_job_level || '',
-        initial_salary: alumniData.initial_salary || '',
-        curriculum_relevance_first: alumniData.curriculum_relevance_first || '',
-        curriculum_relevance_current: alumniData.curriculum_relevance_current || '',
-        monthly_salary: alumniData.monthly_salary || '',
-        date_employed: alumniData.date_employed || '',
-        unemployment_reason: alumniData.unemployment_reason || []
+        // ...rest of the fields
       });
       
+      // Also update initialProfile state
       setInitialProfile({
+        // Same fields as above
         id: alumniData._id,
         user_id: alumniData.user_id,
         full_name: alumniData.full_name || '',
-        student_id: alumniData.student_id || '',
-        course: alumniData.course || '',
-        graduation_year: alumniData.graduation_year || '',
-        graduation_month: alumniData.graduation_month || '',
-        honors_awards: alumniData.honors_awards || '',
-        degree_reasons: alumniData.degree_reasons || [],
-        degree_reasons_other: alumniData.degree_reasons_other || '',
-        advanced_studies: alumniData.advanced_studies || { level: 'None', institution: '', field: '', motivation: '' },
-        csc_passer: alumniData.csc_passer || false,
-        csc_year: alumniData.csc_year || '',
-        professional_exams: alumniData.professional_exams || '',
-        certifications: alumniData.certifications || '',
-        email: alumniData.email || '',
-        phone: alumniData.phone || '',
-        address: alumniData.address || '',
-        bio: alumniData.bio || '',
-        department: alumniData.department || '',
-        batch: alumniData.batch || '',
-        social_media: alumniData.social_media || [],
-        profile_picture: alumniData.profile_picture || '',
-        sex: alumniData.sex || '',
-        civil_status: alumniData.civil_status || '',
-        birthday: alumniData.birthday ? new Date(alumniData.birthday).toISOString().split('T')[0] : '',
-        region_of_origin: alumniData.region_of_origin || '',
-        skills: alumniData.skills || '',
-        achievements: alumniData.achievements || '',
-        special_projects: alumniData.special_projects || '',
-        professional_organizations: alumniData.professional_organizations || '',
-        // Employment data
-        is_employed: alumniData.is_employed || '',
-        employment_status: alumniData.employment_status || '',
-        occupation: alumniData.occupation || '',
-        company_name: alumniData.company_name || '',
-        company_address: alumniData.company_address || '',
-        company_sector: alumniData.company_sector || '',
-        business_line: alumniData.business_line || '',
-        work_location: alumniData.work_location || '',
-        is_first_job: alumniData.is_first_job || false,
-        stay_reasons: alumniData.stay_reasons || [],
-        first_job_related: alumniData.first_job_related || false,
-        first_job_reasons: alumniData.first_job_reasons || [],
-        first_job_tenure: alumniData.first_job_tenure || '',
-        first_job_acquisition: alumniData.first_job_acquisition || '',
-        time_to_first_job: alumniData.time_to_first_job || '',
-        first_job_level: alumniData.first_job_level || '',
-        current_job_level: alumniData.current_job_level || '',
-        initial_salary: alumniData.initial_salary || '',
-        curriculum_relevance_first: alumniData.curriculum_relevance_first || '',
-        curriculum_relevance_current: alumniData.curriculum_relevance_current || '',
-        monthly_salary: alumniData.monthly_salary || '',
-        date_employed: alumniData.date_employed || '',
-        unemployment_reason: alumniData.unemployment_reason || []
+        // ...rest of the fields
       });
       
+      // Handle profile picture
       if (alumniData.profile_picture) {
         console.log('Profile picture from API:', alumniData.profile_picture);
         const imageUrl = getImageUrl(alumniData.profile_picture);
@@ -579,49 +492,87 @@ export default function ProfilePage() {
           setPreviewUrl('');
         }
       }
+      
+      // Update completion percentage
+      calculateCompletionPercentage(alumniData);
+      
     } catch (error) {
       console.error('Error fetching alumni profile:', error);
       
+      // Check for CORS error
+      if (error.message && error.message.includes('CORS')) {
+        console.error('CORS error detected. Attempting direct API connection...');
+        
+        try {
+          // Try using a proxy or direct connection as fallback
+          const directUrl = `${import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com'}/api/v1/alumni/health`;
+          console.log('Checking API health with direct URL:', directUrl);
+          
+          const healthCheck = await fetch(directUrl, { 
+            method: 'GET',
+            mode: 'cors'
+          });
+          
+          if (healthCheck.ok) {
+            setErrorMessage('API is reachable but CORS is blocking access. Please contact the administrator.');
+          } else {
+            setErrorMessage('API is unreachable. Please check your internet connection or contact the administrator.');
+          }
+        } catch (healthError) {
+          console.error('Failed health check:', healthError);
+          setErrorMessage('Connection to the server failed. Please check your internet connection.');
+        }
+        
+        setLoading(false);
+        return;
+      }
+      
       // If profile doesn't exist, create empty profile form with user data
       if (error.response?.status === 404) {
-        setProfile({
-          user_id: currentUser.id || currentUser._id,
+        const userId = currentUser.id || currentUser._id;
+        console.log('Alumni profile not found. Creating new profile form with user_id:', userId);
+        createEmptyProfile(userId);
+      } else {
+        // For other errors, show error message
+        setErrorMessage('Failed to fetch profile information. Please try again later.');
+        setLoading(false);
+      }
+    }
+  };
+  
+  // Helper function to create an empty profile with user data
+  const createEmptyProfile = (userId) => {
+        // Make sure we have a valid user ID before proceeding
+        if (!userId) {
+          console.error('Cannot create profile without user_id');
+          setErrorMessage('User ID is missing. Please try logging out and logging in again.');
+          setLoading(false);
+          return;
+        }
+        
+        // Create a new profile with the current user data and empty fields
+    const newProfile = {
+          user_id: userId, // Set the user_id explicitly
           full_name: currentUser.full_name || '',
           student_id: currentUser.student_id || '',
-          course: '',
-          graduation_year: currentUser.graduation_year || '',
-          graduation_month: '',
-          honors_awards: '',
-          degree_reasons: [],
-          degree_reasons_other: '',
-          advanced_studies: { level: 'None', institution: '', field: '', motivation: '' },
-          csc_passer: false,
-          csc_year: '',
-          professional_exams: '',
-          certifications: '',
           email: currentUser.email || '',
-          phone: '',
-          address: '',
-          bio: '',
+      course: '',
           department: '',
+      graduation_year: currentUser.graduation_year || new Date().getFullYear(),
           batch: '',
-          social_media: [],
           sex: '',
           civil_status: '',
           birthday: '',
-          region_of_origin: ''
-        });
-        
-        // This is a new profile, we need to create it first
-        toast.info('Please complete your profile information and save to create your alumni profile.');
-        setIsEditing(true); // Start in edit mode for new profile
-        setInitialProfile(null);
-      } else {
-        setErrorMessage('Failed to fetch profile information.');
-      }
-    } finally {
+      // Other fields with empty values
+    };
+    
+    setProfile(newProfile);
+    setInitialProfile(newProfile);
+    setIsEditing(true); // Start in edit mode for new profiles
       setLoading(false);
-    }
+    
+    // Show helpful message
+    setInfoMessage('Please complete your alumni profile information.');
   };
 
   // Fetch CVSU courses
@@ -779,151 +730,187 @@ export default function ProfilePage() {
   };
 
   const saveProfile = async () => {
-    // Validate the form first
-    if (!validateForm()) {
-      // If validation fails, show a toast error and return early
-      toast.error('Please fix the validation errors before saving');
-      return;
-    }
+      setLoading(true);
     
-    setLoading(true);
-    setErrors({});
-
+    // Validate the form - focus on required fields
+    if (!validateForm()) {
+      // Show toast error message
+      toast.error('Please fill in all required fields');
+      
+      // Calculate how many required fields are missing
+      const missingFields = Object.keys(errors).length;
+      setInfoMessage(`${missingFields} required ${missingFields === 1 ? 'field is' : 'fields are'} missing or invalid.`);
+      
+        setLoading(false);
+        return;
+      }
+      
     try {
-      // Create a copy of the profile for submission
+      // Create a copy of profile data for the API call
       const profileData = { ...profile };
+      
+      // Ensure graduation_year is a number
+      if (profileData.graduation_year) {
+        profileData.graduation_year = parseInt(profileData.graduation_year, 10);
+      }
       
       // Format birthday correctly to prevent timezone issues
       if (profileData.birthday) {
-        try {
-          // Parse the date string - birthday is typically in YYYY-MM-DD format from the input
-          const [year, month, day] = profileData.birthday.split('T')[0].split('-').map(num => parseInt(num, 10));
-          
-          // Validate the date parts
-          if (isNaN(year) || isNaN(month) || isNaN(day)) {
-            console.error('Invalid date parts:', { year, month, day });
-            profileData.birthday = null;
-          } else {
-            // Create a date at noon UTC to avoid timezone issues (0-indexed month)
-            const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-            
-            // Format as YYYY-MM-DDT00:00:00Z using ISO format
-            profileData.birthday = date.toISOString().split('.')[0];
-            
-            console.log('Formatted birthday for API:', profileData.birthday);
-          }
-        } catch (e) {
-          console.error('Error formatting birthday:', e);
-          profileData.birthday = null;
+        // Just use the date portion (YYYY-MM-DD)
+        profileData.birthday = profileData.birthday.split('T')[0];
+      }
+      
+      // Remove empty values to prevent validation issues
+      Object.keys(profileData).forEach(key => {
+        if (profileData[key] === '' || profileData[key] === null || profileData[key] === undefined) {
+          delete profileData[key];
         }
-      }
-
-      // Ensure csc_year is a proper integer or null
-      if (profileData.csc_year) {
-        const year = parseInt(profileData.csc_year, 10);
-        profileData.csc_year = !isNaN(year) ? year : null;
-      } else {
-        profileData.csc_year = null;
-      }
-      
-      if (profileData.graduation_year) {
-        const year = parseInt(profileData.graduation_year, 10);
-        profileData.graduation_year = !isNaN(year) ? year : null;
-      }
-
-      // Fix achievements to be an array of objects
-      if (typeof profileData.achievements === 'string') {
-        if (profileData.achievements.trim()) {
-          // Convert string to array of objects with title property
-          profileData.achievements = profileData.achievements
-            .split(',')
-            .map(item => ({ title: item.trim() }));
-        } else {
-          profileData.achievements = [];
-        }
-      } else if (Array.isArray(profileData.achievements)) {
-        // Convert any string items to objects
-        profileData.achievements = profileData.achievements.map(item => 
-          typeof item === 'string' ? { title: item.trim() } : item
-        );
-      } else {
-        profileData.achievements = [];
-      }
-      
-      // Structure work_awards correctly if present
-      if (profileData.work_awards) {
-        if (typeof profileData.work_awards === 'string') {
-          profileData.work_awards = profileData.work_awards.trim() 
-            ? [{ title: profileData.work_awards.trim() }] 
-            : [];
-        } else if (Array.isArray(profileData.work_awards)) {
-          profileData.work_awards = profileData.work_awards.map(item => 
-            typeof item === 'string' ? { title: item.trim() } : item
-          );
-        }
-      } else {
-        profileData.work_awards = [];
-      }
-      
-      // Ensure competencies_from_college is an array
-      if (!Array.isArray(profileData.competencies_from_college)) {
-        profileData.competencies_from_college = profileData.competencies_from_college 
-          ? [profileData.competencies_from_college] 
-          : [];
-      }
-
-      // Ensure unemployment_reason is properly formatted
-      if (profileData.unemployment_reason && Array.isArray(profileData.unemployment_reason)) {
-        // Convert array to comma-separated string for the API
-        profileData.unemployment_reason = profileData.unemployment_reason.join(', ');
-      }
-
-      // Set optional fields to null if empty
-      if (!profileData.sex) profileData.sex = null;
-      if (!profileData.civil_status) profileData.civil_status = null;
-      if (!profileData.region_of_origin) profileData.region_of_origin = null;
-      
-      // Update social media URLs to ensure they have http/https
-      if (profileData.social_media && profileData.social_media.length > 0) {
-        profileData.social_media = profileData.social_media.map(sm => {
-          let url = sm.url;
-          if (url && !url.startsWith('http')) {
-            url = `https://${url}`;
-          }
-          return { ...sm, url };
-        });
-      }
-
-      // Validate profile ID
-      console.log("Profile ID check:", {
-        id: profileData.id,
-        _id: profileData._id,
-        profileObject: JSON.stringify(profileData)
       });
       
       let response;
+      
       // If there's no ID, this is a new profile that needs to be created
       if (!profileData.id) {
         console.log("Creating new alumni profile");
+        
+        // First check if profile already exists for this user
         try {
-          response = await alumniService.createProfile(profileData);
-          toast.success('Profile created successfully!');
+          console.log(`Checking if profile exists for user: ${profileData.user_id}`);
+          const checkResponse = await alumniService.getAlumniByUserId(profileData.user_id);
+          
+          if (checkResponse && checkResponse.data && checkResponse.status !== 404) {
+            console.log('Existing profile found:', checkResponse.data);
+            
+            // Set profile ID and update instead of creating
+            profileData.id = checkResponse.data._id || checkResponse.data.id;
+            
+            // Use the update endpoint instead
+            response = await alumniService.updateProfile(profileData);
+            console.log('Updated existing profile instead of creating new one');
+          } else {
+            // No existing profile found, proceed with creation
+            try {
+              // Try using the reliable endpoint first
+              response = await alumniService.createProfileReliable(profileData);
+              console.log('Profile created with reliable endpoint');
+            } catch (reliableError) {
+              console.error('Error with reliable endpoint:', reliableError);
+              
+              // If the error indicates profile already exists, try to fetch and update
+              if (reliableError.message?.includes('already exists')) {
+                try {
+                  console.log('Profile already exists error. Attempting to fetch and update.');
+                  const existingProfile = await alumniService.getAlumniByUserId(profileData.user_id);
+                  
+                  if (existingProfile && existingProfile.data) {
+                    // Update the existing profile
+                    profileData.id = existingProfile.data._id || existingProfile.data.id;
+                    response = await alumniService.updateProfile(profileData);
+                    toast.info('Updated your existing profile');
+                  } else {
+                    throw new Error('Could not find your existing profile');
+                  }
+                } catch (fetchError) {
+                  console.error('Error fetching existing profile:', fetchError);
+                  throw new Error('Profile may already exist, but could not access it');
+                }
+              } else {
+                // Try standard endpoint with error handling for 405
+                try {
+                  response = await api.post('/alumni', profileData);
+                  console.log('Profile created with standard endpoint');
+                } catch (standardError) {
+                  if (standardError.response?.status === 405) {
+                    console.warn('Received 405 from standard endpoint, falling back to reliable endpoint again');
+                    // Final attempt with reliable endpoint
+                    response = await alumniService.createProfileReliable(profileData);
+                  } else {
+                    // Re-throw if it's not a 405 error
+                    throw standardError;
+                  }
+                }
+              }
+            }
+          }
         } catch (error) {
           console.error('Error creating profile:', error);
           console.error('Error details:', error.response?.data);
-          toast.error('Failed to create profile. Please try again.');
+          
+          // Special handling for network errors
+          if (error.message?.includes('Network Error')) {
+            toast.error('Network error: Please check your internet connection and try again.');
+          } else if (error.response?.status === 405) {
+            toast.error('API configuration error: Please contact support.');
+          } else {
+            toast.error(`Failed to create profile: ${error.message || 'Unknown error'}`);
+          }
+          
           setLoading(false);
           return;
         }
       } else {
         // This is an existing profile that needs to be updated
         console.log("Updating existing profile:", profileData.id);
+        
+        try {
+          // Try direct API call first
+          response = await api.put(`/alumni/${profileData.id}/simple`, profileData);
+          console.log('Profile updated successfully with simple endpoint');
+        } catch (directError) {
+          console.error('Error with simple update endpoint:', directError);
+          // Fall back to the service method
         response = await alumniService.updateProfile(profileData);
+          console.log('Profile updated with fallback method');
+        }
       }
       
+      // Update the local profile state with the response data
+      if (response && response.data) {
+        // If it's just success status without full data, fetch the profile
+        if (response.data.success && response.data.id && !response.data.full_name) {
+          try {
+            const fetchResponse = await alumniService.getProfile(response.data.id);
+            setProfile(fetchResponse.data);
+            setInitialProfile(fetchResponse.data);
+            
+            // Calculate and update completion percentage
+            calculateCompletionPercentage(fetchResponse.data);
+          } catch (fetchError) {
+            console.error('Error fetching updated profile:', fetchError);
+            // Still update with what we have
+            setProfile({...profileData, id: response.data.id});
+            setInitialProfile({...profileData, id: response.data.id});
+          }
+        } else {
+          // We have the full profile data in the response
       setProfile(response.data);
+          setInitialProfile(response.data);
+          
+          // Calculate and update completion percentage
+          calculateCompletionPercentage(response.data);
+        }
+      }
+      
       setIsEditing(false);
       toast.success(profileData.id ? 'Profile updated successfully' : 'Profile created successfully');
+      
+      // Upload profile picture if needed
+      if (selectedFile) {
+        // Check if we have an alumni ID now
+        const alumniId = response?.data?.id || response?.data?._id || profileData.id;
+        if (alumniId) {
+          try {
+            await uploadProfilePicture(alumniId);
+          } catch (uploadError) {
+            console.error('Error uploading profile picture:', uploadError);
+            toast.warning('Profile saved but picture upload failed. You can try uploading it again.');
+          }
+        } else {
+          console.error('Cannot upload profile picture without alumni ID');
+          toast.warning('Profile saved but picture upload failed (missing ID).');
+        }
+      }
+      
     } catch (error) {
       console.error('Error updating profile:', error);
       console.error('Error details:', error.response?.data);
@@ -949,6 +936,10 @@ export default function ProfilePage() {
         } else {
           toast.error(`Error: ${error.response.data.detail}`);
         }
+      } else if (error.message && error.message.includes('CORS')) {
+        toast.error('Network error: CORS policy blocked the request. Please try again later.');
+      } else if (error.message && error.message.includes('Network Error')) {
+        toast.error('Network error: Unable to connect to the server. Please check your connection.');
       } else {
         toast.error('Failed to update profile. Please try again.');
       }
@@ -971,33 +962,45 @@ export default function ProfilePage() {
     if (!dateString) return null;
     
     try {
-      // Extract the date parts from the dateString (YYYY-MM-DD)
-      const parts = dateString.split('T')[0].split('-');
-      if (parts.length !== 3) {
-        console.error('Invalid date format, expected YYYY-MM-DD:', dateString);
+      // Parse the date string into a Date object
+      const date = new Date(dateString);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', dateString);
         return null;
       }
       
-      // Send date with time set to midnight (00:00:00) in ISO format
-      // but WITHOUT any timezone information
-      return `${parts[0]}-${parts[1]}-${parts[2]}T00:00:00`;
+      // Format the date as ISO string which includes timezone info (Z for UTC)
+      // Example: 2023-05-15T00:00:00.000Z
+      return date.toISOString();
     } catch (error) {
       console.error('Error formatting date:', error);
       return null;
     }
   };
 
-  // Form validation function
+  // Function to validate form fields
   const validateForm = () => {
     const errors = {};
     
-    // Required fields validation
-    if (!profile.full_name) errors.full_name = "Full name is required";
-    if (!profile.student_id) errors.student_id = "Student ID is required";
-    if (!profile.course) errors.course = "Course is required";
-    if (!profile.department) errors.department = "Department is required";
-    if (!profile.batch) errors.batch = "Batch is required";
-    if (!profile.email) errors.email = "Email is required";
+    // Define required fields - these 7 fields must be filled out
+    const requiredFields = [
+      { name: 'full_name', label: 'Full Name' },
+      { name: 'student_id', label: 'Student ID' },
+      { name: 'email', label: 'Email' },
+      { name: 'course', label: 'Course/Program' },
+      { name: 'department', label: 'Department' },
+      { name: 'graduation_year', label: 'Graduation Year' },
+      { name: 'batch', label: 'Batch/Class' }
+    ];
+    
+    // Check each required field
+    requiredFields.forEach(field => {
+      if (!profile[field.name] || profile[field.name].trim() === '') {
+        errors[field.name] = `${field.label} is required`;
+      }
+    });
     
     // Email format validation
     if (profile.email && !/\S+@\S+\.\S+/.test(profile.email)) {
@@ -1010,9 +1013,7 @@ export default function ProfilePage() {
     }
     
     // Graduation year validation
-    if (!profile.graduation_year) {
-      errors.graduation_year = "Graduation year is required";
-    } else {
+    if (profile.graduation_year) {
       const year = parseInt(profile.graduation_year);
       const currentYear = new Date().getFullYear();
       if (isNaN(year)) {
@@ -1024,105 +1025,33 @@ export default function ProfilePage() {
       }
     }
     
-    // Graduation month validation
-    if (profile.graduation_month && !["April", "September", "November"].includes(profile.graduation_month)) {
-      errors.graduation_month = "Graduation month must be April, September, or November";
-    }
-    
-    // CSC year validation
-    if (profile.csc_passer && profile.csc_year) {
-      const year = parseInt(profile.csc_year);
-      const currentYear = new Date().getFullYear();
-      if (isNaN(year)) {
-        errors.csc_year = "CSC year must be a valid number";
-      } else if (year < 1948) {
-        errors.csc_year = "CSC year cannot be before 1948";
-      } else if (year > currentYear) {
-        errors.csc_year = "CSC year cannot be in the future";
-      }
-    } else if (profile.csc_passer && !profile.csc_year) {
-      errors.csc_year = "Please enter the year when you passed the CSC exam";
-    }
-    
-    // Advanced studies validation
-    if (profile.advanced_studies && profile.advanced_studies.level !== 'None') {
-      if (!profile.advanced_studies.institution) {
-        errors.advanced_studies_institution = "Institution is required when specifying advanced studies";
-      }
-      if (!profile.advanced_studies.field) {
-        errors.advanced_studies_field = "Field of study is required when specifying advanced studies";
-      }
-    }
-    
-    // Phone number validation
-    if (profile.phone && !/^\+?[0-9]{8,20}$/.test(profile.phone)) {
-      errors.phone = "Please enter a valid phone number";
-    }
-    
-    // Validate social media urls
-    if (profile.social_media && profile.social_media.length > 0) {
-      profile.social_media.forEach((social, index) => {
-        if (social.platform && !social.url) {
-          errors[`social_media_${index}_url`] = "URL is required when platform is selected";
-        } else if (social.url && !social.platform) {
-          errors[`social_media_${index}_platform`] = "Platform is required when URL is provided";
-        } else if (social.url && !isValidURL(social.url)) {
-          errors[`social_media_${index}_url`] = "Invalid URL format";
-        }
-      });
-    }
-    
-    // Validate birthday
-    if (profile.birthday) {
-      const birthDate = new Date(profile.birthday);
-      const today = new Date();
-      
-      if (isNaN(birthDate.getTime())) {
-        errors.birthday = "Invalid date format";
-      } else if (birthDate > today) {
-        errors.birthday = "Birthday cannot be in the future";
-      }
-      
-      // Check if alumni is at least 16 years old
-      const minAge = 16;
-      const minDate = new Date();
-      minDate.setFullYear(today.getFullYear() - minAge);
-      
-      if (birthDate > minDate) {
-        errors.birthday = `Alumni must be at least ${minAge} years old`;
-      }
-      
-      // Check if birthday is reasonable (not more than 100 years ago)
-      const maxAge = 100;
-      const maxDate = new Date();
-      maxDate.setFullYear(today.getFullYear() - maxAge);
-      
-      if (birthDate < maxDate) {
-        errors.birthday = `Birthday indicates age greater than ${maxAge} years`;
-      }
-    }
-    
-    // If employed, validate required employment fields
-    if (profile.is_employed === "Yes") {
-      if (!profile.occupation) {
-        errors.occupation = "Occupation is required when employed";
-      }
-      if (!profile.company_name) {
-        errors.company_name = "Company name is required when employed";
-      }
-      if (!profile.employment_status) {
-        errors.employment_status = "Employment status is required when employed";
-      }
-    }
-    
-    // If unemployed, validate unemployment reason
-    if ((profile.is_employed === "No" || profile.is_employed === "Never Employed") && 
-        (!profile.unemployment_reason || profile.unemployment_reason.length === 0)) {
-      errors.unemployment_reason = "Please specify at least one reason for unemployment";
-    }
-    
-    setValidationErrors(errors);
+    setErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+  
+  // Calculate profile completion percentage
+  const calculateCompletionPercentage = (data) => {
+    const requiredFields = [
+      'full_name', 'student_id', 'email', 'course', 
+      'department', 'graduation_year', 'batch'
+    ];
+    
+    // Count how many required fields are completed
+    let completedFields = 0;
+    requiredFields.forEach(field => {
+      if (data[field] && data[field].toString().trim() !== '') {
+        completedFields++;
+      }
+    });
+    
+    // Calculate percentage
+    const percentage = Math.floor((completedFields / requiredFields.length) * 100);
+    setCompletionPercentage(percentage);
+    
+    // Set missing fields count
+    setMissingFields(requiredFields.length - completedFields);
+    
+    return percentage;
   };
 
   // Validate URL format

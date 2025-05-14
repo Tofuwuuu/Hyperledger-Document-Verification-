@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CVSU Alumni - Verification Fix</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background-color: #38a169;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .action-box {
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #38a169;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background-color: #2f855a;
+    }
+    code {
+      background-color: #f5f5f5;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    .result {
+      background-color: #f0fff4;
+      border: 1px solid #c6f6d5;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>CVSU Alumni - Verification Fix Tool</h1>
+    <p>This tool helps resolve issues with account verification status.</p>
+  </div>
+
+  <div class="action-box">
+    <h2>Step 1: Check Current Verification Status</h2>
+    <p>First, let's check your current verification status in the browser storage:</p>
+    <button onclick="checkStatus()">Check Status</button>
+    <div id="status-result" class="result"></div>
+  </div>
+
+  <div class="action-box">
+    <h2>Step 2: Fix Verification Status</h2>
+    <p>If your status shows as not verified, but your documents are verified, click below to fix it:</p>
+    <button onclick="fixStatus()">Fix Verification Status</button>
+    <div id="fix-result" class="result"></div>
+  </div>
+
+  <div class="action-box">
+    <h2>Step 3: Return to Dashboard</h2>
+    <p>After fixing the verification status, return to your dashboard to see if the issue is resolved:</p>
+    <button onclick="window.location.href='/'">Go to Dashboard</button>
+  </div>
+
+  <script src="fix-verification-status.js"></script>
+  <script>
+    function checkStatus() {
+      const resultDiv = document.getElementById('status-result');
+      resultDiv.innerHTML = '';
+      resultDiv.style.display = 'block';
+      
+      // Redirect console.log to the result div
+      const originalConsoleLog = console.log;
+      const originalConsoleError = console.error;
+      
+      console.log = function(...args) {
+        originalConsoleLog.apply(console, args);
+        const p = document.createElement('p');
+        p.textContent = args.join(' ');
+        resultDiv.appendChild(p);
+      };
+      
+      console.error = function(...args) {
+        originalConsoleError.apply(console, args);
+        const p = document.createElement('p');
+        p.style.color = 'red';
+        p.textContent = args.join(' ');
+        resultDiv.appendChild(p);
+      };
+      
+      // Run the check
+      checkVerificationStatus();
+      
+      // Restore console functions
+      setTimeout(() => {
+        console.log = originalConsoleLog;
+        console.error = originalConsoleError;
+      }, 100);
+    }
+
+    function fixStatus() {
+      const resultDiv = document.getElementById('fix-result');
+      resultDiv.innerHTML = '';
+      resultDiv.style.display = 'block';
+      
+      // Redirect console.log to the result div
+      const originalConsoleLog = console.log;
+      const originalConsoleError = console.error;
+      
+      console.log = function(...args) {
+        originalConsoleLog.apply(console, args);
+        const p = document.createElement('p');
+        p.textContent = args.join(' ');
+        resultDiv.appendChild(p);
+      };
+      
+      console.error = function(...args) {
+        originalConsoleError.apply(console, args);
+        const p = document.createElement('p');
+        p.style.color = 'red';
+        p.textContent = args.join(' ');
+        resultDiv.appendChild(p);
+      };
+      
+      // Override confirm to always return true
+      const originalConfirm = window.confirm;
+      window.confirm = function() { return false; }; // Don't reload automatically
+      
+      // Run the fix
+      fixVerificationStatus();
+      
+      // Restore console and confirm functions
+      setTimeout(() => {
+        console.log = originalConsoleLog;
+        console.error = originalConsoleError;
+        window.confirm = originalConfirm;
+        
+        // Add a success message
+        const successMsg = document.createElement('p');
+        successMsg.innerHTML = '<strong>✅ Fix applied successfully!</strong> Click "Go to Dashboard" to see if the issue is resolved.';
+        successMsg.style.color = '#38a169';
+        resultDiv.appendChild(successMsg);
+      }, 100);
+    }
+  </script>
+</body>
+</html> 

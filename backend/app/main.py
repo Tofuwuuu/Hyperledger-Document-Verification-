@@ -7,12 +7,15 @@ from fastapi.staticfiles import StaticFiles
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from app.api.api import api_router
 from app.core.config import settings
-from app.cors_middleware import add_cors_middleware
 from app.config.database import connect_to_mongo, close_mongo_connection
 from app.utils.auth import get_current_user_from_token
+from app.core.logging_config import setup_logging
+
+# Set up logging
+setup_logging()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -23,29 +26,37 @@ app = FastAPI(
     redoc_url=None,  # Disable default redoc
 )
 
-# Set up more detailed logging for debugging CORS issues
-logging.getLogger('uvicorn').setLevel(logging.DEBUG)
-logging.getLogger('fastapi').setLevel(logging.DEBUG)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# Configure logger for application
+logger = logging.getLogger("app.main")
 
 # Configure CORS
-origins = [
-    "http://localhost:5173",           # Local development
-    "http://localhost:3000",           # Another common local dev port
-    "http://127.0.0.1:5173",           # Local IP
-    "http://127.0.0.1:3000",
-    "https://alumni-frontend-zzr2.onrender.com", # Production frontend
-    "https://cvsu-alumni.netlify.app", # Alternative deployment
-]
+# Updated origins for development and production
+if os.environ.get("ENV") == "production":
+    # Production environment - use specific origins with credentials
+    origins = [
+        "https://alumni-frontend-zzr2.onrender.com",  # Production frontend
+        "https://cvsu-alumni.netlify.app",           # Alternative deployment
+    ]
+else:
+    # Development environment - allow all local development origins
+    origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",  # Backend server
+    ]
+    logger.info(f"Development mode CORS origins: {origins}")
 
+# Configure the CORS middleware with correct settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
-    expose_headers=["Content-Type", "Authorization"]
+    expose_headers=["Content-Type", "Authorization"],
+    max_age=86400,  # Cache preflight requests for 1 day
 )
 
 # Disable CSRF middleware for now to debug CORS
@@ -104,10 +115,15 @@ async def csrf_middleware(request: Request, call_next):
 # Direct OPTIONS handler for login that works for any origin
 @app.options("/api/v1/auth/login")
 async def options_auth_login(request: Request):
-    logger.debug(f"OPTIONS request received for auth/login from origin: {request.headers.get('origin', 'Unknown')}")
+    logger.info(f"OPTIONS request received for auth/login from origin: {request.headers.get('origin', 'Unknown')}")
     
     # Get the origin from the request
     origin = request.headers.get("origin", "*")
+    
+    # Check if the origin is in our allowed origins
+    if origin != "*" and origin not in origins:
+        logger.info(f"Origin {origin} not in allowed origins, defaulting to first allowed origin")
+        origin = origins[0] if origins else "*"
     
     headers = {
         "Access-Control-Allow-Origin": origin,
@@ -117,16 +133,69 @@ async def options_auth_login(request: Request):
         "Access-Control-Max-Age": "86400",
     }
     
-    logger.debug(f"Returning headers for OPTIONS request: {headers}")
+    logger.info(f"Returning headers for OPTIONS request: {headers}")
+    return JSONResponse(content={}, headers=headers)
+
+# Direct OPTIONS handler for alumni endpoints - this is critical for profile creation
+@app.options("/api/v1/alumni/")
+async def options_alumni_create(request: Request):
+    logger.info(f"OPTIONS request received for alumni/ from origin: {request.headers.get('origin', 'Unknown')}")
+    
+    # Get the origin from the request
+    origin = request.headers.get("origin", "*")
+    
+    # Check if the origin is in our allowed origins
+    if origin != "*" and origin not in origins:
+        logger.info(f"Origin {origin} not in allowed origins, defaulting to first allowed origin")
+        origin = origins[0] if origins else "*"
+    
+    headers = {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "POST, GET, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400",
+    }
+    
+    logger.info(f"Returning headers for alumni OPTIONS request: {headers}")
+    return JSONResponse(content={}, headers=headers)
+
+# Direct OPTIONS handler for references endpoints
+@app.options("/api/v1/references/{path:path}")
+async def options_references(request: Request, path: str):
+    logger.info(f"OPTIONS request received for references/{path} from origin: {request.headers.get('origin', 'Unknown')}")
+    
+    # Get the origin from the request
+    origin = request.headers.get("origin", "*")
+    
+    # Check if the origin is in our allowed origins
+    if origin != "*" and origin not in origins:
+        logger.info(f"Origin {origin} not in allowed origins, defaulting to first allowed origin")
+        origin = origins[0] if origins else "*"
+    
+    headers = {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400",
+    }
+    
+    logger.info(f"Returning headers for references OPTIONS request: {headers}")
     return JSONResponse(content={}, headers=headers)
 
 # Fallback OPTIONS handler for all other routes
 @app.options("/{full_path:path}")
 async def options_all(request: Request, full_path: str):
-    logger.debug(f"OPTIONS request received for {full_path} from origin: {request.headers.get('origin', 'Unknown')}")
+    logger.info(f"OPTIONS request received for {full_path} from origin: {request.headers.get('origin', 'Unknown')}")
     
     # Get the origin from the request
     origin = request.headers.get("origin", "*")
+    
+    # Check if the origin is in our allowed origins
+    if origin != "*" and origin not in origins:
+        logger.info(f"Origin {origin} not in allowed origins, defaulting to first allowed origin")
+        origin = origins[0] if origins else "*"
     
     headers = {
         "Access-Control-Allow-Origin": origin,
@@ -136,11 +205,51 @@ async def options_all(request: Request, full_path: str):
         "Access-Control-Max-Age": "86400",
     }
     
-    logger.debug(f"Returning headers for OPTIONS request: {headers}")
+    logger.info(f"Returning headers for OPTIONS request: {headers}")
     return JSONResponse(content={}, headers=headers)
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
+
+# Add a CORS debug middleware
+@app.middleware("http")
+async def cors_debug_middleware(request: Request, call_next):
+    # Get the path for debugging
+    path = request.url.path
+    method = request.method
+    origin = request.headers.get("origin", "No origin")
+    
+    logger.info(f"Request: {method} {path} from {origin}")
+    
+    # Process the request
+    response = await call_next(request)
+    
+    # For paths with CORS issues, ensure headers are set
+    critical_paths = ["/api/v1/alumni", "/api/v1/references"]
+    for critical_path in critical_paths:
+        if path.startswith(critical_path):
+            logger.info(f"Adding CORS headers for critical path: {path}")
+            response.headers["Access-Control-Allow-Origin"] = origin if origin != "No origin" else "*"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Origin"
+            
+    # Log the response status
+    logger.info(f"Response status: {response.status_code}")
+    
+    return response
+
+# Helper function to ensure datetimes have timezone info
+def ensure_timezone(dt):
+    if dt and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+# Middleware to handle datetime timezone issues
+@app.middleware("http")
+async def timezone_middleware(request: Request, call_next):
+    response = await call_next(request)
+    return response
 
 # Startup and shutdown events
 @app.on_event("startup")
@@ -193,7 +302,7 @@ async def add_process_time_header(request: Request, call_next):
 def health_check():
     return {
         "status": "ok",
-        "time": datetime.utcnow().isoformat(),
+        "time": datetime.now(timezone.utc).isoformat(),
         "version": "1.0.0",
     }
 

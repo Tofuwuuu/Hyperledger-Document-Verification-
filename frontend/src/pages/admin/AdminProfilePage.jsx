@@ -49,52 +49,53 @@ export default function AdminProfilePage() {
         }
       );
       
-      if (response.ok) {
-        const data = await response.data;
-        console.log('Successfully fetched user profile from API:', data);
-        
-        setProfile({
-          id: data._id || data.id,
-          full_name: data.full_name,
-          employee_id: data.employee_id || '',
-          department: data.department || 'IT Department',
-          position: data.position || 'System Administrator',
-          email: data.email,
-          phone: data.phone || '',
-          address: data.address || '',
-          bio: data.bio || '',
-          profile_picture: data.profile_picture || ''
-        });
-        
-        setInitialProfile({
-          id: data._id || data.id,
-          full_name: data.full_name,
-          employee_id: data.employee_id || '',
-          department: data.department || 'IT Department',
-          position: data.position || 'System Administrator',
-          email: data.email,
-          phone: data.phone || '',
-          address: data.address || '',
-          bio: data.bio || '',
-          profile_picture: data.profile_picture || ''
-        });
-        
-        // Get the base URL without /api/v1 for profile picture
-        const baseUrl = data.profile_picture ? API_URL.replace('/api/v1', '') : '';
-        
-        if (data.profile_picture) {
-          setPreviewUrl(`${baseUrl}/${data.profile_picture}`);
-        }
-        
-        return;
-      } else {
-        const errorText = await response.text();
-        console.warn(`Failed with ${response.status} using ${API_URL}: ${errorText}`);
-        throw new Error(`Server returned ${response.status}`);
+      // Axios stores response data directly in response.data
+      const data = response.data;
+      console.log('Successfully fetched user profile from API:', data);
+      
+      // Handle different name field formats
+      let fullName = data.full_name || '';
+      
+      // If full_name is missing but we have first_name and last_name, construct it
+      if (!fullName && (data.first_name || data.last_name)) {
+        fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();
+      }
+      
+      setProfile({
+        id: data._id || data.id,
+        full_name: fullName,
+        employee_id: data.employee_id || '',
+        department: data.department || 'IT Department',
+        position: data.position || 'System Administrator',
+        email: data.email || '',
+        phone: data.phone || '',
+        address: data.address || '',
+        bio: data.bio || '',
+        profile_picture: data.profile_picture || ''
+      });
+      
+      setInitialProfile({
+        id: data._id || data.id,
+        full_name: fullName,
+        employee_id: data.employee_id || '',
+        department: data.department || 'IT Department',
+        position: data.position || 'System Administrator',
+        email: data.email || '',
+        phone: data.phone || '',
+        address: data.address || '',
+        bio: data.bio || '',
+        profile_picture: data.profile_picture || ''
+      });
+      
+      // Get the base URL without /api/v1 for profile picture
+      const baseUrl = data.profile_picture ? API_URL.replace('/api/v1', '') : '';
+      
+      if (data.profile_picture) {
+        setPreviewUrl(`${baseUrl}/${data.profile_picture}`);
       }
     } catch (error) {
       console.error('Error fetching admin profile:', error);
-      setErrorMessage('Failed to fetch profile information.');
+      setErrorMessage('Failed to fetch profile information. ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -154,21 +155,15 @@ export default function AdminProfilePage() {
         }
       );
       
-      if (response.ok) {
-        console.log('Profile picture uploaded successfully');
-        setSuccessMessage('Profile picture updated successfully!');
-        setProfilePicture(null);
-        
-        // Refetch the profile to get the updated picture URL
-        fetchAdminProfile();
-      } else {
-        const errorText = await response.text();
-        console.warn(`Failed with ${response.status} using ${API_URL}: ${errorText}`);
-        throw new Error(`Server returned ${response.status}`);
-      }
+      console.log('Profile picture uploaded successfully', response.data);
+      setSuccessMessage('Profile picture updated successfully!');
+      setProfilePicture(null);
+      
+      // Refetch the profile to get the updated picture URL
+      fetchAdminProfile();
     } catch (error) {
       console.error('Error uploading profile picture:', error);
-      setErrorMessage('Failed to upload profile picture. Check your connection and try again.');
+      setErrorMessage('Failed to upload profile picture. ' + (error.response?.data?.detail || error.message));
     } finally {
       setIsUploading(false);
     }
@@ -195,76 +190,52 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      console.log('Loading admin profile...');
+      // Format profile data for the API
+      const profileData = {
+        full_name: profile.full_name,
+        email: profile.email,
+        department: profile.department,
+        position: profile.position,
+        phone: profile.phone,
+        address: profile.address,
+        bio: profile.bio,
+        employee_id: profile.employee_id
+      };
       
-      // Using axios directly with explicit CORS headers
-      const response = await axios.get(
+      // Update the user using the API
+      const updateResponse = await axios.put(
         `${API_URL}/admin/profile`,
+        profileData,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'X-Admin-Bypass': 'true'
+            'X-Admin-Bypass': 'true',
+            'Content-Type': 'application/json'
           }
         }
       );
       
-      if (response.ok) {
-        const data = await response.data;
-        console.log('Successfully fetched user profile from API:', data);
-        
-        // Format profile data for the API
-        const profileData = {
-          full_name: profile.full_name,
-          email: profile.email,
-          department: profile.department,
-          position: profile.position,
-          phone: profile.phone,
-          address: profile.address,
-          bio: profile.bio,
-          employee_id: profile.employee_id
-        };
-        
-        // Update the user using the API
-        const updateResponse = await axios.put(
-          `${API_URL}/admin/profile`,
-          profileData,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'X-Admin-Bypass': 'true'
-            }
-          }
-        );
-        
-        if (updateResponse.ok) {
-          console.log('Profile updated successfully');
-          
-          // Update local storage user data to reflect changes
-          const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-          const updatedStoredUser = {
-            ...storedUser,
-            ...profileData
-          };
-          localStorage.setItem('user', JSON.stringify(updatedStoredUser));
-          
-          setSuccessMessage('Profile updated successfully!');
-          setIsEditing(false);
-          
-          // Refetch the profile to get the latest data
-          fetchAdminProfile();
-        } else {
-          const errorText = await updateResponse.text();
-          console.warn(`Failed with ${updateResponse.status} using ${API_URL}: ${errorText}`);
-          throw new Error(`Server returned ${updateResponse.status}`);
-        }
-      } else {
-        const errorText = await response.text();
-        console.warn(`Failed with ${response.status} using ${API_URL}: ${errorText}`);
-        throw new Error(`Server returned ${response.status}`);
-      }
+      console.log('Profile updated successfully', updateResponse.data);
+      
+      // Update local storage user data to reflect changes
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const updatedStoredUser = {
+        ...storedUser,
+        ...profileData
+      };
+      localStorage.setItem('user', JSON.stringify(updatedStoredUser));
+      
+      setSuccessMessage('Profile updated successfully!');
+      setIsEditing(false);
+      
+      // Update initialProfile to match current profile
+      setInitialProfile(profile);
+      
+      // Fetch updated profile from server
+      fetchAdminProfile();
     } catch (error) {
       console.error('Error updating admin profile:', error);
-      setErrorMessage('Failed to update profile information. Check your connection and try again.');
+      setErrorMessage('Failed to update profile. ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }

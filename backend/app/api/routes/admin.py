@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, UploadFile, File, Form, Request, Response
+from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from bson import ObjectId
 import logging
+import os
+import shutil
+from pathlib import Path as FilePath
 
-from app.utils.auth import get_admin_user
+from app.utils.auth import get_admin_user, get_current_user
 from app.config.database import get_database
 from app.schemas import VerificationStatus
 
@@ -365,4 +369,231 @@ async def get_recent_users(
             logger.info(f"User {user.get('email')} has a complete profile")
     
     logger.info(f"Found {len(users)} recent users")
-    return users 
+    return users
+
+# Admin profile endpoints
+@router.get("/profile", response_model=Dict[str, Any])
+async def get_admin_profile(current_user: Any = Depends(get_admin_user)):
+    """
+    Get the admin user's profile information
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Handle both dictionary and object user models
+    user_data = {}
+    if isinstance(current_user, dict):
+        # If current_user is already a dictionary
+        user_data = current_user
+        logger.info(f"Admin profile requested for user {current_user.get('email')}")
+    else:
+        # If current_user is an object with attributes
+        try:
+            # Convert object to dictionary
+            user_data = {
+                "_id": str(getattr(current_user, "_id", getattr(current_user, "id", ""))),
+                "id": str(getattr(current_user, "id", getattr(current_user, "_id", ""))),
+                "email": getattr(current_user, "email", ""),
+                "first_name": getattr(current_user, "first_name", ""),
+                "last_name": getattr(current_user, "last_name", ""),
+                "full_name": getattr(current_user, "full_name", ""),
+                "employee_id": getattr(current_user, "employee_id", ""),
+                "department": getattr(current_user, "department", ""),
+                "position": getattr(current_user, "position", ""),
+                "phone": getattr(current_user, "phone", ""),
+                "address": getattr(current_user, "address", ""),
+                "bio": getattr(current_user, "bio", ""),
+                "profile_picture": getattr(current_user, "profile_picture", ""),
+                "is_admin": getattr(current_user, "is_admin", True)
+            }
+            logger.info(f"Admin profile requested for user {getattr(current_user, 'email', 'unknown')}")
+        except Exception as e:
+            logger.error(f"Error converting user object to dictionary: {str(e)}")
+            # Return a fallback dictionary with minimal data
+            user_data = {"error": "Could not retrieve user data"}
+    
+    # Ensure full_name is present in the response
+    if "full_name" not in user_data or not user_data["full_name"]:
+        # Try to construct full_name from first_name and last_name
+        first_name = user_data.get("first_name", "")
+        last_name = user_data.get("last_name", "")
+        if first_name or last_name:
+            user_data["full_name"] = f"{first_name} {last_name}".strip()
+    
+    # Return the admin user profile data
+    return user_data
+
+@router.put("/profile", response_model=Dict[str, Any])
+async def update_admin_profile(
+    profile_data: Dict[str, Any],
+    current_user: Any = Depends(get_admin_user)
+):
+    """
+    Update the admin user's profile information
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Get user ID from either dictionary or object
+    user_id = None
+    user_email = ""
+    
+    if isinstance(current_user, dict):
+        user_id = current_user.get("_id")
+        user_email = current_user.get("email", "")
+    else:
+        user_id = getattr(current_user, "_id", getattr(current_user, "id", None))
+        user_email = getattr(current_user, "email", "")
+    
+    if not user_id:
+        logger.error("Cannot update user profile - missing user ID")
+        raise HTTPException(status_code=400, detail="Invalid user data")
+    
+    logger.info(f"Admin profile update for user {user_email}")
+    
+    # Get database connection
+    from app.config.database import get_database
+    db = get_database()
+    
+    # Make sure we don't update any security-sensitive fields
+    safe_fields = [
+        "full_name", "email", "department", "position", 
+        "phone", "address", "bio", "employee_id"
+    ]
+    
+    # Filter out any unsafe fields
+    update_data = {k: profile_data[k] for k in safe_fields if k in profile_data}
+    
+    # Add updated_at timestamp
+    update_data["updated_at"] = datetime.utcnow()
+    
+    # If full_name is provided, update first_name and last_name as well
+    if "full_name" in update_data:
+        full_name = update_data["full_name"]
+        name_parts = full_name.split(" ", 1)
+        if len(name_parts) > 1:
+            update_data["first_name"] = name_parts[0]
+            update_data["last_name"] = name_parts[1]
+        else:
+            update_data["first_name"] = full_name
+            update_data["last_name"] = ""
+    
+    # Update the user in the database
+    result = await db.users.update_one(
+        {"_id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        logger.warning(f"Admin profile update failed - no document modified")
+        raise HTTPException(status_code=400, detail="Profile update failed")
+    
+    # Get the updated user
+    updated_user = await db.users.find_one({"_id": user_id})
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found after update")
+    
+    # Ensure the response includes full_name
+    if "first_name" in updated_user and "last_name" in updated_user and "full_name" not in updated_user:
+        updated_user["full_name"] = f"{updated_user['first_name']} {updated_user['last_name']}".strip()
+    
+    return updated_user
+
+@router.post("/profile/upload-picture", response_model=Dict[str, Any])
+async def upload_admin_profile_picture(
+    profile_picture: UploadFile = File(...),
+    current_user: Any = Depends(get_admin_user)
+):
+    """
+    Upload a profile picture for the admin user
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Get user ID from either dictionary or object
+    user_id = None
+    user_email = ""
+    
+    if isinstance(current_user, dict):
+        user_id = current_user.get("_id")
+        user_email = current_user.get("email", "")
+    else:
+        user_id = getattr(current_user, "_id", getattr(current_user, "id", None))
+        user_email = getattr(current_user, "email", "")
+    
+    if not user_id:
+        logger.error("Cannot upload profile picture - missing user ID")
+        raise HTTPException(status_code=400, detail="Invalid user data")
+    
+    logger.info(f"Admin profile picture upload for user {user_email}")
+    
+    # Get database connection
+    from app.config.database import get_database
+    db = get_database()
+    
+    # Validate file type
+    if not profile_picture.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Create uploads directory if it doesn't exist
+    upload_dir = FilePath("uploads/profile_pictures")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate a unique filename based on user ID and timestamp
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    file_extension = profile_picture.filename.split(".")[-1]
+    filename = f"admin_{user_id}_{timestamp}.{file_extension}"
+    
+    # Save the file
+    file_path = upload_dir / filename
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(profile_picture.file, buffer)
+    
+    # Update the user's profile_picture field in the database
+    db_path = f"uploads/profile_pictures/{filename}"
+    result = await db.users.update_one(
+        {"_id": user_id},
+        {"$set": {
+            "profile_picture": db_path,
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    
+    if result.modified_count == 0:
+        logger.warning(f"Admin profile picture update failed - no document modified")
+        raise HTTPException(status_code=400, detail="Profile picture update failed")
+    
+    # Get the updated user
+    updated_user = await db.users.find_one({"_id": user_id})
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found after update")
+    
+    return {"message": "Profile picture uploaded successfully", "profile_picture": db_path}
+
+# CORS OPTIONS handlers for admin profile endpoints
+@router.options("/profile", include_in_schema=False)
+async def options_admin_profile(request: Request, response: Response):
+    """Handle OPTIONS requests for the admin profile endpoint"""
+    # Get the origin from the request
+    origin = request.headers.get("origin", "*")
+    
+    # Set CORS headers
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, PUT, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Admin-Bypass, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return {}
+
+@router.options("/profile/upload-picture", include_in_schema=False)
+async def options_admin_profile_upload(request: Request, response: Response):
+    """Handle OPTIONS requests for the admin profile picture upload endpoint"""
+    # Get the origin from the request
+    origin = request.headers.get("origin", "*")
+    
+    # Set CORS headers
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Admin-Bypass, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    
+    return {} 

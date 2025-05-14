@@ -213,6 +213,20 @@ async def get_current_user(request: Request = None, authorization: str = Header(
         # Convert _id to string
         user["_id"] = str(user["_id"])
         
+        # Ensure is_verified is set to a boolean value
+        if "is_verified" not in user or user["is_verified"] is None:
+            user["is_verified"] = False
+        
+        # If database indicates user should be verified but the value isn't boolean True, fix it
+        if user.get("is_verified") in ["true", "1", 1, "yes", "y"] and user["is_verified"] is not True:
+            logger.info(f"Converting non-boolean verified value to True for user {user['_id']}")
+            user["is_verified"] = True
+            # Also update the database so this fix is permanent
+            await db.users.update_one(
+                {"_id": token_data.user_id},
+                {"$set": {"is_verified": True}}
+            )
+        
         return user
     except Exception as e:
         logging.error(f"Error fetching user: {str(e)}")
@@ -282,6 +296,42 @@ async def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_acti
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
+    
+    # Convert User model to dictionary if needed
+    if not isinstance(current_user, dict):
+        try:
+            # First try to use the model's dict method
+            user_dict = current_user.dict()
+            
+            # Ensure _id and id are present
+            if '_id' not in user_dict and hasattr(current_user, 'id'):
+                user_dict['_id'] = str(current_user.id)
+            if 'id' not in user_dict and hasattr(current_user, '_id'):
+                user_dict['id'] = str(current_user._id)
+                
+            return user_dict
+        except AttributeError:
+            # If dict() method not available, create dictionary manually
+            return {
+                "_id": str(getattr(current_user, "_id", getattr(current_user, "id", "unknown"))),
+                "id": str(getattr(current_user, "id", getattr(current_user, "_id", "unknown"))),
+                "email": getattr(current_user, "email", ""),
+                "full_name": getattr(current_user, "full_name", ""),
+                "first_name": getattr(current_user, "first_name", ""),
+                "last_name": getattr(current_user, "last_name", ""),
+                "is_active": getattr(current_user, "is_active", True),
+                "is_admin": getattr(current_user, "is_admin", True),
+                "is_verified": getattr(current_user, "is_verified", True),
+                "student_id": getattr(current_user, "student_id", ""),
+                "employee_id": getattr(current_user, "employee_id", ""),
+                "department": getattr(current_user, "department", ""),
+                "position": getattr(current_user, "position", ""),
+                "phone": getattr(current_user, "phone", ""),
+                "address": getattr(current_user, "address", ""),
+                "bio": getattr(current_user, "bio", ""),
+                "profile_picture": getattr(current_user, "profile_picture", "")
+            }
+
     return current_user
 
 async def get_current_user_ws(token: str):
