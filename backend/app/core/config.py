@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional
-from pydantic import BaseSettings
+from pydantic import BaseSettings  # Using Pydantic v1 BaseSettings directly
 from dotenv import load_dotenv
 
 # Load .env file
@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+# Provide compatibility for imports looking for SettingsConfigDict
+SettingsConfigDict = dict
 
 # Create a global settings object
 settings = Settings() 
