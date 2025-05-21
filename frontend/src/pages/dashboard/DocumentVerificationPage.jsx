@@ -11,6 +11,7 @@ import {
 import { documentService, verificationService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import documentVerificationService from '../../services/document';
+import { getDocumentUrl } from '../../utils/url';
 
 export default function DocumentVerificationPage() {
   const { currentUser } = useAuth();
@@ -139,8 +140,7 @@ export default function DocumentVerificationPage() {
   const viewDocument = (document) => {
     // Open document in new tab
     if (document.file_path) {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      window.open(`${baseUrl}/${document.file_path}`, '_blank');
+      window.open(getDocumentUrl(document.file_path), '_blank');
     }
   };
 

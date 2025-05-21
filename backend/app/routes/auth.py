@@ -25,6 +25,11 @@ from app.config.database import get_database
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+@router.get("/ping")
+async def ping_test():
+    """Simple endpoint to test API connectivity"""
+    return {"status": "ok", "message": "API is responding", "timestamp": datetime.utcnow().isoformat()}
+
 @router.post("/register", response_model=UserOut)
 async def register(user_data: UserCreate):
     db = get_database()
@@ -70,13 +75,18 @@ async def register(user_data: UserCreate):
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
-        db = get_database()
+        start_time = datetime.utcnow()
+        logging.info(f"Login attempt started at {start_time.isoformat()} for user: {form_data.username}")
         
-        # Log login attempt (without password)
-        logging.info(f"Login attempt for user: {form_data.username}")
+        db = get_database()
+        db_time = datetime.utcnow()
+        logging.info(f"Database connection obtained in {(db_time - start_time).total_seconds()} seconds")
         
         # Find user by username (email)
+        find_start = datetime.utcnow()
         user = await db.users.find_one({"email": form_data.username})
+        find_end = datetime.utcnow()
+        logging.info(f"Database lookup took {(find_end - find_start).total_seconds()} seconds")
         
         # Check if user exists and password is correct
         if not user or not verify_password(form_data.password, user["hashed_password"]):
@@ -96,11 +106,15 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             )
         
         # Create access and refresh tokens
+        token_start = datetime.utcnow()
         user_id = str(user["_id"])
         access_token = create_access_token(data={"sub": user_id})
         refresh_token = create_refresh_token(data={"sub": user_id})
+        token_end = datetime.utcnow()
+        logging.info(f"Token creation took {(token_end - token_start).total_seconds()} seconds")
         
-        logging.info(f"Successful login for user: {form_data.username}")
+        end_time = datetime.utcnow()
+        logging.info(f"Total login processing time: {(end_time - start_time).total_seconds()} seconds")
         
         return {
             "access_token": access_token,

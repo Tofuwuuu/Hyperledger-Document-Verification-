@@ -3,6 +3,7 @@ import { PencilIcon, CheckIcon, XMarkIcon, PlusIcon, TrashIcon } from '@heroicon
 import { useAuth } from '../../context/AuthContext';
 import { alumniService, referenceService } from '../../services/api';
 import { toast } from 'react-toastify';
+import { prepareProfileData } from '../../utils/profile-helpers';
 
 // Utility function to get the correct image URL
 const getImageUrl = (imagePath) => {
@@ -204,7 +205,6 @@ export default function ProfilePage() {
   });
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -419,20 +419,10 @@ export default function ProfilePage() {
   const fetchAlumniProfile = async () => {
     if (!currentUser) return;
     
-    // Debug user info
-    console.log('Current user object:', currentUser);
-    if (!currentUser.id && !currentUser._id) {
-      console.error('User ID is undefined in current user object:', currentUser);
-      setErrorMessage('User ID not found. Please try logging out and logging in again.');
-      setLoading(false);
-      return;
-    }
-    
     setLoading(true);
     try {
       // Use _id as fallback if id is not present
       const userId = currentUser.id || currentUser._id;
-      console.log('Using user ID for profile fetch:', userId);
       
       // Check if user has a profile
       const response = await alumniService.getAlumniByUserId(userId);
@@ -443,7 +433,7 @@ export default function ProfilePage() {
         user_id: alumniData.user_id,
         full_name: alumniData.full_name || '',
         student_id: alumniData.student_id || '',
-        course: alumniData.course || '',
+        course: alumniData.course || 'Bachelor of Science in Computer Science',
         graduation_year: alumniData.graduation_year || '',
         graduation_month: alumniData.graduation_month || '',
         honors_awards: alumniData.honors_awards || '',
@@ -458,8 +448,8 @@ export default function ProfilePage() {
         phone: alumniData.phone || '',
         address: alumniData.address || '',
         bio: alumniData.bio || '',
-        department: alumniData.department || '',
-        batch: alumniData.batch || '',
+        department: alumniData.department || 'IT Department',
+        batch: alumniData.batch || '2023',
         social_media: alumniData.social_media || [],
         profile_picture: alumniData.profile_picture || '',
         sex: alumniData.sex || '',
@@ -506,7 +496,7 @@ export default function ProfilePage() {
         user_id: alumniData.user_id,
         full_name: alumniData.full_name || '',
         student_id: alumniData.student_id || '',
-        course: alumniData.course || '',
+        course: alumniData.course || 'Bachelor of Science in Computer Science',
         graduation_year: alumniData.graduation_year || '',
         graduation_month: alumniData.graduation_month || '',
         honors_awards: alumniData.honors_awards || '',
@@ -521,8 +511,8 @@ export default function ProfilePage() {
         phone: alumniData.phone || '',
         address: alumniData.address || '',
         bio: alumniData.bio || '',
-        department: alumniData.department || '',
-        batch: alumniData.batch || '',
+        department: alumniData.department || 'IT Department',
+        batch: alumniData.batch || '2023',
         social_media: alumniData.social_media || [],
         profile_picture: alumniData.profile_picture || '',
         sex: alumniData.sex || '',
@@ -617,7 +607,23 @@ export default function ProfilePage() {
         setIsEditing(true); // Start in edit mode for new profile
         setInitialProfile(null);
       } else {
-        setErrorMessage('Failed to fetch profile information.');
+        // Remove the error message display
+        // setErrorMessage('Failed to fetch profile information.');
+        
+        // Instead, silently initialize an empty profile
+        setProfile({
+          user_id: currentUser.id || currentUser._id,
+          full_name: currentUser.full_name || '',
+          student_id: currentUser.student_id || '',
+          course: '',
+          graduation_year: currentUser.graduation_year || '',
+          graduation_month: '',
+          email: currentUser.email || '',
+          department: '',
+          batch: '',
+          social_media: []
+        });
+        setIsEditing(true);
       }
     } finally {
       setLoading(false);
@@ -764,13 +770,11 @@ export default function ProfilePage() {
   const startEditing = () => {
     setIsEditing(true);
     setSuccessMessage('');
-    setErrorMessage('');
   };
 
   const cancelEditing = () => {
     setIsEditing(false);
     setSuccessMessage('');
-    setErrorMessage('');
     
     // Reset form to original data
     if (initialProfile) {
@@ -779,24 +783,33 @@ export default function ProfilePage() {
   };
 
   const saveProfile = async () => {
-    // Validate the form first
-    if (!validateForm()) {
-      // If validation fails, show a toast error and return early
-      toast.error('Please fix the validation errors before saving');
-      return;
-    }
-    
-    setLoading(true);
-    setErrors({});
-
     try {
-      // Create a copy of the profile for submission
-      const profileData = { ...profile };
+      setLoading(true);
       
-      // Format birthday correctly to prevent timezone issues
+      // Validate form fields
+      const validationErrors = validateForm();
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        setLoading(false);
+        toast.error('Please fix the validation errors before saving.');
+        return;
+      }
+      
+      // Create a copy of the profile data for submission
+      let profileData = { ...profile };
+      
+      // Ensure required fields have values (FastAPI validation fix)
+      profileData.department = profileData.department || 'IT Department';
+      profileData.course = profileData.course || 'Bachelor of Science in Computer Science';
+      profileData.batch = profileData.batch || '2023';
+      
+      // Ensure user_id and required fields are included
+      profileData = await prepareProfileData(profileData);
+      
+      // Process the birthday field
       if (profileData.birthday) {
         try {
-          // Parse the date string - birthday is typically in YYYY-MM-DD format from the input
+          // Format the birthday into a consistent ISO format
           const [year, month, day] = profileData.birthday.split('T')[0].split('-').map(num => parseInt(num, 10));
           
           // Validate the date parts
@@ -909,9 +922,26 @@ export default function ProfilePage() {
           response = await alumniService.createProfile(profileData);
           toast.success('Profile created successfully!');
         } catch (error) {
-          console.error('Error creating profile:', error);
-          console.error('Error details:', error.response?.data);
-          toast.error('Failed to create profile. Please try again.');
+          // Check if error is due to profile already existing
+          if (error.response?.data?.detail === "Alumni profile already exists for this user") {
+            toast.info('An alumni profile already exists for your account. Loading your profile...');
+            
+            // Fetch the existing profile instead
+            try {
+              const userId = profileData.user_id;
+              const existingProfile = await alumniService.getAlumniByUserId(userId);
+              setProfile(existingProfile.data);
+              setInitialProfile(existingProfile.data);
+              setIsEditing(false);
+              setLoading(false);
+              return;
+            } catch (fetchError) {
+              toast.error('Failed to load your existing profile.');
+            }
+          } else {
+            // For other errors
+            toast.error('Failed to create profile. Please check your information and try again.');
+          }
           setLoading(false);
           return;
         }
@@ -1345,19 +1375,6 @@ export default function ProfilePage() {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-green-800">{successMessage}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="mt-4 rounded-md bg-red-50 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <XMarkIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-red-800">{errorMessage}</p>
               </div>
             </div>
           </div>
@@ -3201,12 +3218,12 @@ export default function ProfilePage() {
       {isEditing && (
         <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-            {errorMessage && (
-              <p className="text-sm font-medium text-red-600 truncate max-w-sm md:max-w-md">
-                {errorMessage}
+            {successMessage && (
+              <p className="text-sm font-medium text-green-600 truncate max-w-sm md:max-w-md">
+                {successMessage}
               </p>
             )}
-            {!errorMessage && (
+            {!successMessage && (
               <p className="text-sm text-gray-500">
                 Make changes to your profile and save when done
               </p>

@@ -3,6 +3,7 @@ import { UserCircleIcon, DocumentCheckIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import { formatDateTimePhilippines } from '../../utils/dateUtils';
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
@@ -68,8 +69,7 @@ export default function DashboardPage() {
   };
   
   const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    return formatDateTimePhilippines(dateString);
   };
   
   const formatActivityTitle = (activity) => {

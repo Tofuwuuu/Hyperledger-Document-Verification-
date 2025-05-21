@@ -1,0 +1,785 @@
+﻿ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU - CARMONA
+
+
+
+
+
+
+
+
+
+
+Undergraduate Thesis
+Submitted to the Faculty of the 
+Cavite State University - Carmona Campus
+Carmona, Cavite
+
+
+
+
+
+
+
+
+
+
+In partial fulfillment 
+Of the requirements for the degree of 
+Bachelor of Science in Computer Science
+
+
+
+
+
+
+
+
+
+
+
+
+MARK RODERICK I. SALISE
+June 2025
+
+BIOGRAPHICAL DATA
+
+
+
+       Mark Roderick I. Salise was born in San Pedro. Laguna on September 8, 2002. He is the third child among the three children of Fe Salise and Roderick Salise. He finished his education in primary education at Vian Rachel Academy, Aprecio Compound, Magsaysay Ave., Magsaysay Purok 2, San Pedro, Laguna, in the year of 2014. He finished his education in secondary education at Lyceum of Alabang located Km.30 National Road, Muntinlupa, 1773 Metro Manila, in the year of 2018. He finished his education in Senior High School at 
+La Consolacion College - Biñan, located at 83GH+J43, Biñan, 4023 Laguna in the year of 2020. He is currently a fourth year college student at Cavite State University, Carmona Campus under the program of Bachelor of Science in Computer Science, expected to graduate in the year 2025.
+       
+
+
+ACKNOWLEDGEMENT
+	
+
+
+       The proponent would like to express their profound gratitude to all individuals and organizations that provided guidance, support, and encouragement throughout the development of this research proposal.
+       Above all, the proponent thanks Almighty God for His countless blessings, strength, and wisdom that sustained them through the challenges and triumphs of this journey.
+       Heartfelt thanks are extended to Mr. Alonel A. Hugo, his thesis adviser and English critic, for his patience, insightful feedback, and unwavering commitment to improving the quality of this study.
+       Deep appreciation goes to Mr. Nathanael F. Bueno, technical critic, for his thoughtful guidance and constructive suggestions, which significantly elevated the content and methodology of the research.
+       Gratitude is also extended to Dr. Regene G. Hernandez, department chair and program research coordinator, for her unwavering support and motivation, which inspired the proponent to persevere and achieve their objectives.
+       Special thanks to Ms. Janine B. Bacosmo, department research coordinator, for her valuable insights and feedback, which played a crucial role in refining this proposal.
+       The proponent also express their gratitude to Dr. Carlo Emil B. Mañabo, campus research coordinator, for his encouragement, guidance, and assistance throughout the completion of this study.
+       The proponent is equally thankful to Dr. Jenny Beb F. Espineli, campus administrator, for her steadfast support and leadership, which greatly contributed to the success of this endeavour.
+       Lastly, the proponent would like to acknowledge his family and friends for their endless love, encouragement, and understanding. Their unwavering support served as the foundation for the successful completion of this thesis proposal.
+       
+       
+       
+THE PROPONENT
+
+
+
+TABLE OF CONTENTS
+
+
+
+Page
+
+BIOGRAPHICAL DATA.............................................................................. ii
+
+ACKNOWLEDGEMENT............................................................................. iii
+       
+LIST OF FIGURES....................................................................................  vi
+
+LIST OF APPENDIX FIGURES..................................................................... vii
+
+LIST OF APPENDICES.............................................................................. viii
+
+INTRODUCTION........................................................................................ 1
+
+Objectives of the Study..................................................................... 3
+ 
+Significance of the Study.................................................................... 5
+
+Time and Place of the Study............................................................... 6
+
+Scope and Limitation of the Study....................................................... 6
+
+Conceptual Framework...................................................................... 9
+
+Definition of Terms........................................................................... 10
+
+REVIEW OF RELATED LITERATURE......................................................... 12
+
+METHODOLOGY ..................................................................................... 16
+
+Materials....................................................................................... 16
+
+Method.......................................................................................... 16
+
+REFERENCES......................................................................................... 30 
+
+APPENDICES.......................................................................................... 34
+
+
+LIST OF FIGURES
+
+
+
+Figure										      Page
+
+1 Conceptual Framework of the Alumni with documents 
+verification using blockchain technology......................        10
+
+2 Modified Waterfall Model..........................................        17
+
+3 User Flow Diagram.................................................         18
+
+4 Business process...................................................         20
+
+5 Blockchain Dataflow Diagram...................................         21
+
+6 Database Flowchart................................................         22
+
+7 Use Case Diagram ................................................         23   
+
+
+
+
+
+
+
+
+
+LIST OF FIGURES
+
+
+									
+Appendix									      Page
+Figure										
+
+1 Cavite State University - Carmona Campus................        39
+
+2 Location Map of CvSU Carmona...............................        39
+
+
+
+LIST OF APPENDICES
+
+
+
+Appendix
+
+Page
+1Evaluation for Unit Testing................................................36
+2Evaluation for System Testing............................................40
+3Evaluation for Acceptance Testing.............................................45
+
+
+ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU - CARMONA
+
+
+
+Mark Roderick I. Salise
+
+
+
+An undergraduate thesis project proposal submitted to the faculty of the Department of Industrial and Information Technology, Cavite State University, Carmona Campus, Carmona, Cavite in partial fulfillment of the requirements for the degree Bachelor of Science in Computer Science. Prepared under the supervision of Mr. Alonel A. Hugo.
+
+
+INTRODUCTION
+
+
+
+       A shared, tamper-resistant digital ledger (STDL) is an advanced, decentralized system designed to securely and transparently record credentials such as diplomas, transcripts, and certifications. Unlike traditional manual processes, which are prone to delays, security vulnerabilities, and the potential for forged documents, an STDL ensures that records are both verifiable and protected from unauthorized alterations. This approach allows for faster verification, enhanced trust in the authenticity of credentials, and provides a permanent, unchangeable record of issued documents. With this system in place, graduates can instantly share their verified credentials, institutions can be confident in the integrity of their records, and employers can trust the authenticity of each degree, all while maintaining a secure audit trail for every credential issued.
+       A key application of this innovation is within educational institutions, particularly for alumni profile verification. With blockchain technology, academic and professional records become more reliable and ensure that stakeholders have access to accurate, secure, and verifiable credentials. Schools such as the Philippine Science High School (PSHS) have integrated blockchain technology into their system called Pisay-DigiCert, which modernizes the management and sharing of student records and streamlines record requests and releases within the PSHS system (Lee, 2020). This integration aligns with SDG 17: Partnerships for the Goals which highlights the importance of collaboration between universities, employers, and tech providers to ensure the system's success. 
+       Recognizing these innovations, Cavite State University - Carmona has identified a persistent problem regarding the management of alumni profiles and the verification of academic credentials. Currently, managing alumni profiles at Cavite State University - Carmona relies entirely on a traditional, manual, paper-based system. Staff responsible for these tasks face significant challenges, including overwhelming workloads, inefficient file sorting, delayed verification processes, and vulnerability to human error. Each alumni credential request begins with a handwritten, multi-page form; staff must comb through filing cabinets to locate transcripts, diplomas, and clearance slips, verify every detail by hand, and record the confirmed information in a bound ledger-stamping and initialing each entry. Without any digital copies or audit trail, a single misfiled folder or transcription error can add days to the process.
+       As the volume of alumni records grows annually, the process becomes increasingly exhausting, time-consuming, and difficult to manage, resulting in operational bottlenecks and potential security risks. Manual methods expose critical alumni information to risks of tampering, loss, or misfiling, while also causing fatigue and burnout among staff responsible for handling verification requests. With the gradual increase in the number of students, ranging from 3,895 to 4,730 students based on the CvSU Annual Report 2023, it is vital to enhance the efficiency of the system. The need for accurate information increases over time, which aligns with the growing population of students each year. This situation also supports SDG 4: Quality Education, as the proposed system ensures secure, tamper-proof academic credentials, promoting equitable access to trusted education records. By modernizing credential verification, the system enhances transparency in education outcomes and reduces barriers for alumni seeking further education or employment.
+       The absence of an automated, centralized, and secure system not only strains administrative resources but also compromises the timeliness, accuracy, and reliability of credential validation. As the number of alumni continues to grow, these challenges are further exacerbated, making it increasingly difficult to maintain accurate and up-to-date records. Given this, it is critical to have an efficient and reliable source of information for the institution.
+       This research aims to address the shortcomings of the current system used by CvSU-Carmona by innovating and enhancing data management and alumni connectivity. It proposes incorporating an alumni profile and document verification system based on blockchain technology. Through the use of the SHA-2 algorithm, the system will navigate alumni information, compare it against existing records, and validate its eligibility. If the information cannot be validated automatically, it will be manually checked by the assigned personnel. The SHA-2 algorithm also generates unique individual hashes while creating profiles. The document information will be stored on a blockchain platform, distributed as a ledger. Each node in the ledger will contain a collection of alumni information, with the history of changes meticulously recorded, listing every small change.
+       Blockchain technology secures academic records by decentralizing them; trusted personnel and administrators can access and handle records simultaneously, offering immutability and transparency. If unauthorized access or tampering occurs, the blockchain and SHA-2 algorithm will create new nodes showing the history of both the previous and updated records. These changes will notify the respective users and confirm the information, ensuring transparency. It also ensures that all certificates of completion for continuous recording are securely stored, making them tamper-proof. Moreover, it enables instant credential verification without intermediary costs, even for global applications. This technology can administer processes efficiently while minimizing the need for manpower, thereby contributing to SDG 8: Decent Work and Economic Growth. Automated job matching within the system connects graduates with employers, fostering employment opportunities and economic inclusion. This technology can administer processes efficiently while minimizing the need for manpower (ZIRCONTECH, 2024).
+Objectives of the Study
+       The main objective of the study is to develop a system with blockchain-based integration for managing alumni profiles, verifying academic and job application progress, and recording all transaction details that will enable CvSU-Carmona administrators, alumni, and prospective employers to prevent fraudulent or inaccurate credentials and effectively oversee alumni verification and job placement processes.
+	Specifically it aims to include the following modules:
+1. Implement the following elements of blockchain technology:
+a. SHA-2 as Cryptographic Functionality  
+b. Decentralized Ledger System as Distributed Ledger System
+c. Hyperledger Fabric as Permissioned Blockchain
+d. Centralized Database with Cryptographic Hashing as Secured Database System
+2. Develop a System that has the following module:
+a. Meeting Hub Module
+b. Department-Specific Module
+c. Application/Request Processing Module
+d. Admin Control Module
+e. Employer Interaction Module
+3. Develop the system using the following:
+a. Visual Studio Code for Integrated Development Environment (IDE),
+b. Python for programming language,
+c. MongoDB for database management,
+d. Hypertext Markup Language (HTML) and Cascading Style Sheet (CSS) for front-end design,
+e. FastAPI. For Frameworks,
+f. Uvicorn, Node.js and npm for database management,
+g. Docker for database of ledger data,
+h. React for JavaScript Library,
+i. SHA2 for algorithm for cryptographic hashing;
+4. Employ the Modified Waterfall Model as the Software Development Life Cycle (SDLC) to ensure structured and iterative development processes.
+5. Integrate real-time updates and intuitive interfaces to enhance user experience, providing transparency and instance notifications for:
+* Job application status,
+* Credentials verification progress.
+6. Ensure data security and transparency through blockchain technology, enhancing:
+* Accessibility to employers, alumni, and university administrators.
+* Scalability to support the institution's expanding needs.
+7. Evaluate system performance using the ISO 25010 standards, focusing on:
+* Product quality,
+* Quality in use
+8. Facilitate networking and employment opportunities to graduates by:
+* Automating job placement processes.
+* Providing detailed reports and dashboards to track job applications, placement, and system engagement.
+
+Significance of the Study
+       This research aims to address the issues relating to the traditional record management of the institution. By using Blockchain Technology, the Cavite State University - Carmona Campus will be able to provide efficient, reliable, tamper-proof verification when administering alumni's documents. It also aims to benefit the following stakeholders: 
+	For the University.  Given the importance of tracking information, it enhances and improves the institutionalized information needed to keep on track. By innovating with blockchain technology, operational efficiency and data security can be significantly improved.
+	Alumni. The research utilized real-time updates on job applications and credentials verification. As it reduces the administrative hassle, it enables an automated transition from education to employment.
+            For Students (Current and Graduating). Fourth-year and graduating students benefit from early exposure to the system, which enables them to pre-verify academic records and streamline job placement processes even before transitioning to alumni status. By offering real-time tracking of credential verification progress, the system ensures transparency and preparedness for post-graduation opportunities. Additionally, automated job recommendations tailored to their skills and employer criteria enhance their employability, while reduced administrative burden during the transition phase allows students to focus on career readiness rather than paperwork. This proactive approach bridges the gap between academic completion and professional integration, empowering students to enter the workforce with verified credentials and confidence.
+	Researchers. This will function as a tool to supply the future researchers with trustworthy and legitimate data required to address issues pertaining to this research.
+       Future Researchers. This research will benefit the future researcher, particularly those whose focus of study is on records management and emerging authentication methods.
+Time and Place of the Study
+	The Study is expected to start from January 2025 until May 2025. The data gathering will be conducted in Cavite State University - Carmona Campus.
+Scope and Limitation of the Study
+	This research aims to focus on the development and implementation of alumni profile with documents verification system using SHA-2 Blockchain Technology for Cavite State University - Carmona. The objective of the system aims to improve the efficiency, security, and transparency of alumni record management and credential verification processes for a job placement. The key areas covered include:
+       Target Users. The target users of this research include alumni and current students of Cavite State University - Carmona Campus who are seeking job placement assistance. Its application is specifically focused on addressing the needs of students from the current and preceding academic years. Additionally, employers who are interested in hiring CvSU-Carmona graduates will benefit from the system. University administrators who manage alumni records and employment data are also integral users, as the system aims to enhance data management and connectivity for these stakeholders. 
+       Key Features.  This research includes the Credential Verification whereas the use of SHA-2 algorithm secures the validation of alumni credentials to ensure immutability and authenticity; Job Matching, where it includes automating process of matching alumni skills profile with job posting for employees; Real-Time Updates, whereas the system will provide instant notifications to alumni and employers in job application and credential verification status; and User Interface Modules, whereas the system will develop intuitive dashboards for administrators, alumni, and employers to facilitate seamless interaction and data management.
+       Technological Framework. The system will be developed using modern technologies such as Python, React, FastAPI, and MongoDB, incorporating the Modified Waterfall Model as the SDLC. Additionally, the blockchain component will leverage SHA-2 algorithm for secure and immutable data storage.
+       Performance Evaluation. The system will be assessed against ISO 25010 standards to ensure product quality, reliability, and usability.
+       Geographic Coverage. The study is limited to Cavite State University-Carmona Campus and its associated alumni and employers, though the system's scalability can support other campuses or institutions in the future. While the advent of the study aims to provide a comprehensive solution, certain limitations exist due to resource and scope constraint:
+       Technological Challenges. The system's performance heavily depends on the quality of the internet connection and the technical proficiency of its users.
+Blockchain technology, while secure, might pose challenges in scalability and integration with legacy systems.
+       User adoption. The success of the system requires active participation and adaptation by alumni, students, and employers. Resistance to adopting new technology may limit its effectiveness.
+       Focus on Alumni and Employers. The system is tailored for alumni and employers, with limited functionality for current students who may not yet require job placement assistance.
+       Financial and Time Constraint. Development and deployment are constrained by available resources, including funding, developer time, and hardware.
+       Data Security Dependencies. Although blockchain provides robust security, the system's overall security also depends on proper implementation, user behavior, and administrative controls.
+       Evaluation Standard. The study's evaluation of the system is confined to the ISO 25010 framework, potentially overlooking other criteria for software assessment.
+
+Conceptual Framework
+	Figure 1 depicts the conceptual framework of the study.
+INPUTPROCESSOUTPUTAlumni upload academic credentials (e.g., diplomas, transcripts) to their blockchain-based profile.
+Employers submit job postings with required qualifications and skill criteria.
+Administrators manually verify flagged credentials or resolve discrepancies.
+Stakeholders (alumni/employers) request real-time updates on application or verification statusesThe developed system uses the SHA-2 algorithm to generate cryptographic hashes for uploaded documents and stores them on a Hyperledger Fabric blockchain.
+The system cross-references alumni credentials against blockchain records to validate authenticity, escalating mismatches to administrators.
+The system matches alumni skill profiles (stored in MongoDB) with employer job requirements using automated algorithms.
+The system logs all transactions (e.g., verifications, job applications) to the blockchain and updates dashboards in real time. The developed system displays verified alumni profiles to employers via a secure interface and triggers alerts for expired/unverified credentials.
+The system generates automated job recommendations for alumni, updates application statuses, and records transactions immutably on the blockchain.
+The system produces daily/monthly reports for administrators, including verification rates, job placements, and system usage analytics.
+The system visualizes revenue, verification progress, and engagement metrics through graphs and charts in stakeholder dashboards.
+
+Figure 1. Conceptual Framework of the Alumni profile with documents verification using blockchain technology
+
+	Figure 1 depicts the conceptual framework employed in this study. The input makes the raw data readable and the process specifies the need of a function. This will indicate that the output will deliver the desired outcome. This framework relies on the development and operation of the proposed blockchain-based system.
+	For instance, input consists of alumni profiles, employer job requirements, and blockchain technology and the necessary technology requirements, such as HTML, Python, CSS, React, the FastAPI framework, and MongoDB. As these elements serve, these findings make the foundation and operating the system.
+	The process involves validating alumni credentials using SHA2 blockchain technology. The findings indicate that it verifies all the information by the alumni profile. Ensures all process data is accurate and validated by the system or manually by the administrator.
+       The study aims to produce a secure, efficient, and user-friendly blockchain-based system that verifies every step. It ensures that all data provides transparent reporting for alumni, employers, and administrators.
+       To account for all of this, it ensures that the transition from old habits of paperwork to employment is leveraged by leveraging blockchain technology. It manages to input all the data through a safe environment when dealing with such information as alumni profiles. The alumni profile is verified using SHA-2 blockchain technology for the Cavite State University-Carmona Campus system. It will take advantage of such a system, which will ensure transparency and credibility throughout the making.
+Definition of Terms
+	The following terms are operationally defined in the study:
+	Alumni profile - A digital record containing personal, education, and professional information of graduates from Cavite State University - Carmona Campus. This profile will be used for job placement and credential verification.
+	Blockchain Technology - A decentralized and secure digital ledger system that records information in a way that makes it nearly impossible to alter or hack. In this study, blockchain ensures the immutability and security of alumni credentials and job placement.
+	Credential Verification - The process of authenticating and validating educational and employment records to ensure they are accurate and legitimate. blockchain technology enhances this by offering an immutable verification system.
+       Distributed Ledger - A database that is shared and synchronized across multiple sites. It enables secure and transparent record-keeping for alumni credentials and employment data.
+	Job Placement System - A platform or mechanism that connect graduates with potential employers based on their skills, qualification and job market needs.
+       Permissioned Blockchain - A blockchain network in this study that limits access to authorized users only, ensuring sensitive alumni and employer data are accessible to approved parties.
+       Real-Time Notification - A system feature that sends instant updates to stakeholders (alumni, employers, administrators) regarding job applications, credential verification, or other relevant activity.
+
+
+
+REVIEW OF RELATED LITERATURE
+
+
+
+       The international and local studies cited in this chapter explore various concepts, theories, and developments related to blockchain technology. These studies provide a comprehensive understanding of its applications, benefits, and challenges across different fields, including education, security, public administration, and cryptography. By examining past and present research, this chapter serves as a guide in developing a deeper insight into blockchain's potential and its evolving role in modern systems. The information presented here helps in familiarizing the researchers with relevant findings and innovations that align with the focus of the present study.
+       Zhang and Xui (2019) defined blockchain technology as a secure, distributed ledger that organizes a growing list of transaction records into a cryptographic chain of blocks, with each block containing its own hash value and that of the preceding block. A decentralized consensus mechanism ensures data integrity and consistency across nodes. Building on this, Huang et al. (2024) emphasized that once a block is added, its contents become immutable, guaranteeing data integrity and making blockchain highly viable for applications in education. Similarly, Alammary et al. (2019) proposed a framework that highlights blockchain's major applications, benefits, and challenges in education, particularly in issuing academic credentials, managing student data securely, reducing administrative costs, and promoting transparency.
+       In line with this, Mendez and Bayyou (2024) contend that Philippine educational institutions are increasingly exploring blockchain for enhancing teaching, learning, and collaboration, particularly through innovations such as e-transcripts, digital certification, cloud storage, and identity management. For example, the Philippine Science High School's blockchain-based records management system, as reported by BitPinas (2024), marks an important step in integrating blockchain into academic institutions by making student credentials tamper-proof, verifiable, and secure. Building on this example, Tonis' (2024) report highlights how universities across the Philippines are expanding blockchain research to further modernize record management and explore new academic applications. This growing adoption reflects a nationwide move toward innovation in education. In support of these efforts, Villanueva (2024) explains that blockchain-based systems for academic and profile management enable real-time credential updates and maintain data integrity. He also categorizes blockchain into Private and Public types, emphasizing that while private blockchains require permission to join, public blockchains allow full transparency and open participation, an approach that aligns closely with the goals of this thesis.
+       Sy et al. (2024) discusses the creation of a permissioned blockchain network using Hyperledger Fabric, serving as the backend for an educational credential verification system to assist Higher Education Institutions (HEIs), third-party verifiers, and students/alumni in viewing educational credentials.
+       Mendoza (2024) also discusses in the Junior Blockchain Education Consortium of the Philippines (2024) the blockchain training and development program hosted by the Technological Institute of the Philippines (TIP), which emphasizes building the capacity of students and educators by equipping them with the necessary skills to implement and maintain blockchain systems. This effort reflects a broader commitment to integrating blockchain technology into the academic curriculum and fostering a new generation of blockchain professionals. Beyond education, Ocampo (2024) explores the use of blockchain in government transactions in the Philippines, highlighting how it enhances transparency in public processes like tax collection and land registration, ensuring accountability and reducing corruption. Similarly, the Blockchain Philippines (2024) report expands on blockchain's applications in both education and public administration by providing examples of projects that automate processes, reduce inefficiencies, and secure sensitive information, demonstrating blockchain's versatility and potential to address long-standing challenges across sectors. 
+       The Chainalysis Report (2023) highlights the country's emerging blockchain ecosystem and the potential of blockchain technology to revolutionize records management and other applications in the Philippines. Various studies, reports, and initiatives have emphasized its current uses and implications. For example, Ranjan et al. (2024) investigated the combination of the Internet of Things (IoT) with blockchain technology using the SHA-256 cryptographic algorithm. Their findings concluded that integrating IoT devices-which continuously collect and share real-time data-with blockchain significantly improves the scalability and versatility of data management. Through this integration, real-time updates and secure communication across connected devices were achieved, ensuring that data integrity was maintained while minimizing the risk of unauthorized access. This demonstrated the potential for blockchain and IoT to work together to create highly secure and robust systems capable of managing sensitive information in dynamic and complex environments.
+       Further supporting the reliability of blockchain's cryptographic foundation, Bensalah et al. (2024) emphasized the efficiency and relevance of SHA-2, particularly highlighting its computational strength. Their research pointed out that SHA-2 is well-suited for secure, large-scale data operations, making it ideal for systems requiring accurate record verification. Within blockchain systems, SHA-2 provides a method for generating a fixed-size output or "hash" from input data of any size. This process is critical in ensuring that digital signatures and transactions remain authentic and tamper-proof, thereby preventing malicious actors from compromising the integrity of the blockchain ledger. 
+       In a comparative study, Pun et al. (2024) analyzed different cryptographic algorithms and reinforced the importance of SHA-256 for secure data management. Their research noted that a higher hash rate-meaning the ability to quickly solve complex cryptographic problems-translates to stronger security. Due to its robustness and high reliability, SHA-256 continues to be the preferred cryptographic choice in various fields, including healthcare, where data protection is crucial. 
+       Similarly, Khallaf et al. (2024) demonstrated the effectiveness of SHA-256 in securing medical data. Their study involved evaluating the cryptographic system's strength against differential attacks through both simulation results and theoretical analysis. The outcomes confirmed that SHA-256 provides high levels of security, effectively protecting sensitive information from unauthorized access and data leakage. These findings further validate SHA-256's role as a reliable tool for safeguarding critical information across industries. 
+Synthesis
+	Existing studies underscore blockchain's potential in education, particularly for secure credential management (Zhang & Xui, 2019; Huang et al., 2024). However, most frameworks prioritize student records over alumni systems, leaving a gap in post-graduation support (Alammary et al., 2019). Philippine institutions like PSHS have adopted blockchain for records (Lee, 2020), but these systems lack automated job-matching modules critical for alumni employability. Meanwhile, cryptographic analyses (Bensalah et al., 2024; Pun et al., 2024) validate SHA-2's robustness, yet few studies integrate it with permissioned ledgers like Hyperledger Fabric for alumni use cases. This study bridges these gaps by designing a blockchain-based alumni verification system for CVSU-Carmona that combines SHA-2 hashing, Hyperledger Fabric, and job-matching algorithms to address institutional inefficiencies and enhance graduate employability.
+
+METHODOLOGY
+
+
+
+       This chapter presents the research method. It focuses on the method used in conducting this research which covers research design, population and sample techniques, research locale, research instruments and techniques, data gathering procedure, and data analysis and procedure. 
+
+
+Materials
+	The analysis is conducted using several software and hardware for developing the Alumni Profile with Documents Verification system using SHA2 Blockchain Technology for Cavite State University (CvSU) - Carmona. The study employs application software for development, including Visual Studio 2022 as the Integrated Development Environment (IDE); FastAPI as the web framework; Hypertext Markup Language (HTML) and Cascading Style Sheets (CSS) for front-end design; React as the front-end library; Python for back-end programming; MongoDB for database management; and SHA2 as the Cryptographic Hash Algorithm.
+         The research uses devices for the development such as a desktop with a Ryzen 3 1500x with an RX 580, 2048, 8GB VRAM, 16 Gigabytes (GB) of Random Access Memory (RAM), a 512 Gigabyte (GB) Nonvolatile Memory Express (NVMe), 1 Terabyte (TB) Hard Disk Drive (HDD), a 512 Gigabyte (GB) Hard Disk Drive (HDD), and a Windows 10 Operating System (OS). For the internet connection, a Philippine Long Distance Telephone Company (PLDT) Fiber is utilized.
+
+Method
+	The research uses the System Development Life Cycle (SDLC), which is the Modified Waterfall Model, as shown in Figure 1. This method consists of five phases: Analysis, Design, Coding, Integration and System Test, and Maintenance.
+
+
+
+
+
+
+
+
+
+
+Figure 2. Modified Waterfall Model (Kossiakoff et al., 2020)
+
+       Analysis. In this phase, the needs of Cavite State University - Carmona Campus will be analyzed and the potential system requirements for an alumni profiling and document-verification platform will be conceptualized. A structured questionnaire (Appendix 1) will be drafted to capture essential details-campus full name and address, date established, academic and administrative units, and existing student-alumni tracking processes. It will also solicit quantitative data on annual graduate output and current average turnaround times for credential verifications, as well as any branch or satellite office locations.
+        Questionnaire will be distributed to key stakeholders in the Office of the University Registrar and the Alumni Affairs and Placement Office to identify objectives, desired features, and known limitations of the current paper-based workflow. Following the survey, face-to-face interviews will be conducted with the Registrar, the Alumni Affairs Coordinator, and staff responsible for document processing to clarify operational challenges-such as document misplacement, manual signature bottlenecks, and lack of real-time verification-and to gather user expectations around accessibility, security, and reporting. 
+       All information gathered will then be thoroughly reviewed and synthesized to produce an initial high-level concept of the blockchain-backed verification system, outlining its core modules (Alumni Profile Management, Document Hashing & Storage, Verification Engine, Notification Service, Reporting Dashboard, and Administration Portal) and mapping their interactions within CvSU-Carmona's technical and organizational environment.
+       The Alumni Profile with Document Verification System is a robust and scalable solution designed to securely manage alumni credentials, facilitate job placement, and provide transparency through blockchain integration. The user flow begins with alumni uploading their credentials, which are processed through a hashing mechanism using the SHA-2 cryptographic algorithm. These hashes are stored in the Credential Table alongside metadata, such as upload timestamps and verification statuses. Employers interact with the system to post job opportunities and verify alumni credentials via the Employer Table and Job Postings Table, where job-specific data such as titles, descriptions, and required skills are stored. Administrators oversee the system, manually verifying credentials when necessary and resolving disputes, with all actions logged in the Verification Logs Table for accountability.
+       The system flow incorporates a Validating Network, consisting of components like the Validator Client, Beacon Client, and Execution Client, to process and validate transactions securely. Once credentials are verified, the result is stored in the blockchain and reflected in the system's Notification Module, providing real-time updates to all stakeholders. The integration of a centralized database for fast data access, coupled with blockchain for immutability, strikes a balance between scalability and security. The system supports seamless interactions between alumni, employers, and administrators, ensuring efficient processes for credential validation and job placement. This end-to-end solution not only automates the verification process but also enhances user experience and trust by providing transparency, accountability, and scalability.
+User Flow
+       Figure 3: User Flow Diagram outlines the seamless interaction of users within the blockchain-based alumni verification system. Beginning with the Start phase, users-whether alumni, graduating student, employers, or administrators-enter the system and choose to either Register (providing role-specific details like academic records or company information) or Login using authenticated credentials. Following authentication, the flow diverges into Role-Based Dashboards: Alumni upload academic documents (e.g., diplomas), which are hashed via SHA-2 and stored immutably on the Hyperledger Fabric blockchain, while tracking verification status and applying for jobs through automated skill-based matching. Employers post job listings, verify alumni credentials by cross-referencing blockchain hashes, and access verified profiles to streamline recruitment. Administrators oversee flagged credentials for manual review, manage user accounts, and generate system analytics. Simultaneously, Blockchain Integration ensures tamper-proof records and an audit trail for all actions, while Real-Time Notifications keep users updated on verification progress, job applications, or administrative resolutions. The flow concludes with a secure Exit, ensuring data integrity. This end-to-end process addresses CVSU-Carmona's challenges by replacing error-prone manual workflows with automation, enhancing transparency through blockchain's immutability, and fostering employability via efficient alumni-employer connectivity, aligning with SDG 8: Decent Work and Economic Growth.
+
+Figure 3. User Flow Diagram
+
+
+Figure 3. Continuation...
+Business Process
+	Figure 4 outlines the blockchain-driven business process for alumni credential verification and job placement. The process begins with Alumni activities: users Create Profile with their personal and educational information, then Submit Credentials (e.g., diplomas, transcripts) to their profiles. These documents are automatically Hashed using SHA-2 algorithm, creating a unique digital fingerprint that is Stored in Blockchain to ensure immutability and tamper resistance. Alumni can initiate Verify Credentials to confirm document authenticity and Request Verification from administrators when needed.For employment opportunities, alumni can submit a Job Application which triggers the system to Match Alumni with Job Posting. Employers participate by using the platform to Post Job listings with specific skill requirements. They can Review Job Application details including verified credentials, with the blockchain providing assurance of document authenticity. The system Sends Real-time Notifications to both alumni and employers about application status and verification results. When hiring decisions are made, employers can Confirm Job Placement within the system.Administrators oversee the integrity of the platform by performing Verify Alumni Credentials tasks, especially when automated verification flags potential issues. If the automated system encounters discrepancies (e.g., mismatched hashes), administrators conduct Manual Verification to resolve authentication problems.This comprehensive process addresses the delays and errors of CVSU's current paper-based system by creating a transparent, secure, and efficient workflow for credential verification and job placement. It aligns with the study's objectives of transparency and automation (see Conceptual Framework, Figure 1) and directly resolves the inefficiencies described in the problem statement.
+
+Figure 4. Business Process
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Blockchain Data Flow
+	Figure 5 illustrates the blockchain technology utilized to ensure secure and tamper-proof credential verification. Alumni initiate the process by submitting credentials which enter the Hashing Process (SHA-2) where documents are transformed into unique digital fingerprints. These hashes then flow to the Validating Network, which serves as the consensus layer for verifying transactions. The network architecture consists of three client components: The Validator Client performs consensus operations and validates new credential entries; the Beacon Client coordinates the validation process and maintains the chain's state; and the Execution Client handles the actual transaction execution and smart contract interactions for credential verification.  Validated hashes are permanently recorded in the Blockchain Ledger, creating an immutable record that cannot be altered retroactively. The system generates Notifications to relevant stakeholders when verification events occur, ensuring transparency throughout the process.  Employers access this infrastructure when requesting credential verification, with their queries processed through the validation network to retrieve and authenticate credential hashes. Administrators oversee the entire system, managing validation parameters and resolving any verification discrepancies that arise.This comprehensive blockchain implementation guarantees that all credentials remain immutable and verifiable. When verification is requested, the system retrieves the original hash from the blockchain and compares it to the computed hash of the provided credentials, confirming authenticity when matches occur.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Figure 5. Blockchain Data Flow Diagram
+
+Database Schema
+       Figure 6 presents the ERD Database Flowchart of our blockchain-based alumni system. The database, implemented using MongoDB, organizes data into seven interconnected collections:Users collection serves as the central entity storing fundamental user information including user_id (primary key), name, role (Alumni/Employer/Admin), email, password, contact_details, and timestamps (created_at and updated_at). This table links to multiple other entities based on user roles.Alumni Profiles extends the Users entity for alumni-specific data, containing profile_id, user_id (foreign key), year_of_graduation, degree/skills, work_experience, and timestamp fields. This collection provides detailed educational and professional information for alumni users.Credentials stores document verification information with credential_id, alumni_id (foreign key referencing Alumni Profiles), file references, hash values generated using SHA-2, verification status, and timestamp fields. This entity forms the critical link between alumni and their verified documents.Job Postings collection manages employment opportunities with job_id, employer_id (foreign key to Users), title, description, required_skills, status, and updated_at fields. This collection enables employers to create and manage job listings.Applications tracks the job application process with application_id, alumni_id, job_id (foreign keys linking to Alumni Profiles and Job Postings), status, applied_at, and updated_at fields. This entity connects alumni profiles with job postings.Verification Logs maintains an audit trail of verification activities, storing verification_id, credential_id (foreign key to Credentials), verified_by references, and timestamps. This ensures transparency in the verification process.Blockchain Ledger serves as the immutable record store with block_id, hash values, previous_hash references for chain integrity, data payloads, and timestamps. This entity ensures that even if the database is compromised, the integrity of credential verification remains intact.This comprehensive schema ensures efficient data management while maintaining the security and verifiability of alumni credentials through blockchain integration.
+
+
+
+
+
+
+
+
+
+
+
+Figure 6. ERD Database Flowchart
+A Use Case Diagram, as shown in Figure 7, is intended to represent system users and the modules they can interact with.
+
+
+
+
+
+
+
+
+
+
+
+Figure 7. Use Case Diagram
+       Figure 7 delineates the system architecture, illustrating its core modules and the access permissions corresponding to each user role. The system accommodates three distinct user categories: Alumni, Employers, and Administrators, each interacting with designated modules tailored to their respective functions .The Meeting Hub Module is designed to facilitate communication and scheduling among stakeholders. Alumni can utilize this module to schedule meetings with prospective employers, while employers can coordinate interviews with suitable candidates. System Administrators retain oversight and management responsibilities for all meeting-related activities. The Department-Specific Module manages functionalities pertinent to individual academic departments. This allows alumni to access resources and information specific to their field of study. Administrators are responsible for curating and managing department-specific content, while employers may engage with alumni from targeted academic disciplines. The Application/Request Processing Module serves as the conduit for managing document verification requests and job applications. Alumni submit their credentials and employment applications via this module. Concurrently, employers utilize it to review submitted applications. Administrators oversee the entire processing workflow, including the resolution of any emergent issues.The Admin Control Module grants comprehensive system management capabilities exclusively to Administrators. These capabilities encompass user account management, system configuration, and holistic oversight of the operational status of all other modules within the system. The Employer Interaction Module provides functionalities for employers to disseminate job openings, identify qualified candidates by searching alumni profiles, and engage in communication with alumni. Conversely, alumni can access employer profiles and available opportunities. Administrators monitor employer activities within this module to ensure compliance and system integrity. The Job Placement Module is engineered to track the complete employment lifecycle, from initial application to final placement. This module enables alumni to monitor their application status, allows employers to manage their recruitment and hiring processes, and permits administrators to generate analytical reports on job placement statistics and trends. This modular architectural design ensures that user access is appropriately stratified according to role. Alumni are empowered to create and maintain their profiles, submit credentials for blockchain-verified authenticity, and manage their job applications. Employers are equipped to view alumni profiles, validate credentials, post job vacancies, and process applications. Administrators possess comprehensive access to all system modules, enabling thorough system oversight and governance.
+       For the development of the system, Visual Studio Code will be chosen as the integrated development environment (IDE) due to its robust tools-such as IntelliCode for AI-driven code completion-and its built-in visual designer for rapid UI prototyping (Anand, 2023). React will be used for front-end development, enabling the creation of modular, reusable components and a responsive user experience. On the back end, FastAPI will provide a high-performance, asynchronous framework for building RESTful APIs and handling concurrent data processing requests with minimal overhead. MongoDB will be selected for database management because of its schema-flexible, document-oriented design, which will be ideal for storing heterogeneous alumni profiles and job posting data.          
+       To underpin the blockchain layer, Hyperledger Fabric will be employed as a permissioned ledger platform, offering pluggable consensus, fine-grained access control, and a mature smart contract (chaincode) lifecycle for secure document verification. Each Fabric component-peers, ordering services, and certificate authorities-will run inside its own Docker container, ensuring consistent environments, simplified dependency management, and easy network orchestration via Docker Compose. Docker volumes will be used to persist ledger state outside the containers, guaranteeing data durability even when containers are rebuilt. The entire application stack, including both FastAPI services and the Hyperledger Fabric network, will be deployed on Ubuntu LTS servers to leverage the distribution's stability, security updates, and broad community support. Finally, the SHA-2 cryptographic algorithm will secure every credential hash written to the ledger, preserving immutability, data integrity, and end-to-end transparency.
+       The coding and unit testing phase will involve implementing the core modules, starting with the alumni profile module, followed by the credential verification system, job application module, and employer interaction module. Each module will undergo thorough unit testing to ensure that it functions correctly and meets the specified requirements. The testing process will be carried out by running the system on multiple browsers, including Google Chrome, Microsoft Edge, and Mozilla Firefox, to ensure compatibility across different platforms. Unit tests will be evaluated using an evaluation form that will cover areas such as functionality, security, and user experience.
+       During the integration and system test phase, the modules will be integrated into the complete system, and various tests will be conducted to verify that the modules interact as expected. The overall system performance will be tested to ensure it meets the requirements of alumni students, employers, and admins. System testing will be conducted using a form based on ISO 25010 to evaluate functionality, performance, usability, security, and reliability.
+       In the acceptance testing phase, the system will be tested with Cavite State University - Carmona to ensure it meets all the required objectives. The evaluation will assess the system's ability to provide real-time updates on job applications, verify alumni credentials, and enable employers to view and manage applications effectively. Feedback from alumni students, employers, and administrators will be collected to gauge satisfaction and identify any areas for improvement.
+       Finally, during the operation and maintenance phase, the system will be deployed and monitored for any issues or bugs. The researchers will be responsible for addressing any problems that arise during the six-month period of use and ensuring the system remains operational. This phase will also include making necessary updates and improvements based on feedback from users to ensure the system continues to meet its goals effectively.
+       The first stage of the coding phase will involve setting up the syntax for creating a database for the system. This foundation will ensure that all the data for the alumni profiles, job applications, and employer details can be securely stored and easily accessed. The next step will be designing the initial user interface for the software prototype, ensuring the system is intuitive and user-friendly. The user interface will be crafted to provide clear navigation, so each user role can easily access their respective modules.
+       Once the basic structure is in place, the main functional components of the system will be implemented. The coding process for creating functions will be carried out module by module. The inventory module will be the first to be developed, focusing on managing and tracking alumni credentials, job postings, and updates. Following this, the job application module will be built to allow alumni students to apply for jobs, view application statuses, and receive notifications. The next component will be the credential verification module, which will be critical for validating the authenticity of the credentials submitted by the alumni using blockchain technology. The final module to be implemented will be the admin control module, which will give administrators full access to manage user accounts and oversee the functionality of the entire system.
+       After the development of each module, thorough testing will be conducted to ensure that each function performs as expected. Any errors identified during the testing phase will be promptly fixed, and the modules will be re-evaluated. Once all the individual modules are completed, they will be integrated into a complete system. This integration will ensure that all parts of the system work together seamlessly, allowing for a smooth user experience across all roles-alumni, employers, and administrators. Following this, additional testing will be carried out to evaluate the full system's performance and to ensure that the integrated system meets all specified requirements.
+Unit Testing
+       Unit testing will be carried out to ensure that each module of the Alumni Profile system functions as expected and meets its specific requirements. During this phase, each individual module, such as the alumni profile module, credential verification, job application, and employer interaction, will be thoroughly tested. Any errors encountered during the testing of each module will be addressed and resolved. After correcting the errors, the modules will be re-evaluated using an evaluation form designed for unit testing (Appendix 2). The process will involve verifying the functionality of each module by running tests and debugging throughout the development process. To ensure compatibility across platforms, the developers will conduct the tests on various internet browsers, including Google Chrome, Microsoft Edge, and Mozilla Firefox. The evaluation form will be used to assess key areas of the system, such as the functionality of the modules, security, hardware compatibility, and platform performance. The results of each test will be categorized as successful or failed, depending on whether the module meets the expected outcomes.
+       In the integration and system test phase, the individual modules will be combined into a single, cohesive system. The integration will ensure that the alumni profile module, credential verification system, job application, and employer interaction module work together as intended. Once the integration is complete, an evaluation will be conducted to verify that all system requirements are satisfied. This phase will ensure that the modules can seamlessly interact with each other and that the overall functionality of the system meets the design specifications.
+System Testing
+       System testing will be performed to evaluate whether the system meets the specified requirements, its intended use, and overall performance. The researchers will utilize an evaluation form for system testing (Appendix 3), based on the International Organization for Standardization (ISO) 25010, which will include 32 questions that test the system's performance. This phase will aim to identify any potential problems or errors within the developed system. The testing will focus on eight key quality characteristics: functionality, suitability, performance, efficiency, compatibility, usability, reliability, security, maintainability, and portability. The results of the system test will help identify areas that require improvements or adjustments, ensuring that the system is fully optimized and ready for deployment.
+       Indicators 1 to 4 will focus on the functionality and suitability of the system, ensuring that all necessary modules-such as the alumni profile, credential verification, job application, and employer interaction modules-are present and functional. The system's core functions will include tracking alumni credentials and job applications, providing notifications when there are updates or changes, and ensuring the verification process runs smoothly. The system will also generate necessary reports, such as the alumni profile verification status, job application reports, and system performance reports.
+       The functionality of the system will correspond with the set objectives, ensuring that the alumni profiles are verified, applications are processed, and the overall user experience remains effective and aligned with the system's goals. Performance Efficiency (Indicators 5 to 7) will examine the system's ability to perform tasks promptly, such as monitoring and updating the alumni profile information, showing real-time status of job applications, and generating reports. The system must show alumni job application progress, alert administrators of unverified credentials, and process job application statuses without delays. It will also ensure that the system performs well under heavy usage, with real-time updates and calculations being executed swiftly. Additionally, the system should be able to handle a large number of users and process significant amounts of data efficiently, without compromising performance. Compatibility (Indicators 8 and 9) will assess whether the system can function well within a shared environment with other products.
+       The system should not have any negative impacts when running alongside other software systems. Moreover, it should be able to export and integrate data with other platforms for better usability and sharing of information. Usability (Indicators 10 to 20) will evaluate the user-friendliness of the system. This will include a consistent user interface, easy navigation, clear and unambiguous titles for buttons and functions, helpful and easily understandable on-screen messages, and an aesthetically pleasing design. The system should also respond effectively to invalid input and offer accessibility depending on the user role (e.g., alumni, employers, or admin). Reliability (Indicators 21 to 23) will determine if the system ensures secure user authentication, such as encrypted usernames and passwords stored in the database, and whether the system is resilient to errors. The system should also be accessible to all authorized users while ensuring data integrity and accuracy. Security (Indicators 24 to 28) will address the system's ability to protect sensitive data, ensuring that only authorized personnel can view and manage it. 
+       The system should use strong identification and authentication protocols for users, ensure that data is safeguarded from unauthorized access, and allow the user to update their credentials securely. Monitoring and tracking unwanted behavior should also be a priority, with unique identification assigned to each user. Maintainability (Indicators 29 to 31) will look at whether the system can be easily updated and modified when needed. This will include being able to manage content efficiently, ensuring that data can be reused between different modules, and being capable of performing tests to maintain system integrity. Portability (Indicator 32) will evaluate if the system can be easily transferred and used across different environments and platforms, including different web browsers such as Google Chrome, Microsoft Edge, and Mozilla Firefox. This will ensure that the system is accessible and functional regardless of the platform being used. 
+       A total of 80 respondents, including 5 domain administrator, 10 IT experts, 30 alumni, 20 fourth-year students, 10 Employers, 5 University Administrators.  Respondents will be chosen using the convenience sampling technique, a non-probability method that will select participants based on their availability and willingness to participate in the study (Nikolopoulou, 2023). 
+       Each criterion of the system testing will be rated using a Likert scale from 1 to 5, where 1 will mean poor, 2 will mean fair, 3 will mean satisfactory, 4 will mean very satisfactory, and 5 will mean outstanding. The formula for the computation of the mean will be used to determine the result of the system evaluation: 
+       
+       
+
+
+       Furthermore, a table of interpretation (Table 1) shown below will be used to interpret the mean rating of the evaluation of the system.  
+       
+       
+       
+       
+       The standard deviation will also be used to measure the size of the range of a data set based on its mean. It will be calculated as the square root of the variance. If the data scores are farther from the mean, there will be a higher deviation within the data set (Khan Academy, 2016). 
+       After obtaining the mean, the standard deviation of the sample result will be computed. The following formula will be used to calculate the standard deviation:
+        
+       
+        
+       
+
+
+Acceptance testing 
+       This will be the final testing phase, during which testing will be conducted with the client. The evaluation form for acceptance testing (Appendix 4) will be used to determine whether the system meets the criteria adopted from the International Organization for Standardization (ISO) 25010. The evaluation form will include the following criteria: effectiveness, performance efficiency, satisfaction, freedom from risk, and context coverage. 
+       For the effectiveness criterion, indicators 1 to 4 will be used to identify whether the system has the following modules: alumni profile module, credential verification module, job placement module, employer interaction module, and admin control module; whether it can be used to track alumni academic and professional records while providing real-time alerts for unverified or expired credentials; whether it can integrate a blockchain-based ledger as an intermediary for secure and tamper-proof document validation; whether it can display verification progress reports providing real-time data on credential authenticity, job application statuses, and employer-alumni interactions; whether it can generate immutable alumni profile reports, daily verification logs, monthly job placement summaries, and employer feedback records; and whether its functions will correspond to its previously set objectives of enhancing transparency, security, and efficiency in alumni management. 
+       For the performance efficiency criterion, indicators 5 to 7 will be used to examine whether the system will provide appropriate response times when performing tasks such as monitoring and updating alumni credential verification statuses in real-time, flagging discrepancies in academic records, showing notifications for credentials nearing expiration or requiring revalidation, calculating job-alumni compatibility scores based on skills and employer requirements, recording verification transactions and blockchain audit trails, generating SHA-2 cryptographic hashes for document integrity, showing frequently verified or flagged credentials, and producing printable files for verified alumni profiles, employer job postings, and system activity logs. 
+       The system will also be evaluated to determine whether it can maintain acceptable performance levels when accessed concurrently by alumni, employers, and administrators, and whether it can manage large volumes of data, including thousands of alumni profiles, employer interactions, and blockchain transaction histories. 
+       Under the satisfaction criterion, indicators 8 to 11 will determine whether the system will achieve its realistic goals, including streamlining alumni-employer connectivity and reducing administrative delays; whether it will work reliably based on its blockchain-integrated functions; and whether users (alumni, employers, administrators) will feel satisfied upon completing tasks such as credential uploads, job applications, or verification approvals. 
+       Under the freedom from risk criterion, indicators 12 to 14 will identify whether the system will promote institutional credibility by ensuring tamper-proof academic records and transparent verification processes; whether it will safeguard sensitive alumni and employer data through decentralized blockchain architecture and SHA-2 encryption; and whether it will ensure that all system processes align with CvSU-Carmona's operational policies and legal requirements for data privacy. 
+       Furthermore, indicators 15 and 16 under the context coverage criterion will assess whether the system can operate effectively within CvSU-Carmona's current infrastructure (e.g., registrar's office, employer partnerships) while maintaining efficiency, security, and user satisfaction, and whether it can adapt to future contexts such as integration with national credential databases, cross-institutional collaborations, or expanded employer networks beyond the university's current scope. 
+       A Likert scale from 1 to 5 will also be used by the stakeholders-university administrators, alumni, employers, IT experts, and external evaluators-to rate the Alumni Profile with Documents Verification System. The results will be used to calculate the mean and average for each indicator within a criterion (e.g., effectiveness, performance efficiency), along with the corresponding standard deviation. 
+       Operation and Maintenance. During this phase, the system will be installed and utilized at the Cavite State University-Carmona Campus's administrative portal and blockchain network infrastructure. Maintenance will involve correcting any errors that are overlooked in earlier phases, such as inconsistencies in Hyperledger Fabric node synchronization or SHA-2 cryptographic hashing validation, and improving the implementation of system features like real-time credential verification alerts and employer-alumni job matching algorithms. 
+       To maintain the system operational for CVSU-Carmona, the researchers will be responsible for resolving any problems-such as blockchain ledger discrepancies, delayed verification approvals, or unauthorized access attempts-that may arise during the six-month period of use.
+REFERENCES
+
+
+Alammary, A., Alhazmi, S., Almasri, M., & Gillani, S. (2019). Blockchain-based 
+applications in education: A systematic review. Retrieved from ResearchGate. https://www.researchgate.net/publication/333767185_Blockchain-Based_Applications_in_Education_A_Systematic_Review
+
+Ardiansyah, R., Sondakh, C.G., Joefrie, Y.Y.,Angreni, D.S . (2024). Implementation 
+of data layer in blockchain network using SHA256 hashing algorithm. Retrieved from Semantic Scholar. https://www.researchgate.net/publication/380230645_Implementation_of_Dat       a_Layer_In_Blockchain_Network_Using_SHA256_Hashing_Algorithm
+
+Bensalah, M., Hair, A. (2023). Performance evaluation of Orange Pi 4 in SHA256 
+computation for blockchain mining. Retrieved from ResearchGate. https://www.researchgate.net/publication/373174470_Performance_Evaluation_of_Orange_Pi_4_in_SHA256_Computation_for_Blockchain_Mining
+
+Blockchain Philippines. (2024). Use cases of blockchain in education and public 
+administration in the Philippines. Retrieved from Blockchain Philippines. https://www.antiersolutions.com/blockchain-for-education/
+
+Chainalysis Report. (2023). Crypto and blockchain adoption in the Philippines. 
+Retrieved from Chainalysis Blog. https://www.chainalysis.com/blog/
+
+Huang, Y., Li, F., Zhang, Q., Hu, Y. (2024). Verifiable encrypted speech retrieval 
+method based  on blockchain and C-BiGRU. International Journal of Network Security. Retrieved from IJNS. http://ijns.jalaxy.com.tw/contents/ijns-v26-n3/ijns-2024-v26-n3-p486-500.pdf
+
+Khallaf, F., El-Shafai, W., & El-Rabaie, E. S. M. (2024). Blockchain-based color 
+medical image cryptosystem for industrial Internet of Healthcare Things (IoHT). Retrieved from Springer. https://www.researchgate.net/publication/383663020_Blockchain-based_color_medical_image_cryptosystem_for_industrial_Internet_of_Healthcare_Things_IoHT
+
+Khan Academy. (2016). Standard deviation. Retrieved on May 7, 2025, from 
+https://www.khanacademy.org/math/statistics-probability/summarizing-quantitative-data
+
+Kossiakoff, A., Flanigan, D. A., Seymour, S. J., & Biemer, S. M. (2020). Systems 
+engineering principles and practice (3rd ed.). John Wiley & Sons, Inc. Retrieved from Minia University.
+
+Lee, I. (2024). 'Pisay' launches student records platform using crypto technology. 
+ABS-CBN News. Retrieved from ABS-CBN. https://www.abs-cbn.com/news/2024/9/11/pisay-launches-student-records-platform-using-crypto-technology-1814
+
+Mendoza, A. (2024). Junior Blockchain Education Consortium of the Philippines: 
+Blockchain training and development program in TIP. Retrieved from SignalHire. https://www.linkedin.com/company/jbecpharibon
+Mendez, C. A., & Bayyou, D. G. (2024). Blockchain technology applications in 
+education. Retrieved from ResearchGate. https://www.researchgate.net/publication/337670514_Blockchain_Technology_Applications_in_Education
+Mislos, M. (2024). Philippine Science High School unveils blockchain-based records 
+management system. Retrieved from BitPinas. https://bitpinas.com/feature/key-points-sept-12-2024/
+
+Niolopoulou, K. (2023). Convenience Sampling. Retrieved from Scribbr on May 7, 
+2025. https://www.scribbr.com/methodology/convenience-sampling/
+Ocampo, Y. (2024). Blockchain in government transactions in the Philippines. 
+Retrieved from GovInsider. https://govinsider.asia/intl-en/article/the-philippines-is-introducing-blockchain-to-secure-government-transactions
+Pun, K. Y. Malik, K., Ramli, S. N., et al. (2024). Comparative study on hash function 
+algorithms for  blockchain technology. Retrieved from UTHM Periodicals. https://publisher.uthm.edu.my/periodicals/index.php/aitcs/article/view/12125/5279
+Ranjan, R., Hassan, M. M., & Goel, V. (2024). A novel IoT-blockchain methodology 
+to augment conviction in electronic health records management. Retrieved from IIETA. https://www.iieta.org/journals/ts/paper/10.18280/ts.410505
+Sattaiah, K., & Chinnaiah, K. (2024). Providing security in genesis and other blocks 
+of blockchain technology using SHA256 algorithm. Retrieved from IEEE Xplore. https://ieeexplore.ieee.org/document/10511929
+Sy, M. P. M, Marasigan R. I., Festijo, E. D. (2024). EduCredPH: Towards a 
+Permissioned Blockchain Network for Educational Credentials Verification System. Retrieved from IEEE Xplore. https://ieeexplore.ieee.org/document/10542756
+
+Thakre, G., Saratkar, S., Raut, R., & Mishra, P. (2024). Blockchain-based 
+cryptocurrency security analysis technology: A review. Retrieved from IEEE Xplore. https://ieeexplore.ieee.org/abstract/document/10544557
+Tonis, R. B. M. (2021). Blockchain technology research in higher education in the 
+Philippines. Retrieved from Academia. https://www.academia.edu/113288315/Blockchain_Technology_Enhances_Sustainable_Higher_Education
+University of the Philippines ITDC. (2024). Blockchain innovation programs in 
+Philippine universities. Retrieved from DOST. https://www.dost.gov.ph/knowledge-resources/news/84-2024-news/3770-opening-opportunities-for-the-youth-dost-asti-highlights-blockchain-applications-across-various-sectors.html
+Villanueva, E. (2024). Blockchain technology application: Challenges, limitations, and 
+trends. Retrieved from DLSU Journals. https://www.dlsu.edu.ph/wp-content/uploads/pdf/research/journals/jciea/vol-5-2/2villanueva.pdf
+Villanueva, M. (2024). Enhancing transparency in academic records using 
+blockchain. Retrieved from DLSU Research Journal. https://www.dlsu.edu.ph/wp-content/uploads/pdf/research/journals/jciea/vol-5-2/2villanueva.pdf
+Zhang, R., & Xue, Rui. (2019). Security and privacy on blockchain. Retrieved from  
+Cognizium.io. https://arxiv.org/pdf/1903.07602
+
+
+
+
+APPENDIX FIGURES
+
+
+
+
+Appendix Figure 1. Cavite State University - Carmona Campus
+
+
+
+
+
+Appendix Figure 2. Location Map of CvSU Carmona
+
+
+APPENDICES
+
+
+Appendix 1
+
+
+Evaluation for Unit Testing
+
+Republic of the Philippines
+CAVITE STATE UNIVERSITY
+Carmona Campus
+Market Road, Carmona, Cavite
+( (046) 487-6328/cvsucarmona@cvsu.edu.ph 
+www.cvsu.edu.ph
+ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU - CARMONA
+
+Dear Participant,
+
+
+Good day! We are currently conducting project research entitled "ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU". In line with this, I respectfully request your assistance in filling out this evaluation form. It will not be a problem if you wish not to participate, but your responses will be highly valued. The evaluation form can be completed anonymously. Responses from completed questionnaires will be collated for analysis; once complete, the original questionnaires will be kept electronically. Rest assured that all information indicated therein will be treated with utmost confidentiality under the Data Privacy Law of 2012 and strictly used only for the above purpose. All the gathered information/data will also be retained in the system and used as a part of the historical data for further analysis. If you wish to learn more about the results of the research, please send an email to cc.roderick.salise@cvsu.edu.ph.
+ 
+We are hoping for your kind consideration and support. Thank you very much. 
+
+Name (Optional): ______________________________________	Date: _________
+Address (Optional): ___________________________________________________
+Profession: _____________________________ Specialization: ________________
+
+Instructions: Please evaluate using the given scale and placing a checkmark (✓) on the appropriate column corresponding to your response.
+Numerical Rating:
+   5 - Excellent	4 - Very Good		3 - Good	2 - Fair	1 - Poor
+
+
+
+INDICATOR54321Functional Suitability1. Functional completeness - Degree to which the set of functions covers all the specified tasks and user objectives.2. Functional correctness - Degree to which a product or system provides the correct results with the needed degree of precision.3. Functional appropriateness - Degree to which the functions facilitate the accomplishment of specified tasks and objectives.Performance Efficiency4. Time behavior - Degree to which the response and processing times and throughput rates of a product or system, when performing its functions, meet requirements.5. Resource utilization - Degree to which the amounts and types of resources used by a product or system, when performing its functions, meet requirements.6. Capacity - Degree to which the maximum limits of a product or system parameter meet requirements.Compatibility7. Co-existence - Degree to which a product can perform its required functions efficiently while sharing a common environment and resources with other products, without detrimental impact on any other product.8. Interoperability - Degree to which two or more systems, products or components can exchange information and use the information that has been exchanged.
+INDICATOR54321Usability9. Appropriateness recognizability - Degree to which users can recognize whether a product or system is appropriate for their needs.10. Learnability - Degree to which a product or system can be used by specified users to achieve specified goals of learning to use the product or system with effectiveness, efficiency, freedom from risk and satisfaction in a specified context of use.11. Operability - Degree to which a product or system has attributes that make it easy to operate and control.12. User error protection - Degree to which a system protects users against making errors.13. User interface aesthetics - Degree to which a user interface enables pleasing and satisfying interaction for the user.14. Accessibility - Degree to which a product or system can be used by people with the widest range of characteristics and capabilities to achieve a specified goal in a specified context of use.Reliability15. Maturity - Degree to which a system, product or component meets needs for reliability under normal operation.16. Availability - Degree to which a system, product or component is operational and accessible when required for use.17. Fault tolerance - Degree to which a system, product or component operates as intended despite the presence of hardware or software faults.18. Recoverability - Degree to which, in the event of an interruption or a failure, a product or system can recover the data directly affected and re-establish the desired state of the system.Security
+INDICATOR5432119. Confidentiality - Degree to which a product or system ensures that data are accessible only to those authorized to have access.20. Integrity - Degree to which a system, product or component prevents unauthorized access to, or modification of, computer programs or data.21. Non-repudiation - Degree to which actions or events can be proven to have taken place so that the events or actions cannot be repudiated later.22. Accountability - Degree to which the actions of an entity can be traced uniquely to the entity.23. Authenticity - Degree to which the identity of a subject or resource can be proved to be the one claimed.Maintainability24. Modularity - Degree to which a system or computer program is composed of discrete components such that a change to one component has minimal impact on other components.25. Reusability - Degree to which an asset can be used in more than one system, or in building other assets.26. Analyzability - Degree of effectiveness and efficiency with which it is possible to assess the impact on a product or system of an intended change to one or more of its parts, or to diagnose a product for deficiencies or causes of failures, or to identify parts to be modified.27. Modifiability - Degree to which a product or system can be effectively and efficiently modified without introducing defects or degrading existing product quality.28.Testability - Degree of effectiveness and efficiency with which test criteria can be established for a system, product or component and tests can be performed to determine whether those criteria have been met.Portability
+
+
+
+INDICATOR5432129. Adaptability - Degree to which a product or system can effectively and efficiently be adapted for different or evolving hardware, software or other operational or usage environments.30. Replaceability - Degree to which a product can replace another specified software product for the same purpose in the same environment.Adopted from the International Organization for Standardization (ISO) 25010 for product quality
+
+
+Remarks/Comments/Suggestions:
+_________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________
+
+_____________________
+Signature of Respondent
+       
+
+
+Appendix 3
+
+
+
+Evaluation for Acceptance Testing
+
+Republic of the Philippines
+CAVITE STATE UNIVERSITY
+Carmona Campus
+Market Road, Carmona, Cavite
+( (046) 487-6328/cvsucarmona@cvsu.edu.ph 
+www.cvsu.edu.ph
+
+
+ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU - CARMONA
+
+CRITERIONDESCRIPTIONTESTINGREMARK
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Modules
+Meeting Hub
+
+Facilitates interaction among alumni, employers, and administrators. Provides navigation tools and a dashboard for collaboration, discussion, and event planning.
+First Test
+
+Focus on how accurately and efficiently data is presented, particularly graphs and visuals. Assess the correctness of navigation and display accuracy.
+
+
+Department-Specific Module
+
+Displays department-specific data, such as a list of borrowers, items, and archived transactions. Includes functions for sorting and receipt generation.
+
+First Test
+
+Verify the loading accuracy of data tables, the sorting functionality, and the correct formatting and printing of receipts..
+
+
+
+
+Application/Request Processing Module
+
+Handles transaction details using user inputs such as text fields, dropdown menus, and date pickers for smooth data processing.
+
+First Test
+
+Perform trial runs for new transactions, ensuring the accurate capture and handling of input data.
+Admin Control Module
+
+Manages administrative tasks, including the deletion of processed transactions and oversight of system functions.
+
+First Test
+
+Validate the deletion functionality, ensuring records are correctly removed without affecting the database's integrity. 
+
+
+Employer Interaction Module 
+
+Enables employers to interact with the system, access archived transactions, and verify alumni credentials.
+First Test
+
+Evaluate the responsiveness and accuracy of data table loading and sorting. Ensure the archival process meets specifications.
+Job Placement Module
+
+Automates the job-matching process between alumni profiles and employer job postings, offering real-time updates and analytics.
+
+First Test
+
+Conduct performance assessments to verify the correct pairing of alumni with suitable jobs and monitor notification efficiency.
+
+
+
+Security
+Database
+
+MongoDB Server express will be employed.
+
+First Test
+
+Conduct				data integrity tests by manually inputting data		to			confirm that information is accurately stored and	retrieved. Execute performance tests to	evaluate		the database's responsiveness and scalability under varying workloads. Perform security audits to identify and address potential vulnerabilities in the database system.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Platform
+Google Chrome
+First Test
+
+The user will test each functionality of the system thoroughly, paying attention to compatibility and performance of the system on the said browser.
+
+
+
+Microsoft Edge
+First Test
+
+The user will test each functionality of the system thoroughly, paying attention to compatibility and performance of the system on the said browser.
+
+Mozilla Firefox
+First Test
+
+The user will test each functionality of the system thoroughly, paying attention to compatibility and performance of the system on the said browser.
+
+Prepared by:
+
+MARK RODERICK I. SALISE
+
+
+Appendix 2
+
+
+
+Evaluation for System Testing
+
+Republic of the Philippines
+CAVITE STATE UNIVERSITY
+Carmona Campus
+Market Road, Carmona, Cavite
+( (046) 487-6328/cvsucarmona@cvsu.edu.ph 
+www.cvsu.edu.ph
+
+ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU - CARMONA
+
+Dear Participant,
+
+
+Good day! We are currently conducting project research entitled "ALUMNI PROFILE WITH DOCUMENTS VERIFICATION USING BLOCKCHAIN TECHNOLOGY FOR CVSU". In line with this, I respectfully request your assistance in filling out this evaluation form. It will not be a problem if you wish not to participate, but your responses will be highly valued. The evaluation form can be completed anonymously. Responses from completed questionnaires will be collated for analysis; once complete, the original questionnaires will be kept electronically. Rest assured that all information indicated therein will be treated with utmost confidentiality under the Data Privacy Law of 2012 and strictly used only for the above purpose. All the gathered information/data will also be retained in the system and used as a part of the historical data for further analysis. If you wish to learn more about the results of the research, please send an email to cc.roderick.salise@cvsu.edu.ph.
+ 
+We are hoping for your kind consideration and support. Thank you very much. 
+
+
+Name (Optional): ______________________________________	Date: _________
+Address (Optional): ___________________________________________________
+Profession: _____________________________ Specialization: ________________	
+
+Instructions: Please evaluate using the given scale and placing a checkmark (✓) on the appropriate column corresponding to your response.
+
+Numerical Rating:
+   5 - Excellent	4 - Very Good		3 - Good	2 - Fair	1 - Poor
+INDICATOR54321Effectiveness1. The Supply Monitoring System enables users to achieve their intended goals, such as inputting transactions, deleting transaction, monitoring supplies, and printing of needed forms and receipts for every transaction.2. The Supply Monitoring System supports users in accomplishing tasks without errors, contributing to a high success rate in recruitment processes.Performance Efficiency3. The Supply Monitoring System minimizes the time and effort required to complete recruitment-related tasks, such as resume extraction and application tracking.4. The system performs operations promptly without compromising reliability or accuracy.5. The system has an acceptable level of performance when being accessed by a large number of users.6. The system can handle a large amount of information.Satisfaction7. The system achieved its realistic goals, including the result of use and the consequence of use.8. The system works well based on its functions.9. The user feels satisfied when he/she finished his/her task through the use of the developed system.10. The user feels satisfied with the totality of the developed system.Freedom from Risk11. The system promotes and builds a good reputation for the client by providing accurate information.12. The system promotes data privacy by allowing the users to only access the functions and files applicable to their level of accessibility13. It is ensured that the processes involved in the system are based on the client's transactions.Context Coverage14. The system can be used with effectiveness, efficiency, freedom from risk, and satisfaction in all the specified contexts of use. 15. The system can be used with effectiveness, efficiency, freedom from risk, and satisfaction in contexts beyond those initially specified in the requirements.Adopted from the International Organization for Standardization (ISO) 25010 for quality in use
+
+
+Remarks/Comments/Suggestions:
+_________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________
+
+_____________________
+Signature of Respondent
+
+
+6
+
+
+
+
+
+	
+
+
+
+

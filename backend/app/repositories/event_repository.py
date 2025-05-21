@@ -149,8 +149,9 @@ class EventRepository:
     async def get_upcoming_events(limit: int = 5) -> List[Event]:
         try:
             db = await get_database_async()
-            now = datetime.utcnow()
-            query = {"start_date": {"$gte": now}, "is_active": True}
+            
+            # Show all active events without date filtering
+            query = {"is_active": True}
             cursor = db[EventRepository.collection_name].find(query).limit(limit).sort("start_date", 1)
             
             events = []

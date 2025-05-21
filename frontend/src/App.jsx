@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Suspense, lazy } from 'react';
 import { ToastContainer } from 'react-toastify';
@@ -34,6 +34,7 @@ const DocumentVerificationPage = lazy(() => import('./pages/dashboard/DocumentVe
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const QuickRegisterPage = lazy(() => import('./pages/QuickRegisterPage'));
+const QuickAttendPage = lazy(() => import('./pages/QuickAttendPage'));
 
 // Event pages
 const EventsPage = lazy(() => import('./pages/EventsPage'));
@@ -113,172 +114,103 @@ const AdminRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
+// Create router with routes configuration
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <MainLayout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "about", element: <AboutPage /> },
+      { path: "login", element: <LoginPage /> },
+      { path: "register", element: <RegisterPage /> },
+      { path: "verify", element: <VerifyPage /> },
+      { path: "alumni-directory", element: <AlumniDirectoryPage /> },
+      { path: "alumni/:id", element: <AlumniProfilePage /> },
+      { path: "reset-password", element: <ResetPasswordPage /> },
+      { path: "events", element: <EventsPage /> },
+      { path: "events/:eventId", element: <EventDetailPage /> },
+      { path: "quick-register/:eventId/:token", element: <QuickRegisterPage /> },
+      { path: "quick-attend/:attendanceToken", element: <QuickAttendPage /> },
+      { path: "quick-attend/:attendanceToken/:secondPart", element: <QuickAttendPage /> }
+    ]
+  },
+  {
+    path: "/dashboard",
+    element: <ProtectedRoute>
+              {({ isAdmin }) => (
+                <Navigate to={isAdmin ? "/admin" : "/alumni"} replace />
+              )}
+            </ProtectedRoute>
+  },
+  {
+    path: "/dashboard/*",
+    element: <ProtectedRoute>
+              {({ isAdmin }) => (
+                <Navigate to={isAdmin ? "/admin" : "/alumni"} replace />
+              )}
+            </ProtectedRoute>
+  },
+  {
+    path: "/alumni",
+    element: <ProtectedRoute><DashboardLayout /></ProtectedRoute>,
+    children: [
+      { index: true, element: <AdminDashboardPage /> },
+      { path: "profile", element: <ProfilePage /> },
+      { path: "documents", element: <DocumentsPage /> },
+      { path: "documents/upload", element: <DocumentUploadPage /> },
+      { path: "document-requests", element: <DocumentRequestPage /> },
+      { path: "notifications", element: <NotificationsPage /> },
+      { path: "registrations", element: <MyRegistrationsPage /> }
+    ]
+  },
+  {
+    path: "/admin",
+    element: <AdminRoute adminOnly={true}><DashboardLayout /></AdminRoute>,
+    children: [
+      { index: true, element: <AdminDashboardPage /> },
+      { path: "profile", element: <AdminProfilePage /> },
+      { path: "alumni", element: <AdminAlumniPage /> },
+      { path: "verifications", element: <AdminVerificationPage /> },
+      { path: "user-verification", element: <AdminUserVerificationPage /> },
+      { path: "user-verification/:userId", element: <AdminUserVerificationPage /> },
+      { path: "admin-documents", element: <AdminDocumentsPage /> },
+      { path: "documents", element: <AdminDocumentsPage /> },
+      { path: "documents/upload", element: <AdminDocumentUploadPage /> },
+      { path: "document-requests-admin", element: <AdminDocumentRequestsPage /> },
+      { path: "document-requests", element: <AdminDocumentRequestsPage /> },
+      { path: "events", element: <AdminEventsPage /> },
+      { path: "events/new", element: <AdminEventFormPage /> },
+      { path: "events/edit/:id", element: <AdminEventFormPage /> },
+      { path: "events/registrations/:eventId", element: <AdminEventRegistrationsPage /> },
+      { path: "events/attendees/:eventId", element: <EventAttendeesPage /> },
+      { path: "events/:eventId/registrations", element: <AdminEventRegistrationsPage /> },
+      { path: "events/:eventId/attendees", element: <EventAttendeesPage /> },
+      { path: "event-registrations", element: <AdminEventRegistrationsPage /> },
+      { path: "new-registrations", element: <AdminNewRegistrationsPage /> },
+      { path: "users", element: <AdminUserManagementPage /> },
+      { path: "roles", element: <AdminRoleManagementPage /> }
+    ]
+  },
+  {
+    path: "*",
+    element: <NotFoundPage />
+  }
+], {
+  // Add future flags to address the warnings
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true
+  }
+});
+
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<HomePage />} />
-              <Route path="about" element={<AboutPage />} />
-              <Route path="login" element={<LoginPage />} />
-              <Route path="register" element={<RegisterPage />} />
-              <Route path="verify" element={<VerifyPage />} />
-              <Route path="alumni-directory" element={<AlumniDirectoryPage />} />
-              <Route path="alumni/:id" element={<AlumniProfilePage />} />
-              <Route path="reset-password" element={<ResetPasswordPage />} />
-              <Route path="events" element={<EventsPage />} />
-              <Route path="events/:eventId" element={<EventDetailPage />} />
-              <Route path="quick-register/:eventId/:token" element={<QuickRegisterPage />} />
-            </Route>
-
-            {/* Redirect /dashboard to /alumni or /admin based on user role */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                {({ isAdmin }) => (
-                  <Navigate to={isAdmin ? "/admin" : "/alumni"} replace />
-                )}
-              </ProtectedRoute>
-            } />
-            <Route path="/dashboard/*" element={
-              <ProtectedRoute>
-                {({ isAdmin }) => (
-                  <Navigate to={isAdmin ? "/admin" : "/alumni"} replace />
-                )}
-              </ProtectedRoute>
-            } />
-
-            {/* Alumni routes - for regular authenticated users */}
-            <Route 
-              path="/alumni" 
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<AdminDashboardPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="documents" element={<DocumentsPage />} />
-              <Route path="documents/upload" element={<DocumentUploadPage />} />
-              <Route path="document-requests" element={<DocumentRequestPage />} />
-              <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="registrations" element={<MyRegistrationsPage />} />
-            </Route>
-
-            {/* Admin routes - only for administrators */}
-            <Route 
-              path="/admin" 
-              element={
-                <AdminRoute adminOnly={true}>
-                  <DashboardLayout />
-                </AdminRoute>
-              }
-            >
-              <Route index element={<AdminDashboardPage />} />
-              <Route path="profile" element={<AdminProfilePage />} />
-              <Route path="documents" element={<DocumentsPage />} />
-              <Route path="documents/upload" element={<DocumentUploadPage />} />
-              <Route path="document-requests" element={<DocumentRequestPage />} />
-              <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="registrations" element={<MyRegistrationsPage />} />
-              
-              {/* Admin-only routes */}
-              <Route path="verifications" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminVerificationPage />
-                </AdminRoute>
-              } />
-              <Route path="admin-documents" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminDocumentsPage />
-                </AdminRoute>
-              } />
-              <Route path="document-requests-admin" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminDocumentRequestsPage />
-                </AdminRoute>
-              } />
-              <Route path="documents/admin-upload" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminDocumentUploadPage />
-                </AdminRoute>
-              } />
-              <Route path="events" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminEventsPage />
-                </AdminRoute>
-              } />
-              <Route path="events/new" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminEventFormPage />
-                </AdminRoute>
-              } />
-              <Route path="events/edit/:eventId" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminEventFormPage />
-                </AdminRoute>
-              } />
-              <Route path="events/registrations/:eventId" element={
-                <AdminRoute adminOnly={true}>
-                  <EventRegistrationsPage />
-                </AdminRoute>
-              } />
-              <Route path="events/attendees/:eventId" element={
-                <AdminRoute adminOnly={true}>
-                  <EventAttendeesPage />
-                </AdminRoute>
-              } />
-              <Route path="event-registrations" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminEventRegistrationsPage />
-                </AdminRoute>
-              } />
-              <Route path="alumni" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminAlumniPage />
-                </AdminRoute>
-              } />
-              <Route path="alumni/add" element={
-                <AdminRoute adminOnly={true}>
-                  <AlumniProfilePage isAdmin={true} isNew={true} />
-                </AdminRoute>
-              } />
-              <Route path="alumni/edit/:alumniId" element={
-                <AdminRoute adminOnly={true}>
-                  <AlumniProfilePage isAdmin={true} />
-                </AdminRoute>
-              } />
-              <Route path="user-verification" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminUserVerificationPage />
-                </AdminRoute>
-              } />
-              <Route path="new-registrations" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminNewRegistrationsPage />
-                </AdminRoute>
-              } />
-              <Route path="users" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminUserManagementPage />
-                </AdminRoute>
-              } />
-              <Route path="roles" element={
-                <AdminRoute adminOnly={true}>
-                  <AdminRoleManagementPage />
-                </AdminRoute>
-              } />
-            </Route>
-
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
-        <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
-      </Router>
+      <Suspense fallback={<LoadingSpinner />}>
+        <RouterProvider router={router} />
+      </Suspense>
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
     </AuthProvider>
   );
 }

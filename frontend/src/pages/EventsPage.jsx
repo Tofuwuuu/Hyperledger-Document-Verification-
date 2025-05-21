@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { getUpcomingEvents } from '../services/eventService';
+import EventCard from '../components/EventCard';
 
 const EventsPage = () => {
   const [events, setEvents] = useState([]);
@@ -29,7 +30,8 @@ const EventsPage = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cvsu-green"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cvsu-green"></div>
+        <p className="ml-4 text-gray-600 animate-pulse">Loading events...</p>
       </div>
     );
   }
@@ -37,75 +39,88 @@ const EventsPage = () => {
   if (error) {
     return (
       <div className="min-h-screen p-6">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (events.length === 0) {
-    return (
-      <div className="min-h-screen p-6">
-        <h1 className="text-3xl font-bold mb-6 text-cvsu-green">Upcoming Events</h1>
-        <div className="bg-white shadow-md rounded-lg p-6 text-center">
-          <p className="text-gray-600">There are no upcoming events at the moment.</p>
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded relative">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <strong className="font-bold">Error!</strong>
+            <span className="block sm:inline ml-2"> {error}</span>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-6">
-      <h1 className="text-3xl font-bold mb-6 text-cvsu-green">Upcoming Events</h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event) => (
-          <div key={event._id} className="bg-white shadow-md rounded-lg overflow-hidden">
-            {event.image_url && (
-              <img 
-                src={event.image_url} 
-                alt={event.title} 
-                className="w-full h-48 object-cover"
-              />
-            )}
-            {!event.image_url && (
-              <div className="w-full h-48 bg-cvsu-green flex items-center justify-center">
-                <span className="text-white text-xl">CVSU Event</span>
-              </div>
-            )}
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-2">{event.title}</h2>
-              <p className="text-gray-600 mb-4 line-clamp-3">{event.description}</p>
-              
-              <div className="flex items-center text-gray-500 mb-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {format(new Date(event.start_date), 'MMMM d, yyyy')}
-              </div>
-              
-              <div className="flex items-center text-gray-500 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {event.location}
-              </div>
-              
-              <Link 
-                to={`/events/${event._id}`}
-                className="block w-full bg-cvsu-green hover:bg-green-700 text-white font-medium py-2 px-4 rounded text-center transition duration-300"
-              >
-                View Details
-              </Link>
+    <div className="min-h-screen bg-white">
+      {/* Hero section */}
+      <div className="relative bg-cover bg-center h-[300px]" style={{ backgroundImage: "url('/src/assets/graduation.jpg')" }}>
+        <div className="absolute inset-0 bg-gradient-to-r from-cvsu-green/90 to-cvsu-green/80"></div>
+        <div className="absolute inset-0 bg-[url('/src/assets/pattern.svg')] opacity-10"></div>
+        <div className="relative mx-auto max-w-7xl px-6 lg:px-8 h-full flex flex-col justify-center">
+          <div className="max-w-3xl">
+            <div className="animate-slideDown">
+              <span className="inline-flex items-center rounded-full bg-cvsu-yellow/90 text-white px-4 py-1.5 text-sm font-medium mb-5 shadow-md backdrop-blur-sm">
+                <span className="flex h-2 w-2 rounded-full bg-white mr-1.5 animate-pulse"></span>
+                Stay Connected
+              </span>
             </div>
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl drop-shadow-md animate-fadeIn">
+              Upcoming <span className="text-cvsu-yellow">Events</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-xl leading-8 text-white/95 drop-shadow font-light backdrop-blur-[2px] pl-3 border-l-4 border-cvsu-yellow animate-slideUp">
+              Join us for these exciting events and stay connected with the CVSU-Carmona community.
+            </p>
           </div>
-        ))}
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent"></div>
+      </div>
+      
+      {/* Events list */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {events.length === 0 ? (
+          <div className="bg-white shadow-lg rounded-xl p-8 text-center border border-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">No Upcoming Events</h2>
+            <p className="text-gray-600 max-w-md mx-auto">
+              There are no upcoming events scheduled at the moment. Please check back later for new events.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {events.map((event, index) => (
+              <EventCard key={event._id} event={event} index={index} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
+// Add necessary CSS animation
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  /* Line clamp fallback */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+`;
+document.head.appendChild(style);
 
 export default EventsPage; 

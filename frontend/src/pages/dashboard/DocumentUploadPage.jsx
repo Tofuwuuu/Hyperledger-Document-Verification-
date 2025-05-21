@@ -204,8 +204,11 @@ export default function DocumentUploadPage() {
       // Refresh documents list
       fetchDocuments(alumniProfile._id);
       
-      // Refresh recent activity by navigating with refresh state
-      navigate('/dashboard', { 
+      // Refresh recent activity by navigating to the appropriate dashboard based on URL
+      const currentPath = window.location.pathname;
+      const basePath = currentPath.includes('/admin') ? '/admin' : '/alumni';
+      
+      navigate(basePath, { 
         state: { 
           refreshActivity: true,
           documentUploaded: true,

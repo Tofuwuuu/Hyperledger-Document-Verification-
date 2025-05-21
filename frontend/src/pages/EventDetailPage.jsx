@@ -29,22 +29,24 @@ const EventDetailPage = () => {
     try {
       setLoading(true);
       const data = await getEventById(eventId);
+      console.log('Event details fetched:', data);
       setEvent(data);
       setError(null);
       
       // If user is authenticated, check if already registered
       if (isAuthenticated && currentUser) {
-        console.log(`Authenticated user ${currentUser.username} checking registration for event ${eventId}`);
+        console.log(`Authenticated user ${currentUser?.email || currentUser?.username} checking registration for event ${eventId}`);
         const registration = await checkUserEventRegistration(eventId);
         console.log(`Registration check result:`, registration);
         setIsRegistered(!!registration);
         setUserRegistration(registration);
         
         // Check if user is admin
-        const userIsAdmin = currentUser.is_admin === true;
+        const userIsAdmin = currentUser?.is_admin === true;
         console.log('User is admin:', userIsAdmin);
         setIsAdmin(userIsAdmin);
       } else {
+        console.log('User not authenticated, skipping registration check');
         // Reset registration state if not authenticated
         setIsRegistered(false);
         setUserRegistration(null);
@@ -52,18 +54,18 @@ const EventDetailPage = () => {
       }
     } catch (err) {
       setError('Failed to load event details. Please try again later.');
-      console.error(err);
+      console.error('Error fetching event details:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch event details when component mounts or when eventId/auth state changes
   useEffect(() => {
-    if (eventId && isAuthenticated) {
+    // Always fetch event details, even if not authenticated
+    if (eventId) {
       fetchEventDetails();
     }
-    
-    // Add currentUser as dependency to re-check registration when user logs in/out
   }, [eventId, isAuthenticated, currentUser]);
 
   const handleRegister = async () => {
@@ -162,9 +164,18 @@ const EventDetailPage = () => {
   if (error || !event) {
     return (
       <div className="min-h-screen p-6">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error || 'Event not found'}</span>
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-5 rounded-md shadow-md mb-4">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 className="text-lg font-medium">Access Restricted</h3>
+          </div>
+          <p className="mt-2 text-base">
+            {!isAuthenticated 
+              ? "This content is only available to authenticated users. Please use the login button in the navigation bar to sign in to your account." 
+              : error || 'Event not found'}
+          </p>
         </div>
       </div>
     );

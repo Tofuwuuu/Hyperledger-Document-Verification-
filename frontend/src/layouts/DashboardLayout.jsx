@@ -75,12 +75,13 @@ export default function DashboardLayout() {
       icon: DocumentArrowUpIcon,
       current: location.pathname === '/alumni/documents/upload'
     }]),
-    {
+    // Only show Document Requests for regular alumni users (removed from admin menu)
+    ...(isAdminUser ? [] : [{
       name: 'Document Requests',
-      href: isAdminUser ? '/admin/document-requests' : '/alumni/document-requests',
+      href: '/alumni/document-requests',
       icon: DocumentIcon,
-      current: location.pathname === (isAdminUser ? '/admin/document-requests' : '/alumni/document-requests')
-    },
+      current: location.pathname === '/alumni/document-requests'
+    }]),
     // Only show My Registrations for regular alumni users
     ...(isAdminUser ? [] : [{
       name: 'My Registrations', 

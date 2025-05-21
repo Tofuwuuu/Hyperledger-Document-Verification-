@@ -6,6 +6,8 @@ import {
   checkInUser, 
   updateRegistrationStatus 
 } from '../../services/eventService';
+import axios from 'axios';
+import { API_URL } from '../../config';
 import { 
   DocumentCheckIcon, 
   UserGroupIcon, 
@@ -32,13 +34,25 @@ const EventAttendeesPage = () => {
   const [sortField, setSortField] = useState('user_name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [selectedAttendees, setSelectedAttendees] = useState([]);
+  const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
 
   useEffect(() => {
     fetchEventAttendees();
+    
+    // Set up automatic refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing attendee data...');
+      fetchEventAttendees(false); // Pass false to avoid showing loading indicator
+    }, 30000); // 30 seconds
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(refreshInterval);
   }, [eventId]);
 
-  const fetchEventAttendees = async () => {
-    setLoading(true);
+  const fetchEventAttendees = async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -47,11 +61,17 @@ const EventAttendeesPage = () => {
       setEventData(data.event);
       setStatistics(data.statistics);
       setAttendees(data.attendees);
-      setLoading(false);
+      setLastRefreshTime(new Date());
+      
+      if (showLoading) {
+        setLoading(false);
+      }
     } catch (err) {
       console.error("Error fetching event attendees:", err);
       setError("Failed to load event attendees. Please try again.");
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -223,6 +243,11 @@ const EventAttendeesPage = () => {
       : <span className="ml-1">↓</span>;
   };
 
+  // Add this before the return statement
+  const formatLastRefreshTime = () => {
+    return lastRefreshTime.toLocaleTimeString();
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full p-8">
@@ -366,6 +391,29 @@ const EventAttendeesPage = () => {
             </button>
           )}
         </div>
+      </div>
+      
+      {/* Render action buttons */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Link
+          to={`/admin/events/registrations/${eventId}`}
+          className="flex items-center px-4 py-2 rounded font-medium bg-gray-600 hover:bg-gray-700 text-white"
+        >
+          <UserGroupIcon className="h-5 w-5 mr-2" />
+          Registrations
+        </Link>
+        
+        <Link
+          to="/admin/events"
+          className="flex items-center px-4 py-2 rounded font-medium bg-gray-500 hover:bg-gray-600 text-white"
+        >
+          <ChevronLeftIcon className="h-5 w-5 mr-2" />
+          Back to Events
+        </Link>
+        
+        <span className="text-xs text-gray-500 self-center ml-2">
+          Last refreshed: {formatLastRefreshTime()}
+        </span>
       </div>
       
       {/* Attendees Table */}

@@ -62,7 +62,7 @@ async def upload_document(
     filename = f"{document_type.value}_{uuid.uuid4()}{os.path.splitext(file.filename)[1]}"
     
     # Create upload directory if it doesn't exist
-    upload_dir = os.path.join("uploads", alumni_id)
+    upload_dir = os.path.join("documents", alumni_id)
     os.makedirs(upload_dir, exist_ok=True)
     
     # Save file
@@ -129,6 +129,11 @@ async def get_alumni_documents(
     # Get documents
     documents = await db.documents.find({"alumni_id": alumni_id}).to_list(None)
     
+    # Ensure all _id fields are strings to pass validation
+    for doc in documents:
+        if "_id" in doc and not isinstance(doc["_id"], str):
+            doc["_id"] = str(doc["_id"])
+    
     return documents
 
 # Search documents with filters
@@ -175,6 +180,11 @@ async def search_documents(
     
     # Get documents with pagination
     documents = await db.documents.find(query).skip(offset).limit(limit).to_list(None)
+    
+    # Ensure all _id fields are strings to pass validation
+    for doc in documents:
+        if "_id" in doc and not isinstance(doc["_id"], str):
+            doc["_id"] = str(doc["_id"])
     
     return {
         "results": documents,
@@ -265,6 +275,11 @@ async def get_all_pending_documents(
     # Get all pending documents
     documents = await db.documents.find({"verification_status": VerificationStatus.PENDING.value}).to_list(None)
     
+    # Ensure all _id fields are strings to pass validation
+    for doc in documents:
+        if "_id" in doc and not isinstance(doc["_id"], str):
+            doc["_id"] = str(doc["_id"])
+    
     return documents
 
 # Get document by ID
@@ -299,6 +314,10 @@ async def get_document(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to view this document"
             )
+    
+    # Ensure _id field is a string to pass validation
+    if "_id" in document and not isinstance(document["_id"], str):
+        document["_id"] = str(document["_id"])
     
     return document
 
@@ -339,6 +358,10 @@ async def update_document(
     
     # Get updated document
     updated_document = await db.documents.find_one({"_id": document_id})
+    
+    # Ensure _id field is a string to pass validation
+    if "_id" in updated_document and not isinstance(updated_document["_id"], str):
+        updated_document["_id"] = str(updated_document["_id"])
     
     return updated_document
 

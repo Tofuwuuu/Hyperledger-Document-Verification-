@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { API_URL } from '../../config';
 import { adminVerificationService } from '../../services/api';
+import { getDocumentUrl } from '../../utils/url';
 
 export default function AdminDocumentsPage() {
   const [documents, setDocuments] = useState([]);
@@ -288,7 +289,7 @@ export default function AdminDocumentsPage() {
                         <div className="mt-2 border rounded p-2 flex items-center justify-center h-48 bg-gray-100">
                           {selectedDocument.file_path ? (
                             <a 
-                              href={`${API_URL}/${selectedDocument.file_path}`} 
+                              href={getDocumentUrl(selectedDocument.file_path)} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800"

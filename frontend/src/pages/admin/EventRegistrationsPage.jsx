@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
-import { getEventById, getEventRegistrations, checkInUser, updateRegistrationStatus, updateEvent } from '../../services/eventService';
-import QrReader from 'react-qr-reader';
+import { getEventById, getEventRegistrations, updateRegistrationStatus, updateEvent } from '../../services/eventService';
 
 const EventRegistrationsPage = () => {
   const { eventId } = useParams();
@@ -13,7 +12,6 @@ const EventRegistrationsPage = () => {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showScanner, setShowScanner] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   
   // Add registration count stats
@@ -98,18 +96,6 @@ const EventRegistrationsPage = () => {
       fetchEventDetails();
     }
   }, [eventId]);
-
-  const handleCheckIn = async (registrationId) => {
-    try {
-      await checkInUser(registrationId);
-      toast.success('Attendee checked in successfully');
-      // Refresh registrations
-      fetchEventDetails();
-    } catch (err) {
-      toast.error('Failed to check in attendee. Please try again.');
-      console.error(err);
-    }
-  };
   
   const handleStatusChange = async (registrationId, newStatus) => {
     try {
@@ -122,29 +108,63 @@ const EventRegistrationsPage = () => {
       console.error(err);
     }
   };
-
-  const handleQrScan = async (data) => {
-    if (data) {
-      try {
-        // Close scanner after successful scan
-        setShowScanner(false);
-        
-        // Check in using the QR code data
-        await checkInUser(data);
-        toast.success('Attendee checked in successfully via QR code');
-        
-        // Refresh registrations
-        fetchEventDetails();
-      } catch (err) {
-        toast.error('Failed to check in attendee with QR code. Please try again.');
-        console.error(err);
+  
+  // Function to export registrations to CSV
+  const exportToCSV = () => {
+    try {
+      // Filter registrations based on current filter
+      const dataToExport = filteredRegistrations;
+      
+      if (dataToExport.length === 0) {
+        toast.warning('No registrations to export');
+        return;
       }
+      
+      // Define CSV header row
+      const headers = ['Name', 'Email', 'Student ID', 'Registration Date', 'Status', 'Check-in Time'];
+      
+      // Format the data
+      const csvData = dataToExport.map(reg => {
+        const checkInTime = reg.check_in_time ? 
+          format(new Date(reg.check_in_time), 'MMM d, yyyy h:mm a') : 'Not checked in';
+        
+        return [
+          reg.user_name || 'Unknown',
+          reg.user_email || 'N/A',
+          reg.user_student_id || reg.student_id || 'N/A',
+          format(new Date(reg.registration_date), 'MMM d, yyyy'),
+          reg.status.charAt(0).toUpperCase() + reg.status.slice(1),
+          checkInTime
+        ];
+      });
+      
+      // Combine header and data
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => row.join(','))
+      ].join('\n');
+      
+      // Create a Blob and link to download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      
+      // Create filename with event name and date
+      const eventName = event.title.replace(/\s+/g, '_');
+      const today = format(new Date(), 'yyyy-MM-dd');
+      link.setAttribute('download', `${eventName}_registrations_${today}.csv`);
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Registration data exported to CSV');
+    } catch (err) {
+      console.error('Error exporting to CSV:', err);
+      toast.error('Failed to export registrations. Please try again.');
     }
-  };
-
-  const handleQrError = (err) => {
-    console.error(err);
-    toast.error('QR scanner error. Please try again.');
   };
 
   const filteredRegistrations = registrations.filter(registration => {
@@ -182,6 +202,15 @@ const EventRegistrationsPage = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Registrations: {event.title}</h1>
         <div className="flex space-x-2">
+          <button
+            onClick={exportToCSV}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export CSV
+          </button>
           <Link
             to={`/admin/events/attendees/${eventId}`}
             className="bg-cvsu-green hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
@@ -276,31 +305,7 @@ const EventRegistrationsPage = () => {
               Cancelled
             </button>
           </div>
-          
-          <button
-            onClick={() => setShowScanner(!showScanner)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
-          >
-            {showScanner ? 'Close QR Scanner' : 'Scan QR Code'}
-          </button>
         </div>
-        
-        {showScanner && (
-          <div className="mb-4 max-w-md mx-auto">
-            <div className="bg-white shadow-md rounded-lg p-4">
-              <h3 className="text-lg font-medium mb-2 text-center">Scan Attendee QR Code</h3>
-              <QrReader
-                delay={300}
-                onError={handleQrError}
-                onScan={handleQrScan}
-                style={{ width: '100%' }}
-              />
-              <p className="text-sm text-gray-500 mt-2 text-center">
-                Position the QR code in the center of the camera view
-              </p>
-            </div>
-          </div>
-        )}
       </div>
       
       {filteredRegistrations.length === 0 ? (
@@ -360,27 +365,16 @@ const EventRegistrationsPage = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-3">
-                      {registration.status !== 'attended' && (
-                        <button
-                          onClick={() => handleCheckIn(registration._id)}
-                          className="bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 rounded text-sm"
-                        >
-                          Check In
-                        </button>
-                      )}
-                      
-                      <select
-                        value={registration.status}
-                        onChange={(e) => handleStatusChange(registration._id, e.target.value)}
-                        className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm"
-                      >
-                        <option value="registered">Registered</option>
-                        <option value="attended">Attended</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="no-show">No Show</option>
-                      </select>
-                    </div>
+                    <select
+                      value={registration.status}
+                      onChange={(e) => handleStatusChange(registration._id, e.target.value)}
+                      className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm"
+                    >
+                      <option value="registered">Registered</option>
+                      <option value="attended">Attended</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="no-show">No Show</option>
+                    </select>
                   </td>
                 </tr>
               ))}

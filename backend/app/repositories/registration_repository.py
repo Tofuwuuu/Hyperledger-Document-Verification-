@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 import uuid
 from bson import ObjectId
 from app.config.database import get_database, get_database_async
@@ -203,34 +203,68 @@ class RegistrationRepository:
             return []
     
     @staticmethod
-    async def get_user_registrations(user_id: ObjectId) -> List[Dict[str, Any]]:
-        db = await get_database_async()
-        cursor = db[RegistrationRepository.collection_name].find({"user_id": user_id})
-        
-        registrations = []
-        async for reg in cursor:
-            try:
-                # Get the event details
-                event = await db["events"].find_one({"_id": reg["event_id"]})
-                if event:
-                    # Serialize the registration document to handle ObjectId
-                    serialized_reg = serialize_mongodb_doc(reg)
+    async def get_user_registrations(user_id: Union[ObjectId, str]) -> List[Dict[str, Any]]:
+        try:
+            logger.info(f"Getting registrations for user ID: {user_id} (type: {type(user_id)})")
+            db = await get_database_async()
+            
+            # Handle both string and ObjectId user_ids
+            query_user_id = user_id
+            if isinstance(user_id, str):
+                try:
+                    query_user_id = ObjectId(user_id)
+                    logger.info(f"Converted string user_id to ObjectId: {query_user_id}")
+                except Exception as e:
+                    logger.warning(f"Could not convert user_id string to ObjectId: {str(e)}")
+                    # Keep the string version
+            
+            logger.info(f"Querying registrations with user_id: {query_user_id}")
+            cursor = db[RegistrationRepository.collection_name].find({"user_id": query_user_id})
+            
+            registrations = []
+            count = 0
+            async for reg in cursor:
+                count += 1
+                try:
+                    # Get the event details
+                    event_id = reg.get("event_id")
+                    event = None
                     
-                    # Add event details
-                    serialized_reg.update({
-                        "event_title": event.get("title", ""),
-                        "event_date": event.get("start_date", ""),
-                        "event_location": event.get("location", "")
-                    })
-                    registrations.append(serialized_reg)
-            except Exception as e:
-                logger.error(f"Error processing user registration {reg.get('_id')}: {str(e)}")
-                # Still include registration but without event details
-                # Make sure it's serialized
-                registrations.append(serialize_mongodb_doc(reg))
-        
-        logger.info(f"Returning {len(registrations)} user registrations after serialization")
-        return registrations
+                    if event_id:
+                        event = await db["events"].find_one({"_id": event_id})
+                    
+                    if event:
+                        # Serialize the registration document to handle ObjectId
+                        serialized_reg = serialize_mongodb_doc(reg)
+                        
+                        # Add event details
+                        serialized_reg.update({
+                            "event_title": event.get("title", ""),
+                            "event_date": event.get("start_date", ""),
+                            "event_location": event.get("location", "")
+                        })
+                        registrations.append(serialized_reg)
+                    else:
+                        logger.warning(f"Event not found for registration {reg.get('_id')}, event_id: {event_id}")
+                        # Include registration with placeholder event info
+                        serialized_reg = serialize_mongodb_doc(reg)
+                        serialized_reg.update({
+                            "event_title": "Unknown Event",
+                            "event_date": "",
+                            "event_location": ""
+                        })
+                        registrations.append(serialized_reg)
+                except Exception as e:
+                    logger.error(f"Error processing user registration {reg.get('_id')}: {str(e)}")
+                    # Still include registration but without event details
+                    # Make sure it's serialized
+                    registrations.append(serialize_mongodb_doc(reg))
+            
+            logger.info(f"Found {count} registrations in database, returning {len(registrations)} after processing")
+            return registrations
+        except Exception as e:
+            logger.error(f"Error fetching user registrations: {str(e)}", exc_info=True)
+            return []
     
     @staticmethod
     async def get_event_registrations(event_id: ObjectId) -> List[RegistrationWithUser]:
@@ -240,22 +274,69 @@ class RegistrationRepository:
         registrations = []
         async for reg in cursor:
             try:
+                # Convert ObjectId to string for serialization
+                serialized_reg = serialize_mongodb_doc(reg)
+                
                 # Get the user details
-                user = await db["users"].find_one({"_id": reg["user_id"]})
-                if user:
-                    # Convert ObjectId to string for serialization
-                    serialized_reg = serialize_mongodb_doc(reg)
+                user = None
+                user_id = reg.get("user_id")
+                
+                if user_id:
+                    # Try to find the user with different ID formats
+                    if isinstance(user_id, str):
+                        try:
+                            user_id_obj = ObjectId(user_id)
+                            user = await db["users"].find_one({"_id": user_id_obj})
+                        except:
+                            # Try direct string lookup
+                            user = await db["users"].find_one({"_id": user_id})
+                    else:
+                        # Try with the ID as is
+                        user = await db["users"].find_one({"_id": user_id})
                     
-                    # Add user details
+                    # If user still not found, try with string conversion
+                    if not user:
+                        user = await db["users"].find_one({"_id": str(user_id)})
+                
+                # Add user details if user found
+                if user:
+                    # Try to get the full name using different field combinations
+                    full_name = user.get("full_name", "")
+                    if not full_name and (user.get("first_name") or user.get("last_name")):
+                        full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+                    
                     serialized_reg.update({
-                        "user_name": f"{user.get('first_name', '')} {user.get('last_name', '')}",
+                        "user_name": full_name or "Unknown User",
                         "user_email": user.get("email", "")
                     })
-                    
-                    registrations.append(RegistrationWithUser(**serialized_reg))
+                else:
+                    # Use default values if user not found
+                    logger.warning(f"User not found for registration {reg.get('_id')}, user_id: {user_id}")
+                    serialized_reg.update({
+                        "user_name": "Unknown User",
+                        "user_email": "N/A"
+                    })
+                
+                # Ensure status is set (default to 'registered')
+                if "status" not in serialized_reg or not serialized_reg["status"]:
+                    serialized_reg["status"] = "registered"
+                
+                # Add registration to the list
+                registrations.append(RegistrationWithUser(**serialized_reg))
+                
             except Exception as e:
                 logger.error(f"Error processing event registration {reg.get('_id')}: {str(e)}")
-                # Skip registrations that can't be processed
+                # Try to include the registration with minimal data even if there was an error
+                try:
+                    minimal_reg = serialize_mongodb_doc(reg)
+                    minimal_reg.update({
+                        "user_name": "Error Loading User",
+                        "user_email": "error@example.com",
+                        "status": "registered"
+                    })
+                    registrations.append(RegistrationWithUser(**minimal_reg))
+                except Exception as inner_e:
+                    logger.error(f"Failed to add fallback registration: {str(inner_e)}")
         
         logger.info(f"Returning {len(registrations)} event registrations after serialization")
         return registrations
@@ -391,29 +472,125 @@ class RegistrationRepository:
     
     @staticmethod
     async def update_registration(registration_id: ObjectId, update: RegistrationUpdate) -> Optional[Registration]:
-        db = await get_database_async()
-        update_data = {k: v for k, v in update.dict().items() if v is not None}
-        
-        if update_data:
-            await db[RegistrationRepository.collection_name].update_one(
-                {"_id": registration_id},
-                {"$set": update_data}
-            )
-        
-        updated_registration = await db[RegistrationRepository.collection_name].find_one({"_id": registration_id})
-        
-        if updated_registration:
-            return Registration(**updated_registration)
-        return None
+        try:
+            db = await get_database_async()
+            update_data = {k: v for k, v in update.dict().items() if v is not None}
+            
+            # Log what we're updating
+            logger.info(f"Updating registration {registration_id} with data: {update_data}")
+            
+            # Get current registration to log the status change and for verification
+            current_reg = await db[RegistrationRepository.collection_name].find_one({"_id": registration_id})
+            if not current_reg:
+                logger.warning(f"Registration {registration_id} not found for update")
+                return None
+                
+            current_status = current_reg.get('status', 'unknown')
+            
+            if update_data:
+                # Make sure we're using the correct field name - always update 'status'
+                if 'status' in update_data:
+                    logger.info(f"Changing registration {registration_id} status from '{current_status}' to '{update_data['status']}'")
+                    
+                    # For critical status changes like 'attended', use a direct update first
+                    if update_data['status'] == 'attended':
+                        # Do a direct forced update to ensure it takes effect
+                        direct_result = await db[RegistrationRepository.collection_name].update_one(
+                            {"_id": registration_id},
+                            {"$set": {"status": "attended"}}
+                        )
+                        logger.info(f"Direct attended status update result: matched={direct_result.matched_count}, modified={direct_result.modified_count}")
+                
+                # Apply the full update with all fields
+                result = await db[RegistrationRepository.collection_name].update_one(
+                    {"_id": registration_id},
+                    {"$set": update_data}
+                )
+                
+                logger.info(f"Update result: matched={result.matched_count}, modified={result.modified_count}")
+            
+            # Fetch the updated registration
+            updated_registration = await db[RegistrationRepository.collection_name].find_one({"_id": registration_id})
+            
+            if updated_registration:
+                # Verify critical status updates succeeded
+                if 'status' in update_data and update_data['status'] == 'attended':
+                    actual_status = updated_registration.get('status', 'unknown')
+                    if actual_status != 'attended':
+                        logger.warning(f"Status update to 'attended' failed, forcing update again")
+                        await db[RegistrationRepository.collection_name].update_one(
+                            {"_id": registration_id},
+                            {"$set": {"status": "attended"}}
+                        )
+                        # Fetch again after forced update
+                        updated_registration = await db[RegistrationRepository.collection_name].find_one({"_id": registration_id})
+                
+                logger.info(f"Registration {registration_id} updated, new status: {updated_registration.get('status', 'unknown')}")
+                return Registration(**updated_registration)
+            
+            logger.warning(f"Registration {registration_id} not found after update")
+            return None
+        except Exception as e:
+            logger.error(f"Error updating registration {registration_id}: {str(e)}", exc_info=True)
+            raise
     
     @staticmethod
     async def check_in_user(registration_id: ObjectId, admin_id: ObjectId) -> Optional[Registration]:
-        update = RegistrationUpdate(
-            status="attended",
-            check_in_time=datetime.utcnow(),
-            check_in_by=admin_id
-        )
-        return await RegistrationRepository.update_registration(registration_id, update)
+        """
+        Check in a user for an event - marks their status as 'attended'
+        """
+        logger.info(f"Checking in user for registration {registration_id} by admin {admin_id}")
+        
+        try:
+            # Get the current status for logging
+            db = await get_database_async()
+            current_reg = await db[RegistrationRepository.collection_name].find_one({"_id": registration_id})
+            current_status = current_reg.get('status', 'unknown') if current_reg else 'unknown'
+            logger.info(f"Current status before check-in: {current_status}")
+            
+            # Directly update in database first for maximum reliability
+            result = await db[RegistrationRepository.collection_name].update_one(
+                {"_id": registration_id},
+                {"$set": {
+                    "status": "attended",
+                    "check_in_time": datetime.utcnow(),
+                    "check_in_by": admin_id
+                }}
+            )
+            
+            logger.info(f"Direct update result: matched={result.matched_count}, modified={result.modified_count}")
+            
+            # Then use the update method as a backup
+            update = RegistrationUpdate(
+                status="attended",
+                check_in_time=datetime.utcnow(),
+                check_in_by=admin_id
+            )
+            
+            result = await RegistrationRepository.update_registration(registration_id, update)
+            
+            # Double-check the status to ensure it updated
+            updated_reg = await db[RegistrationRepository.collection_name].find_one({"_id": registration_id})
+            updated_status = updated_reg.get('status', 'unknown') if updated_reg else 'unknown'
+            
+            logger.info(f"Final status after check-in: {updated_status}")
+            
+            if updated_status != "attended":
+                logger.warning(f"Status not updated correctly. Performing final forced update.")
+                await db[RegistrationRepository.collection_name].update_one(
+                    {"_id": registration_id},
+                    {"$set": {"status": "attended"}}
+                )
+            
+            if result:
+                logger.info(f"Successfully checked in registration {registration_id}, status set to 'attended'")
+            else:
+                logger.warning(f"Failed to check in registration {registration_id}")
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error checking in user: {str(e)}", exc_info=True)
+            raise
     
     @staticmethod
     async def delete_registration(registration_id: ObjectId) -> bool:

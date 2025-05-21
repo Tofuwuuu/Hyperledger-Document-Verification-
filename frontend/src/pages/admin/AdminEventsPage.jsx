@@ -265,9 +265,10 @@ const AdminEventsPage = () => {
                       </Link>
                       <Link
                         to={`/admin/events/registrations/${event._id}`}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-800"
+                        title="View and export registrations"
                       >
-                        Registrations
+                        View Registrations
                       </Link>
                       <Link
                         to={`/admin/events/attendees/${event._id}`}

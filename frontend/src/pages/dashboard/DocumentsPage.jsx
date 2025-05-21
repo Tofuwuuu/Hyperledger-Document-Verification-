@@ -21,6 +21,7 @@ import documentVerificationService from '../../services/document';
 import { Link } from 'react-router-dom';
 import { calculateDocumentHash } from '../../services/document';
 import { sha256 } from 'js-sha256';
+import { getDocumentUrl } from '../../utils/url';
 
 export default function DocumentsPage() {
   const { currentUser } = useAuth();
@@ -157,8 +158,7 @@ export default function DocumentsPage() {
   const viewDocument = (document) => {
     // Open document in new tab
     if (document.file_path) {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      window.open(`${baseUrl}/${document.file_path}`, '_blank');
+      window.open(getDocumentUrl(document.file_path), '_blank');
     }
   };
 
@@ -370,7 +370,7 @@ export default function DocumentsPage() {
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center">
             <Link
-              to="/admin/documents/upload"
+              to="upload"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cvsu-green hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
             >
               <ArrowUpTrayIcon className="-ml-1 mr-2 h-5 w-5" />
@@ -459,7 +459,7 @@ export default function DocumentsPage() {
             <p className="mt-1 text-sm text-gray-500">You haven't uploaded any documents yet.</p>
             <div className="mt-6">
               <Link
-                to="/admin/documents/upload"
+                to="upload"
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-cvsu-green hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
               >
                 <ArrowUpTrayIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
@@ -689,7 +689,7 @@ export default function DocumentsPage() {
                     </div>
                     <div>
                       <dt className="text-sm text-gray-500">Upload Date</dt>
-                      <dd>{formatDate(selectedDocument.uploadDate)}</dd>
+                      <dd>{formatDate(selectedDocument.created_at) || 'N/A'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm text-gray-500">Size</dt>
@@ -737,15 +737,6 @@ export default function DocumentsPage() {
                     </div>
                   </dl>
                   
-                  {selectedDocument.verification_status !== 'verified' && selectedDocument.file_hash && (
-                    <button
-                      onClick={() => verifyDocumentOnBlockchain(selectedDocument)}
-                      disabled={verifyingDocument}
-                      className="mt-4 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-blue-300"
-                    >
-                      {verifyingDocument ? 'Verifying...' : 'Verify on Blockchain'}
-                    </button>
-                  )}
                 </div>
               </div>
               

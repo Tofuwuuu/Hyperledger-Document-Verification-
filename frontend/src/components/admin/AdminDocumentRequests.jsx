@@ -316,55 +316,55 @@ const AdminDocumentRequests = () => {
         {/* Detail Panel */}
         <div className="w-full md:w-1/2 p-4">
           {selectedRequest ? (
-            <div>
-              <div className="border-b border-gray-200 pb-4">
+            <div className="h-full overflow-y-auto">
+              <div className="border-b border-gray-200 pb-4 mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Request Details</h3>
               </div>
 
-              <dl className="mt-4 space-y-4">
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Document Type</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formatDocumentType(selectedRequest.document_type)}</dd>
+              <dl className="mt-4 space-y-6">
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <dt className="text-sm font-medium text-gray-700">Document Type</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-semibold">{formatDocumentType(selectedRequest.document_type)}</dd>
                 </div>
                 
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Status</dt>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <dt className="text-sm font-medium text-gray-700">Status</dt>
                   <dd className="mt-1 text-sm text-gray-900 flex items-center">
                     {getStatusIcon(selectedRequest.status)}
-                    <span className="ml-1">{selectedRequest.status?.charAt(0).toUpperCase() + selectedRequest.status?.slice(1)}</span>
+                    <span className="ml-2 font-semibold">{selectedRequest.status?.charAt(0).toUpperCase() + selectedRequest.status?.slice(1)}</span>
                   </dd>
                 </div>
 
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Requested By</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{selectedRequest.alumni_name || 'Unknown'}</dd>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <dt className="text-sm font-medium text-gray-700">Requested By</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-semibold">{selectedRequest.alumni_name || 'Unknown'}</dd>
                 </div>
 
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Student ID</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{selectedRequest.student_id || 'N/A'}</dd>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <dt className="text-sm font-medium text-gray-700">Student ID</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-semibold">{selectedRequest.student_id || 'N/A'}</dd>
                 </div>
 
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Course</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{selectedRequest.course || 'N/A'}</dd>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <dt className="text-sm font-medium text-gray-700">Course</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-semibold">{selectedRequest.course || 'N/A'}</dd>
                 </div>
 
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Graduation Year</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{selectedRequest.graduation_year || 'N/A'}</dd>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <dt className="text-sm font-medium text-gray-700">Graduation Year</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-semibold">{selectedRequest.graduation_year || 'N/A'}</dd>
                 </div>
 
                 {selectedRequest.purpose && (
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Purpose</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{selectedRequest.purpose}</dd>
+                  <div className="bg-gray-50 p-3 rounded-md">
+                    <dt className="text-sm font-medium text-gray-700">Purpose</dt>
+                    <dd className="mt-1 text-sm text-gray-900 font-semibold">{selectedRequest.purpose}</dd>
                   </div>
                 )}
 
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">Admin Notes</dt>
-                  <dd className="mt-1 text-sm">
+                  <dt className="text-sm font-medium text-gray-700 mb-1">Admin Notes</dt>
+                  <dd>
                     <textarea
                       rows={3}
                       className="shadow-sm block w-full focus:ring-primary-500 focus:border-primary-500 sm:text-sm border border-gray-300 rounded-md"
@@ -378,8 +378,8 @@ const AdminDocumentRequests = () => {
 
                 {(selectedRequest.status === 'rejected' || selectedFilter === 'rejected') && (
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Rejection Reason</dt>
-                    <dd className="mt-1 text-sm">
+                    <dt className="text-sm font-medium text-gray-700 mb-1">Rejection Reason</dt>
+                    <dd>
                       <textarea
                         rows={2}
                         className="shadow-sm block w-full focus:ring-primary-500 focus:border-primary-500 sm:text-sm border border-gray-300 rounded-md"

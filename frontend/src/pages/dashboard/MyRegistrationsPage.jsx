@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { toast } from 'react-toastify';
 import { getUserRegistrations, cancelRegistration } from '../../services/eventService';
 
@@ -38,6 +38,28 @@ const MyRegistrationsPage = () => {
         toast.error('Failed to cancel registration. Please try again later.');
         console.error(err);
       }
+    }
+  };
+
+  // Safe date formatter that handles invalid dates
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return isValid(date) ? format(date, 'MMMM d, yyyy') : 'Date unavailable';
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Date unavailable';
+    }
+  };
+
+  // Safe datetime formatter
+  const formatDateTime = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return isValid(date) ? format(date, 'MMMM d, yyyy h:mm a') : 'Time unavailable';
+    } catch (error) {
+      console.error('Error formatting datetime:', error);
+      return 'Time unavailable';
     }
   };
 
@@ -105,7 +127,7 @@ const MyRegistrationsPage = () => {
                   </svg>
                   <div>
                     <div className="font-semibold">Date</div>
-                    <div>{format(new Date(registration.event_date), 'MMMM d, yyyy')}</div>
+                    <div>{formatDate(registration.event_date)}</div>
                   </div>
                 </div>
                 
@@ -143,7 +165,7 @@ const MyRegistrationsPage = () => {
               
               {registration.check_in_time && (
                 <div className="mt-4 px-4 py-2 bg-green-50 text-green-800 rounded">
-                  <span className="font-semibold">Checked in at:</span> {format(new Date(registration.check_in_time), 'MMMM d, yyyy h:mm a')}
+                  <span className="font-semibold">Checked in at:</span> {formatDateTime(registration.check_in_time)}
                 </div>
               )}
             </div>

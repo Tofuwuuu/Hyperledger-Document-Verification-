@@ -125,6 +125,64 @@ const AdminEventRegistrationsPage = () => {
     }
   };
 
+  // Function to export registrations to CSV
+  const exportToCSV = () => {
+    try {
+      // Filter registrations based on current filter
+      const dataToExport = filteredRegistrations;
+      
+      if (dataToExport.length === 0) {
+        toast.warning('No registrations to export');
+        return;
+      }
+      
+      // Define CSV header row
+      const headers = ['Event', 'Name', 'Email', 'Student ID', 'Registration Date', 'Status', 'Check-in Time'];
+      
+      // Format the data
+      const csvData = dataToExport.map(reg => {
+        const checkInTime = reg.check_in_time ? 
+          format(new Date(reg.check_in_time), 'MMM d, yyyy h:mm a') : 'Not checked in';
+        
+        return [
+          `"${(reg.event_title || 'Unknown Event').replace(/"/g, '""')}"`,
+          `"${(reg.user_name || 'Unknown').replace(/"/g, '""')}"`,
+          `"${(reg.user_email || 'N/A').replace(/"/g, '""')}"`,
+          `"${(reg.user_student_id || 'N/A').replace(/"/g, '""')}"`,
+          format(new Date(reg.registration_date), 'MMM d, yyyy'),
+          reg.status.charAt(0).toUpperCase() + reg.status.slice(1),
+          `"${checkInTime}"`
+        ];
+      });
+      
+      // Combine header and data
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => row.join(','))
+      ].join('\n');
+      
+      // Create a Blob and link to download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      
+      // Create filename with date
+      const today = format(new Date(), 'yyyy-MM-dd');
+      link.setAttribute('download', `event_registrations_${today}.csv`);
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Registration data exported to CSV');
+    } catch (err) {
+      console.error('Error exporting to CSV:', err);
+      toast.error('Failed to export registrations. Please try again.');
+    }
+  };
+
   const filteredRegistrations = registrations.filter(registration => {
     // Validate the registration object has required properties
     if (!registration || typeof registration !== 'object') {
@@ -168,15 +226,26 @@ const AdminEventRegistrationsPage = () => {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">All Event Registrations</h1>
-        <button
-          onClick={() => {
-            // Redirect to all events page
-            window.location.href = '/admin/events';
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
-        >
-          Go to Events
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={exportToCSV}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export CSV
+          </button>
+          <button
+            onClick={() => {
+              // Redirect to all events page
+              window.location.href = '/admin/events';
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
+          >
+            Go to Events
+          </button>
+        </div>
       </div>
       
       <div className="bg-white shadow-md rounded-lg p-4 mb-6">
@@ -327,14 +396,6 @@ const AdminEventRegistrationsPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex space-x-2">
-                      {registration.status !== 'attended' && (
-                        <button
-                          onClick={() => handleCheckIn(registration._id)}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Check In
-                        </button>
-                      )}
                       <div className="relative inline-block text-left">
                         <select
                           value={registration.status}

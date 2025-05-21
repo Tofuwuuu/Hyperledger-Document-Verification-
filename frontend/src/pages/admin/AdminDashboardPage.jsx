@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import pollingService from '../../services/polling';
+import { formatDateTimePhilippines } from '../../utils/dateUtils';
 
 export default function AdminDashboardPage() {
   const { currentUser, isAdmin } = useAuth();
@@ -320,8 +321,7 @@ export default function AdminDashboardPage() {
   };
 
   const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    return formatDateTimePhilippines(dateString);
   };
 
   const formatActivityTitle = (activity) => {

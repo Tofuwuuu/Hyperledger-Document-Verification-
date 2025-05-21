@@ -90,6 +90,7 @@ app.include_router(api_router, prefix=settings.API_PREFIX)
 
 # Mount static files for uploaded documents
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/documents", StaticFiles(directory="documents"), name="documents")
 
 # Root endpoint
 @app.get("/")
