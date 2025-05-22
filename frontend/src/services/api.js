@@ -258,6 +258,16 @@ export const authService = {
     } catch (error) {
       return { isAuthenticated: false, user: null };
     }
+  },
+
+  submitQuestionnaire: async (questionnaireData) => {
+    try {
+      const response = await api.post('/users/questionnaire', questionnaireData);
+      return response;
+    } catch (error) {
+      console.error('Error submitting questionnaire:', error);
+      throw error;
+    }
   }
 };
 

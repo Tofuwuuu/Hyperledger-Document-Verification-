@@ -251,9 +251,31 @@ async def get_document_activities(
         else:
             print("No alumni profiles found - cannot fetch documents")
         
+        # Also fetch user activities (like exit interviews)
+        user_activities_cursor = db.user_activities.find(
+            {"user_id": str(current_user["_id"])},
+            sort=[("timestamp", -1)],
+            limit=limit
+        )
+        
+        user_activities = []
+        async for activity in user_activities_cursor:
+            activities.append({
+                "id": str(activity["_id"]),
+                "type": activity["type"],
+                "timestamp": activity["timestamp"].isoformat(),
+                "description": activity["description"],
+                "data": activity.get("metadata", {})
+            })
+            
+        print(f"Found {len(user_activities)} user activities")
+        
+        # Sort all activities by timestamp
+        activities.sort(key=lambda x: x["timestamp"], reverse=True)
+        
         # Return activities
-        print(f"Returning {len(activities)} activities")
-        return activities
+        print(f"Returning {len(activities)} total activities")
+        return activities[:limit]
         
     except Exception as e:
         print(f"Error in get_document_activities: {str(e)}")

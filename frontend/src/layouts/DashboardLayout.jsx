@@ -117,6 +117,12 @@ export default function DashboardLayout() {
       icon: DocumentIcon,
       current: location.pathname === '/admin/document-requests-admin'
     },
+    {
+      name: 'Exit Interviews',
+      href: '/admin/exit-interviews',
+      icon: AcademicCapIcon,
+      current: location.pathname === '/admin/exit-interviews'
+    },
     { 
       name: 'User Management', 
       href: '/admin/users', 

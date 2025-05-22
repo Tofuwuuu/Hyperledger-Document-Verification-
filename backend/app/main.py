@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import logging
 import asyncio
 
-from app.routes import auth, alumni, documents, verification, references, events, registrations, meetings, document_requests
+from app.routes import auth, alumni, documents, verification, references, events, registrations, meetings, document_requests, users, admin
 from app.config.database import connect_to_mongo, close_mongo_connection, client
 from app.config.db_init import initialize_database
 from app.api.api import api_router
@@ -34,11 +34,15 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,  # Use the list of allowed origins from settings
+    allow_origins=["*"],  # Allow all origins in development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Log API routes for debugging
+for route in app.routes:
+    logger.info(f"Registered route: {route.path} ({route.name})")
 
 # MongoDB heartbeat function
 async def mongo_heartbeat():
@@ -84,6 +88,8 @@ app.include_router(registrations.router, prefix=settings.API_PREFIX, tags=["Regi
 app.include_router(meetings.router, prefix=settings.API_PREFIX, tags=["Meetings"])
 app.include_router(document_requests.router, prefix=f"{settings.API_PREFIX}/document-requests", tags=["Document Requests"])
 app.include_router(notifications_router, prefix=settings.API_PREFIX, tags=["Notifications"])
+app.include_router(users.router, prefix=f"{settings.API_PREFIX}/users", tags=["Users"])
+app.include_router(admin.router, prefix=settings.API_PREFIX, tags=["Admin"])
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_PREFIX)

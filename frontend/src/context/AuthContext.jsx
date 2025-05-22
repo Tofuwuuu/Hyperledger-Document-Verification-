@@ -30,6 +30,10 @@ export const AuthProvider = ({ children }) => {
       
       // Normalize user data to ensure consistent ID field
       const userData = response.data;
+      
+      // Debug log to see what we're getting from the backend
+      console.log('Raw user data from backend:', userData);
+      
       if (userData) {
         // Ensure we always have both _id and id available and they're the same
         if (userData._id && !userData.id) {
@@ -37,6 +41,15 @@ export const AuthProvider = ({ children }) => {
         } else if (userData.id && !userData._id) {
           userData._id = userData.id;
         }
+        
+        // Ensure field name consistency between backend and frontend
+        // The backend uses snake_case (has_completed_questionnaire)
+        // The frontend uses camelCase (hasCompletedQuestionnaire)
+        if ('has_completed_questionnaire' in userData) {
+          userData.hasCompletedQuestionnaire = userData.has_completed_questionnaire;
+          console.log('Set hasCompletedQuestionnaire to:', userData.hasCompletedQuestionnaire);
+        }
+        
         console.log('Normalized user data:', userData);
       }
       
@@ -179,28 +192,15 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Registration error:', error);
       
-      // Enhanced error handling
-      let errorMessage = 'An error occurred during registration';
-      
+      // Preserve the original error message from the backend
       if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        
-        // Handle FastAPI validation errors (array of objects with loc, msg, type)
-        if (Array.isArray(detail)) {
-          errorMessage = detail.map(err => err.msg).join(', ');
-        } 
-        // Handle string error
-        else if (typeof detail === 'string') {
-          errorMessage = detail;
-        } 
-        // Handle object error
-        else if (typeof detail === 'object') {
-          errorMessage = Object.values(detail).join(', ');
-        }
+        setError(error.response.data.detail);
+        throw error; // Pass the original error object with response intact
+      } else {
+        const errorMessage = 'An error occurred during registration';
+        setError(errorMessage);
+        throw new Error(errorMessage);
       }
-      
-      setError(errorMessage);
-      throw new Error(errorMessage); // Throw formatted error
     } finally {
       setLoading(false);
     }
@@ -218,6 +218,49 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   }, []);
+
+  // Update current user data
+  const updateCurrentUser = useCallback(async (updatedUserData) => {
+    if (!currentUser) return;
+    
+    // First update local state
+    setCurrentUser(prevUser => ({
+      ...prevUser,
+      ...updatedUserData
+    }));
+    
+    // If this is a questionnaire completion update, reload user data from server
+    if (updatedUserData.hasCompletedQuestionnaire === true) {
+      console.log("Questionnaire completed, reloading user data from server");
+      // Reload user data from server to ensure we have the latest state
+      try {
+        await loadUserData();
+      } catch (error) {
+        console.error("Failed to reload user data after questionnaire completion:", error);
+      }
+    }
+  }, [currentUser, loadUserData]);
+
+  // Function to save questionnaire responses
+  const submitQuestionnaire = useCallback(async (questionnaireData) => {
+    try {
+      setLoading(true);
+      const response = await authService.submitQuestionnaire(questionnaireData);
+      
+      if (response.status === 200) {
+        // Update the current user to reflect that they've completed the questionnaire
+        await updateCurrentUser({ hasCompletedQuestionnaire: true });
+        console.log("Updated user data after questionnaire submission");
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Error submitting questionnaire:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [updateCurrentUser]);
 
   // Check if user has a specific role
   const hasRole = useCallback((role) => {
@@ -242,6 +285,8 @@ export const AuthProvider = ({ children }) => {
     refreshToken,
     hasRole,
     isAdmin,
+    updateCurrentUser,
+    submitQuestionnaire,
     clearError: () => setError(null)
   };
 

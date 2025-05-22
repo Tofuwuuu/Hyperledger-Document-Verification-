@@ -8,6 +8,7 @@ class UserBase(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=100, description="User's full name")
     is_active: bool = Field(True, description="Whether the user account is active")
     is_admin: bool = Field(False, description="Whether the user has admin privileges")
+    has_completed_questionnaire: bool = Field(False, description="Whether the user has completed the onboarding questionnaire")
     
     @validator('full_name')
     def validate_full_name(cls, v):

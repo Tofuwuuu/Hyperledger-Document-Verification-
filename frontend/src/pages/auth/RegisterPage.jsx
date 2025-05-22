@@ -69,27 +69,12 @@ export default function RegisterPage() {
     } catch (error) {
       console.error('Registration failed:', error);
       
-      // Handle different error formats
-      let errorMessage = 'Failed to register. Please check your information and try again.';
-      
+      // Display the exact error message from the backend
       if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        
-        // Handle FastAPI validation errors (array of objects with loc, msg, type)
-        if (Array.isArray(detail)) {
-          errorMessage = detail.map(err => err.msg).join(', ');
-        } 
-        // Handle string error
-        else if (typeof detail === 'string') {
-          errorMessage = detail;
-        } 
-        // Handle object error
-        else if (typeof detail === 'object') {
-          errorMessage = Object.values(detail).join(', ');
-        }
+        setGeneralError(error.response.data.detail);
+      } else {
+        setGeneralError('Failed to register. Please check your information and try again.');
       }
-      
-      setGeneralError(errorMessage);
     } finally {
       setIsLoading(false);
       setSubmitting(false);

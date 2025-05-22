@@ -1,0 +1,16 @@
+{
+  "name": "alumni-document-verification-system",
+  "version": "1.0.0",
+  "description": "CvSU Carmona Alumni Document Verification System",
+  "scripts": {
+    "dev:frontend": "cd frontend; npm run dev",
+    "dev:backend": "cd backend; python run.py",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "install:frontend": "cd frontend; npm install",
+    "install:all": "npm install; npm run install:frontend",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+} 

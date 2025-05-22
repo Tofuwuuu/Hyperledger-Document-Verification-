@@ -62,6 +62,7 @@ async def register(user_data: UserCreate):
         "is_admin": user_data.is_admin,
         "student_id": user_data.student_id,
         "graduation_year": user_data.graduation_year,
+        "has_completed_questionnaire": False,
         "created_at": now,
         "updated_at": now
     }

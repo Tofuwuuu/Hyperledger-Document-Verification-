@@ -24,6 +24,7 @@ class User(UserBase):
     hashed_password: str
     is_admin: bool = False
     is_verified: bool = False
+    has_completed_questionnaire: bool = False
     student_id: Optional[str] = None
     year_graduated: Optional[int] = None
     department: Optional[str] = None

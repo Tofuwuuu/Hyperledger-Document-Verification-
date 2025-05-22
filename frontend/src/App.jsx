@@ -1,6 +1,6 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -13,6 +13,8 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
+const QuestionnairePage = lazy(() => import('./pages/QuestionnairePage'));
+
 // Removing regular dashboard page import and only keeping admin dashboard
 // const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 const ProfilePage = lazy(() => import('./pages/dashboard/ProfilePage'));
@@ -51,6 +53,9 @@ const AdminNewRegistrationsPage = lazy(() => import('./pages/admin/AdminNewRegis
 const DocumentRequestPage = lazy(() => import('./pages/dashboard/DocumentRequestPage'));
 const AdminDocumentRequestsPage = lazy(() => import('./pages/admin/AdminDocumentRequestsPage'));
 
+// Exit Interviews page
+const AdminExitInterviewsPage = lazy(() => import('./pages/admin/AdminExitInterviewsPage'));
+
 // New import for AdminUserVerificationPage
 import AdminUserVerificationPage from './pages/admin/AdminUserVerificationPage';
 
@@ -65,6 +70,15 @@ const LoadingSpinner = () => (
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading, isAuthenticated, isAdmin } = useAuth();
 
+  // Add debug logs to see what's happening with the user data
+  console.log('ProtectedRoute - currentUser:', currentUser);
+  
+  if (currentUser) {
+    // Log the specific field values to help debug
+    console.log('hasCompletedQuestionnaire:', currentUser.hasCompletedQuestionnaire);
+    console.log('has_completed_questionnaire:', currentUser.has_completed_questionnaire);
+  }
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -77,9 +91,25 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // Check if user needs to complete the questionnaire
+  // Skip the questionnaire check for admins
+  const userIsAdmin = isAdmin();
+  
+  if (!userIsAdmin) {
+    // Only regular users need to complete the questionnaire
+    const hasCompletedForm = 
+      currentUser.hasCompletedQuestionnaire === true || 
+      currentUser.has_completed_questionnaire === true;
+      
+    if (hasCompletedForm === false && !window.location.pathname.includes('/questionnaire')) {
+      console.log('Redirecting to questionnaire - form not completed');
+      return <Navigate to="/questionnaire" replace />;
+    }
+  }
+
   // Support for functional children that need to know if the user is an admin
   if (typeof children === 'function') {
-    return children({ isAdmin: isAdmin() });
+    return children({ isAdmin: isAdmin });
   }
 
   return children;
@@ -101,14 +131,30 @@ const AdminRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // Check if user needs to complete the questionnaire
+  // Skip the questionnaire check for admins
+  const userIsAdmin = isAdmin();
+  
+  if (!userIsAdmin) {
+    // Only regular users need to complete the questionnaire
+    const hasCompletedForm = 
+      currentUser.hasCompletedQuestionnaire === true || 
+      currentUser.has_completed_questionnaire === true;
+      
+    if (hasCompletedForm === false && !window.location.pathname.includes('/questionnaire')) {
+      console.log('AdminRoute - Redirecting to questionnaire - form not completed');
+      return <Navigate to="/questionnaire" replace />;
+    }
+  }
+
   // Only check for admin if the route explicitly requires it
-  if (adminOnly && !isAdmin()) {
+  if (adminOnly && !userIsAdmin) {
     return <Navigate to="/alumni" replace />;
   }
 
   // Support for functional children that need to know if the user is an admin
   if (typeof children === 'function') {
-    return children({ isAdmin: isAdmin() });
+    return children({ isAdmin: isAdmin });
   }
 
   return children;
@@ -134,6 +180,10 @@ const router = createBrowserRouter([
       { path: "quick-attend/:attendanceToken", element: <QuickAttendPage /> },
       { path: "quick-attend/:attendanceToken/:secondPart", element: <QuickAttendPage /> }
     ]
+  },
+  {
+    path: "/questionnaire",
+    element: <ProtectedRoute><QuestionnairePage /></ProtectedRoute>
   },
   {
     path: "/dashboard",
@@ -179,6 +229,7 @@ const router = createBrowserRouter([
       { path: "documents/upload", element: <AdminDocumentUploadPage /> },
       { path: "document-requests-admin", element: <AdminDocumentRequestsPage /> },
       { path: "document-requests", element: <AdminDocumentRequestsPage /> },
+      { path: "exit-interviews", element: <AdminExitInterviewsPage /> },
       { path: "events", element: <AdminEventsPage /> },
       { path: "events/new", element: <AdminEventFormPage /> },
       { path: "events/edit/:id", element: <AdminEventFormPage /> },
