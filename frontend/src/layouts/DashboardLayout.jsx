@@ -20,6 +20,8 @@ import {
   CalendarIcon,
   QrCodeIcon,
   DocumentIcon,
+  BuildingOfficeIcon,
+  DocumentMagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import pollingService from '../services/polling';
@@ -41,6 +43,7 @@ export default function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdminUser = isAdmin();
+  const isEmployerUser = currentUser?.type === 'employer' || currentUser?.is_employer === true;
 
   const handleLogout = () => {
     logout();
@@ -51,44 +54,66 @@ export default function DashboardLayout() {
   const commonNavigation = [
     { 
       name: 'Dashboard', 
-      href: isAdminUser ? '/admin' : '/alumni', 
+      href: isAdminUser ? '/admin' : isEmployerUser ? '/employer' : '/alumni', 
       icon: HomeIcon, 
-      current: location.pathname === (isAdminUser ? '/admin' : '/alumni')
+      current: location.pathname === (isAdminUser ? '/admin' : isEmployerUser ? '/employer' : '/alumni')
     },
     { 
       name: 'Profile', 
-      href: isAdminUser ? '/admin/profile' : '/alumni/profile', 
+      href: isAdminUser ? '/admin/profile' : isEmployerUser ? '/employer/profile' : '/alumni/profile', 
       icon: UserCircleIcon, 
-      current: location.pathname === (isAdminUser ? '/admin/profile' : '/alumni/profile')
+      current: location.pathname === (isAdminUser ? '/admin/profile' : isEmployerUser ? '/employer/profile' : '/alumni/profile')
     },
-    // Only show Documents for regular alumni users
-    ...(isAdminUser ? [] : [{
+  ];
+
+  // Employer-specific navigation items
+  const employerNavigation = [
+    {
+      name: 'Verify Documents',
+      href: '/employer/verifications',
+      icon: DocumentMagnifyingGlassIcon,
+      current: location.pathname === '/employer/verifications'
+    },
+    {
+      name: 'Recruitment Skills',
+      href: '/employer/recruitment',
+      icon: UserGroupIcon,
+      current: location.pathname === '/employer/recruitment'
+    }
+  ];
+
+  // Alumni-specific navigation items
+  const alumniNavigation = [
+    { 
       name: 'Documents', 
       href: '/alumni/documents', 
       icon: DocumentCheckIcon, 
       current: location.pathname === '/alumni/documents'
-    }]),
-    // Only show Upload Documents for regular alumni users
-    ...(isAdminUser ? [] : [{
+    },
+    {
       name: 'Upload Documents',
       href: '/alumni/documents/upload',
       icon: DocumentArrowUpIcon,
       current: location.pathname === '/alumni/documents/upload'
-    }]),
-    // Only show Document Requests for regular alumni users (removed from admin menu)
-    ...(isAdminUser ? [] : [{
+    },
+    {
       name: 'Document Requests',
       href: '/alumni/document-requests',
       icon: DocumentIcon,
       current: location.pathname === '/alumni/document-requests'
-    }]),
-    // Only show My Registrations for regular alumni users
-    ...(isAdminUser ? [] : [{
+    },
+    {
       name: 'My Registrations', 
       href: '/alumni/registrations', 
       icon: QrCodeIcon, 
       current: location.pathname === '/alumni/registrations'
-    }]),
+    },
+    {
+      name: 'Recruitment Skills', 
+      href: '/alumni/recruitment', 
+      icon: UserGroupIcon, 
+      current: location.pathname === '/alumni/recruitment'
+    },
   ];
 
   // Admin-only navigation items
@@ -164,7 +189,9 @@ export default function DashboardLayout() {
   // Combine navigation based on user role
   const fullNavigation = isAdminUser 
     ? [...commonNavigation, ...adminOnlyNavigation] 
-    : commonNavigation;
+    : isEmployerUser
+    ? [...commonNavigation, ...employerNavigation]
+    : [...commonNavigation, ...alumniNavigation];
 
   // Fetch notifications on component mount
   useEffect(() => {

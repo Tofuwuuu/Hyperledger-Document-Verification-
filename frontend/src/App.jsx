@@ -13,6 +13,7 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
+const EmployerRegisterPage = lazy(() => import('./pages/auth/EmployerRegisterPage'));
 const QuestionnairePage = lazy(() => import('./pages/QuestionnairePage'));
 
 // Removing regular dashboard page import and only keeping admin dashboard
@@ -37,6 +38,13 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const QuickRegisterPage = lazy(() => import('./pages/QuickRegisterPage'));
 const QuickAttendPage = lazy(() => import('./pages/QuickAttendPage'));
+const RecruitmentPage = lazy(() => import('./pages/dashboard/RecruitmentPage'));
+
+// Employer pages
+const EmployerDashboardPage = lazy(() => import('./pages/employer/EmployerDashboardPage'));
+const EmployerProfilePage = lazy(() => import('./pages/employer/EmployerProfilePage'));
+const EmployerVerificationsPage = lazy(() => import('./pages/employer/EmployerVerificationsPage'));
+const EmployerRecruitmentPage = lazy(() => import('./pages/employer/EmployerRecruitmentPage'));
 
 // Event pages
 const EventsPage = lazy(() => import('./pages/EventsPage'));
@@ -68,7 +76,7 @@ const LoadingSpinner = () => (
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
-  const { currentUser, loading, isAuthenticated, isAdmin } = useAuth();
+  const { currentUser, loading, isAuthenticated, isAdmin, hasRole } = useAuth();
 
   // Add debug logs to see what's happening with the user data
   console.log('ProtectedRoute - currentUser:', currentUser);
@@ -77,6 +85,7 @@ const ProtectedRoute = ({ children }) => {
     // Log the specific field values to help debug
     console.log('hasCompletedQuestionnaire:', currentUser.hasCompletedQuestionnaire);
     console.log('has_completed_questionnaire:', currentUser.has_completed_questionnaire);
+    console.log('is_employer:', currentUser.is_employer);
   }
 
   if (loading) {
@@ -92,11 +101,12 @@ const ProtectedRoute = ({ children }) => {
   }
 
   // Check if user needs to complete the questionnaire
-  // Skip the questionnaire check for admins
+  // Skip the questionnaire check for admins and employers
   const userIsAdmin = isAdmin();
+  const userIsEmployer = currentUser.is_employer === true || hasRole('employer');
   
-  if (!userIsAdmin) {
-    // Only regular users need to complete the questionnaire
+  if (!userIsAdmin && !userIsEmployer) {
+    // Only regular alumni users need to complete the questionnaire
     const hasCompletedForm = 
       currentUser.hasCompletedQuestionnaire === true || 
       currentUser.has_completed_questionnaire === true;
@@ -107,9 +117,9 @@ const ProtectedRoute = ({ children }) => {
     }
   }
 
-  // Support for functional children that need to know if the user is an admin
+  // Support for functional children that need to know if the user is an admin or employer
   if (typeof children === 'function') {
-    return children({ isAdmin: isAdmin });
+    return children({ isAdmin: userIsAdmin, isEmployer: userIsEmployer });
   }
 
   return children;
@@ -129,6 +139,12 @@ const AdminRoute = ({ children, adminOnly = false }) => {
     sessionStorage.setItem('redirectAfterLogin', currentPath);
     
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if user is an employer - employers shouldn't access admin routes
+  const userIsEmployer = currentUser.is_employer === true || currentUser.type === 'employer';
+  if (userIsEmployer) {
+    return <Navigate to="/employer" replace />;
   }
 
   // Check if user needs to complete the questionnaire
@@ -170,6 +186,7 @@ const router = createBrowserRouter([
       { path: "about", element: <AboutPage /> },
       { path: "login", element: <LoginPage /> },
       { path: "register", element: <RegisterPage /> },
+      { path: "employer/register", element: <EmployerRegisterPage /> },
       { path: "verify", element: <VerifyPage /> },
       { path: "alumni-directory", element: <AlumniDirectoryPage /> },
       { path: "alumni/:id", element: <AlumniProfilePage /> },
@@ -188,22 +205,44 @@ const router = createBrowserRouter([
   {
     path: "/dashboard",
     element: <ProtectedRoute>
-              {({ isAdmin }) => (
-                <Navigate to={isAdmin ? "/admin" : "/alumni"} replace />
+              {({ isAdmin, isEmployer }) => (
+                <Navigate to={isAdmin ? "/admin" : isEmployer ? "/employer" : "/alumni"} replace />
               )}
             </ProtectedRoute>
   },
   {
     path: "/dashboard/*",
     element: <ProtectedRoute>
-              {({ isAdmin }) => (
-                <Navigate to={isAdmin ? "/admin" : "/alumni"} replace />
+              {({ isAdmin, isEmployer }) => (
+                <Navigate to={isAdmin ? "/admin" : isEmployer ? "/employer" : "/alumni"} replace />
               )}
             </ProtectedRoute>
   },
   {
+    path: "/employer",
+    element: <ProtectedRoute>
+              {({ isEmployer }) => (
+                isEmployer ? <DashboardLayout /> : <Navigate to="/alumni" replace />
+              )}
+            </ProtectedRoute>,
+    children: [
+      { index: true, element: <EmployerDashboardPage /> },
+      { path: "profile", element: <EmployerProfilePage /> },
+      { path: "verifications", element: <EmployerVerificationsPage /> },
+      { path: "recruitment", element: <EmployerRecruitmentPage /> },
+      // Don't allow employers to access alumni routes
+      { path: "*", element: <Navigate to="/employer" replace /> }
+    ]
+  },
+  {
     path: "/alumni",
-    element: <ProtectedRoute><DashboardLayout /></ProtectedRoute>,
+    element: <ProtectedRoute>
+              {({ isAdmin, isEmployer }) => {
+                // Redirect employers to employer dashboard
+                if (isEmployer) return <Navigate to="/employer" replace />;
+                return <DashboardLayout />;
+              }}
+            </ProtectedRoute>,
     children: [
       { index: true, element: <AdminDashboardPage /> },
       { path: "profile", element: <ProfilePage /> },
@@ -211,7 +250,8 @@ const router = createBrowserRouter([
       { path: "documents/upload", element: <DocumentUploadPage /> },
       { path: "document-requests", element: <DocumentRequestPage /> },
       { path: "notifications", element: <NotificationsPage /> },
-      { path: "registrations", element: <MyRegistrationsPage /> }
+      { path: "registrations", element: <MyRegistrationsPage /> },
+      { path: "recruitment", element: <RecruitmentPage /> }
     ]
   },
   {
