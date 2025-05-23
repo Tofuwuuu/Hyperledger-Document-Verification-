@@ -45,10 +45,30 @@ async def get_current_user(
         )
     
     db = get_database()
-    user = await db.users.find_one({"_id": token_data.sub})
+    
+    # Check the user type from the token payload
+    user_type = payload.get("type")
+    
+    if user_type == "employer":
+        # For employer tokens, look in the employers collection
+        user = await db.employers.find_one({"_id": token_data.sub})
+        if not user and token_data.sub:
+            # Try with ObjectId conversion if string ID lookup fails
+            try:
+                from bson import ObjectId
+                user = await db.employers.find_one({"_id": ObjectId(token_data.sub)})
+            except:
+                pass
+    else:
+        # Default to looking in the users collection
+        user = await db.users.find_one({"_id": token_data.sub})
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Add the user_type to the returned user object
+    user["type"] = user_type
+    
     return user
 
 
