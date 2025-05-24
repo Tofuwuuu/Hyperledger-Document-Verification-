@@ -45,6 +45,8 @@ const EmployerDashboardPage = lazy(() => import('./pages/employer/EmployerDashbo
 const EmployerProfilePage = lazy(() => import('./pages/employer/EmployerProfilePage'));
 const EmployerVerificationsPage = lazy(() => import('./pages/employer/EmployerVerificationsPage'));
 const EmployerRecruitmentPage = lazy(() => import('./pages/employer/EmployerRecruitmentPage'));
+const JobApplicationsPage = lazy(() => import('./pages/employer/JobApplicationsPage'));
+const ApplicationDetailPage = lazy(() => import('./pages/employer/ApplicationDetailPage'));
 
 // Event pages
 const EventsPage = lazy(() => import('./pages/EventsPage'));
@@ -230,6 +232,8 @@ const router = createBrowserRouter([
       { path: "profile", element: <EmployerProfilePage /> },
       { path: "verifications", element: <EmployerVerificationsPage /> },
       { path: "recruitment", element: <EmployerRecruitmentPage /> },
+      { path: "applications/:jobId", element: <JobApplicationsPage /> },
+      { path: "applications/detail/:applicationId", element: <ApplicationDetailPage /> },
       // Don't allow employers to access alumni routes
       { path: "*", element: <Navigate to="/employer" replace /> }
     ]
