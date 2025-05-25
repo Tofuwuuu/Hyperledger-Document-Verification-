@@ -11,6 +11,7 @@ export default function VerifyPage() {
   const [documentId, setDocumentId] = useState('');
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [verificationResult, setVerificationResult] = useState(null);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -61,6 +62,7 @@ export default function VerifyPage() {
 
     setLoading(true);
     setError('');
+    setVerificationResult(null);
     
     try {
       // Use the updated document verification service
@@ -72,6 +74,7 @@ export default function VerifyPage() {
       
       if (result.data && result.data.success) {
         setVerificationStatus(result.data.verified ? 'success' : 'error');
+        setVerificationResult(result.data.document || null);
       } else {
         setError(result.data?.message || 'Verification failed');
         setVerificationStatus('error');
@@ -271,6 +274,12 @@ export default function VerifyPage() {
                             <div className="font-medium">{new Date().toLocaleDateString()}</div>
                             <div className="text-gray-500">Blockchain Timestamp:</div>
                             <div className="font-medium">{new Date().toLocaleString()}</div>
+                            {verificationResult?.verified_by && (
+                              <>
+                                <div className="text-gray-500">Verified By:</div>
+                                <div className="font-medium">{verificationResult.verified_by_name || verificationResult.verified_by}</div>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
