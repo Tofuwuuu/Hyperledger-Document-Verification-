@@ -1,8 +1,45 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircleIcon, ClockIcon, InformationCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { formatDateTimePhilippines } from '../utils/dateUtils';
+import { adminUserService } from '../services/api';
 
 const DocumentDetailsModal = ({ document, onClose, blockchainDetails }) => {
+  const [adminName, setAdminName] = useState(null);
+
+  // Add debug logging
+  useEffect(() => {
+    console.log("Document data in modal:", document);
+    console.log("Verified by:", document.verified_by);
+    console.log("Verified by name:", document.verified_by_name);
+    
+    // If document is verified but no admin name, fetch admin info
+    if (document.verification_status === 'verified' && 
+        document.verified_by && 
+        !document.verified_by_name) {
+      fetchAdminInfo(document.verified_by);
+    }
+  }, [document]);
+  
+  const fetchAdminInfo = async (adminId) => {
+    try {
+      console.log("Fetching admin info for:", adminId);
+      const response = await adminUserService.getUserById(adminId);
+      if (response.data) {
+        console.log("Admin data:", response.data);
+        const admin = response.data;
+        let displayName = admin.full_name || "Unknown Admin";
+        
+        if (admin.position) {
+          displayName = `${displayName} - ${admin.position}`;
+        }
+        
+        setAdminName(displayName);
+      }
+    } catch (error) {
+      console.error("Error fetching admin info:", error);
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return formatDateTimePhilippines(dateString);
@@ -12,6 +49,11 @@ const DocumentDetailsModal = ({ document, onClose, blockchainDetails }) => {
     if (!str) return '';
     if (str.length <= num) return str;
     return str.slice(0, num) + '...';
+  };
+
+  // Get the admin name from either the document or our fetched state
+  const getAdminName = () => {
+    return document.verified_by_name || adminName || document.verified_by || 'System';
   };
 
   return (
@@ -66,12 +108,13 @@ const DocumentDetailsModal = ({ document, onClose, blockchainDetails }) => {
                     <dd>{formatDate(document.verification_date)}</dd>
                   </div>
                 )}
-                {document.verified_by_name && (
+                {/* Always show Verified By if document is verified, even if verified_by_name is not available */}
+                {document.verification_status === 'verified' && (
                   <div>
                     <dt className="text-sm text-gray-500">Verified By</dt>
                     <dd className="flex items-center text-gray-700">
                       <UserCircleIcon className="h-5 w-5 mr-1 text-blue-500" />
-                      {document.verified_by_name}
+                      {getAdminName()}
                     </dd>
                   </div>
                 )}

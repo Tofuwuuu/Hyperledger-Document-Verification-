@@ -4,7 +4,7 @@ from datetime import datetime
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
-from app.utils.auth import get_admin_user, get_password_hash
+from app.utils.auth import get_admin_user, get_password_hash, get_current_user
 from app.config.database import get_database
 from app.schemas import UserCreate, UserUpdate, UserOut, RoleOut, UserPaginatedResponse
 
@@ -174,6 +174,42 @@ async def get_admin_user_by_id(
             user["role"] = "No Role"
         
         return user
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid user ID format or database error: {str(e)}"
+        )
+
+@router.get("/users/{user_id}/public", response_model=Dict[str, Any])
+async def get_user_public_info(
+    user_id: str = Path(..., description="The ID of the user to get"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Get basic public information about any user by ID
+    """
+    db = get_database()
+    
+    try:
+        # Get the user
+        user = await db.users.find_one({"_id": user_id})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Return only non-sensitive information
+        return {
+            "_id": user_id,
+            "full_name": user.get("full_name", "Unknown"),
+            "email": user.get("email", ""),
+            "position": user.get("position", ""),
+            "department": user.get("department", ""),
+            "first_name": user.get("first_name", ""),
+            "last_name": user.get("last_name", ""),
+            "is_admin": user.get("is_admin", False)
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

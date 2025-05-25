@@ -226,20 +226,39 @@ export default function DocumentsPage() {
   };
 
   const handleViewDetails = async (document) => {
-    setSelectedDocument(document);
-    setBlockchainDetails(null);
-    setShowDetailsModal(true);
-    
-    // If the document has a blockchain transaction ID, fetch blockchain details
-    if (document.blockchain_tx_id) {
-      try {
-        const response = await documentVerificationService.getDocumentVerificationHistory(document.id);
-        if (response.success) {
-          setBlockchainDetails(response.history);
-        }
-      } catch (error) {
-        console.error('Error fetching blockchain details:', error);
+    try {
+      // Fetch the latest document data directly from the API
+      const response = await documentService.getDocument(document._id);
+      if (response.data) {
+        console.log("Fresh document data:", response.data);
+        setSelectedDocument(response.data);
+      } else {
+        setSelectedDocument(document);
       }
+      
+      setBlockchainDetails(null);
+      setShowDetailsModal(true);
+      
+      // If the document has a blockchain transaction ID, fetch blockchain details
+      if (document.blockchain_tx_id) {
+        try {
+          // Use _id as id might be undefined
+          const documentId = document._id || document.id;
+          console.log("Fetching blockchain history for document:", documentId);
+          
+          const response = await documentVerificationService.getDocumentVerificationHistory(documentId);
+          if (response.success) {
+            setBlockchainDetails(response.history);
+          }
+        } catch (error) {
+          console.error('Error fetching blockchain details:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching latest document data:', error);
+      // Fallback to using the document from the list
+      setSelectedDocument(document);
+      setShowDetailsModal(true);
     }
   };
 

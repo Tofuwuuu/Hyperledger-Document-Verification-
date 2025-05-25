@@ -663,6 +663,16 @@ export const adminUserService = {
       throw new Error(error.response?.data?.message || 'Failed to fetch admin user');
     }
   },
+
+  // New function to get admin by ID (non-admin endpoint)
+  getUserById: async (userId) => {
+    try {
+      return await api.get(`/users/${userId}/public`);
+    } catch (error) {
+      console.error(`Error fetching user ${userId}:`, error);
+      return { data: null };
+    }
+  },
   
   createAdminUser: async (userData) => {
     try {
