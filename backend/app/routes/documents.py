@@ -133,6 +133,27 @@ async def get_alumni_documents(
     for doc in documents:
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
+        
+        # Add admin name for verified documents
+        if doc.get("verification_status") == "verified" and doc.get("verified_by"):
+            try:
+                admin = await db.users.find_one({"_id": doc["verified_by"]})
+                if admin:
+                    # Create a better display name using available fields
+                    if admin.get("first_name") and admin.get("last_name"):
+                        admin_name = f"{admin['first_name']} {admin['last_name']}"
+                    elif admin.get("first_name"):
+                        admin_name = admin['first_name']
+                    else:
+                        admin_name = admin.get("full_name", "Unknown Admin")
+                    
+                    # Add position if available
+                    if admin.get("position"):
+                        doc["verified_by_name"] = f"{admin_name} ({admin['position']})"
+                    else:
+                        doc["verified_by_name"] = admin_name
+            except Exception as e:
+                print(f"Error fetching admin data: {e}")
     
     return documents
 
@@ -340,6 +361,27 @@ async def get_document(
     # Ensure _id field is a string to pass validation
     if "_id" in document and not isinstance(document["_id"], str):
         document["_id"] = str(document["_id"])
+    
+    # Add admin name for verified documents
+    if document.get("verification_status") == "verified" and document.get("verified_by"):
+        try:
+            admin = await db.users.find_one({"_id": document["verified_by"]})
+            if admin:
+                # Create a better display name using available fields
+                if admin.get("first_name") and admin.get("last_name"):
+                    admin_name = f"{admin['first_name']} {admin['last_name']}"
+                elif admin.get("first_name"):
+                    admin_name = admin['first_name']
+                else:
+                    admin_name = admin.get("full_name", "Unknown Admin")
+                
+                # Add position if available
+                if admin.get("position"):
+                    document["verified_by_name"] = f"{admin_name} ({admin['position']})"
+                else:
+                    document["verified_by_name"] = admin_name
+        except Exception as e:
+            print(f"Error fetching admin data: {e}")
     
     return document
 
