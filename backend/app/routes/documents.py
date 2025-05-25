@@ -139,12 +139,16 @@ async def get_alumni_documents(
             try:
                 admin = await db.users.find_one({"_id": doc["verified_by"]})
                 if admin:
-                    # Use full_name directly as specified by the user
-                    doc["verified_by_name"] = admin.get("full_name", "Unknown Admin")
+                    admin_name = admin.get("full_name", "Unknown Admin")
+                    admin_position = admin.get("position", "")
+                    
+                    if admin_position:
+                        doc["verified_by_name"] = f"{admin_name} - {admin_position}"
+                    else:
+                        doc["verified_by_name"] = admin_name
             except Exception as e:
-                print(f"Error getting admin name: {e}")
-                # If anything goes wrong, don't break the flow
-                pass
+                print(f"Error fetching admin details: {e}")
+                doc["verified_by_name"] = "System"
     
     return documents
 
@@ -358,12 +362,16 @@ async def get_document(
         try:
             admin = await db.users.find_one({"_id": document["verified_by"]})
             if admin:
-                # Use full_name directly as specified by the user
-                document["verified_by_name"] = admin.get("full_name", "Unknown Admin")
+                admin_name = admin.get("full_name", "Unknown Admin")
+                admin_position = admin.get("position", "")
+                
+                if admin_position:
+                    document["verified_by_name"] = f"{admin_name} - {admin_position}"
+                else:
+                    document["verified_by_name"] = admin_name
         except Exception as e:
-            print(f"Error getting admin name: {e}")
-            # If anything goes wrong, don't break the flow
-            pass
+            print(f"Error fetching admin details: {e}")
+            document["verified_by_name"] = "System"
     
     return document
 
@@ -391,6 +399,16 @@ async def update_document(
     if update_data.get("verification_status") == VerificationStatus.VERIFIED:
         if "verified_by" not in update_data:
             update_data["verified_by"] = admin_user["_id"]
+            
+            # Add admin name information directly when verifying
+            admin_name = admin_user.get("full_name", "Unknown Admin")
+            admin_position = admin_user.get("position", "")
+            
+            if admin_position:
+                update_data["verified_by_name"] = f"{admin_name} - {admin_position}"
+            else:
+                update_data["verified_by_name"] = admin_name
+                
         if "verification_date" not in update_data:
             update_data["verification_date"] = datetime.utcnow()
     

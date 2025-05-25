@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircleIcon, ClockIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon, InformationCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { formatDateTimePhilippines } from '../utils/dateUtils';
 
 const DocumentDetailsModal = ({ document, onClose, blockchainDetails }) => {
@@ -66,10 +66,13 @@ const DocumentDetailsModal = ({ document, onClose, blockchainDetails }) => {
                     <dd>{formatDate(document.verification_date)}</dd>
                   </div>
                 )}
-                {document.verified_by && (
+                {document.verified_by_name && (
                   <div>
                     <dt className="text-sm text-gray-500">Verified By</dt>
-                    <dd>{document.verified_by_name || document.verified_by}</dd>
+                    <dd className="flex items-center text-gray-700">
+                      <UserCircleIcon className="h-5 w-5 mr-1 text-blue-500" />
+                      {document.verified_by_name}
+                    </dd>
                   </div>
                 )}
                 {document.reason && (
@@ -139,4 +142,4 @@ const DocumentDetailsModal = ({ document, onClose, blockchainDetails }) => {
   );
 };
 
-export default DocumentDetailsModal; 
+export default DocumentDetailsModal;
