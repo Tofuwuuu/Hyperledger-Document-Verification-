@@ -53,10 +53,54 @@ export const formatDateOnlyPhilippines = (dateString) => {
 };
 
 /**
- * Formats a date string to show both date and time in Philippine time
- * @param {string} dateString - The UTC date string to format
- * @returns {string} - Formatted date and time string in Philippine time
+ * Formats a date string to the Philippines date/time format
+ * @param {string} dateString - The ISO date string to format
+ * @returns {string} Formatted date string
  */
 export const formatDateTimePhilippines = (dateString) => {
-  return formatDatePhilippines(dateString);
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+
+    return date.toLocaleString('en-PH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Error formatting date';
+  }
+};
+
+/**
+ * Formats a date string to a simpler date format
+ * @param {string} dateString - The ISO date string to format
+ * @returns {string} Formatted date string
+ */
+export const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long', 
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Error formatting date';
+  }
 }; 
