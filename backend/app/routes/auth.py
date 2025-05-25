@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 from typing import Dict, Any, List
 import logging
+from fastapi.responses import JSONResponse
 
 from app.schemas import (
     UserCreate, 
@@ -19,9 +20,15 @@ from app.utils.auth import (
     create_access_token, 
     create_refresh_token,
     get_current_user,
-    get_admin_user
+    get_admin_user,
+    ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from app.config.database import get_database
+from app.core.config import settings
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -90,27 +97,68 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         logging.info(f"Database lookup took {(find_end - find_start).total_seconds()} seconds")
         
         # Check if user exists and password is correct
-        if not user or not verify_password(form_data.password, user["hashed_password"]):
-            logging.warning(f"Failed login attempt for user: {form_data.username}")
-            raise HTTPException(
+        if not user:
+            # Before returning error, check if this might be an employer account
+            employer = await db.employers.find_one({"email": form_data.username})
+            if employer:
+                # This is an employer account trying to log in via regular user route
+                logging.warning(f"Employer account attempting to login via user route: {form_data.username}")
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "This email is registered as an EMPLOYER account. Please select 'Employer' account type instead of 'Alumni / Student'."},
+                    headers={"WWW-Authenticate": "Bearer", "X-Account-Type": "employer"}
+                )
+                
+            logging.warning(f"Failed login attempt - user not found: {form_data.username}")
+            return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
+                content={"detail": "Incorrect email or password"},
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+            
+        if not verify_password(form_data.password, user["hashed_password"]):
+            logging.warning(f"Failed login attempt - incorrect password: {form_data.username}")
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"detail": "Incorrect email or password"},
+                headers={"WWW-Authenticate": "Bearer"}
             )
         
         # Check if user is active
         if not user.get("is_active", True):
             logging.warning(f"Login attempt for inactive user: {form_data.username}")
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user"
+                content={"detail": "Inactive user"}
             )
         
         # Create access and refresh tokens
         token_start = datetime.utcnow()
         user_id = str(user["_id"])
-        access_token = create_access_token(data={"sub": user_id})
-        refresh_token = create_refresh_token(data={"sub": user_id})
+        
+        # Determine user type from user data
+        user_type = "alumni"  # Default type
+        if user.get("is_admin"):
+            user_type = "admin"
+        elif user.get("is_staff"):
+            user_type = "staff"
+        
+        # Create token data with the correct format
+        token_data = {
+            "sub": user_id,
+            "type": "access",
+            "user_type": user_type
+        }
+        
+        access_token = create_access_token(
+            data=token_data,
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        
+        refresh_token = create_refresh_token(
+            data=token_data
+        )
+        
         token_end = datetime.utcnow()
         logging.info(f"Token creation took {(token_end - token_start).total_seconds()} seconds")
         
@@ -120,13 +168,22 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "user_type": user_type
         }
     except ConnectionError as e:
         logging.error(f"Database connection error during login: {str(e)}")
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database connection error. Please check if MongoDB is running and try again later."
+            content={"detail": "Database connection error. Please check if MongoDB is running and try again later."}
+        )
+    except HTTPException as http_ex:
+        # Re-raise HTTP exceptions directly
+        logging.error(f"HTTP exception during login: {http_ex.detail}")
+        return JSONResponse(
+            status_code=http_ex.status_code,
+            content={"detail": http_ex.detail},
+            headers=http_ex.headers
         )
     except Exception as e:
         logging.error(f"Unexpected error during login: {str(e)}")
@@ -134,9 +191,9 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         import traceback
         logging.error(f"Error traceback: {traceback.format_exc()}")
         
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred. Please try again later."
+            content={"detail": "An unexpected error occurred. Please try again later."}
         )
 
 @router.post("/refresh", response_model=Token)
@@ -144,9 +201,23 @@ async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_user)
     """Create a new access token using refresh token"""
     user_id = current_user["_id"]
     
+    # Preserve the user type if it exists
+    user_type = current_user.get("type", "user")
+    
+    # Create token data
+    token_data = {
+        "sub": user_id,
+        "type": user_type
+    }
+    
     # Create new tokens
-    access_token = create_access_token(data={"sub": user_id})
-    refresh_token = create_refresh_token(data={"sub": user_id})
+    access_token = create_access_token(
+        data=token_data
+    )
+    
+    refresh_token = create_refresh_token(
+        data=token_data
+    )
     
     return {
         "access_token": access_token,
@@ -491,4 +562,13 @@ async def get_current_user_activity(
         user_id=current_user["_id"],
         include_uploads=include_uploads,
         limit=limit
-    ) 
+    )
+
+@router.post("/logout")
+async def logout():
+    """
+    Logout endpoint - just returns a success message.
+    The actual token invalidation is handled client-side by removing the token.
+    Future enhancement could implement server-side token blacklisting.
+    """
+    return {"message": "Successfully logged out"} 

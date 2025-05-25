@@ -47,21 +47,36 @@ async def get_current_user(
     db = get_database()
     
     # Check the user type from the token payload
-    user_type = payload.get("type")
+    user_type = payload.get("user_type") 
     
+    user = None
     if user_type == "employer":
         # For employer tokens, look in the employers collection
+        # First try direct lookup with the token subject
         user = await db.employers.find_one({"_id": token_data.sub})
-        if not user and token_data.sub:
-            # Try with ObjectId conversion if string ID lookup fails
+        
+        # If not found and the token subject is a string, try with ObjectId conversion
+        if not user and isinstance(token_data.sub, str):
             try:
                 from bson import ObjectId
-                user = await db.employers.find_one({"_id": ObjectId(token_data.sub)})
-            except:
-                pass
+                object_id = ObjectId(token_data.sub)
+                user = await db.employers.find_one({"_id": object_id})
+            except Exception as e:
+                # Log the error but continue with the flow
+                print(f"Error converting employer ID to ObjectId: {e}")
     else:
         # Default to looking in the users collection
         user = await db.users.find_one({"_id": token_data.sub})
+        
+        # Try with ObjectId if string lookup fails
+        if not user and isinstance(token_data.sub, str):
+            try:
+                from bson import ObjectId
+                object_id = ObjectId(token_data.sub)
+                user = await db.users.find_one({"_id": object_id})
+            except Exception as e:
+                # Log the error but continue with the flow
+                print(f"Error converting user ID to ObjectId: {e}")
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -71,14 +86,12 @@ async def get_current_user(
     
     return user
 
-
 async def get_current_active_user(
     current_user = Depends(get_current_user),
 ):
     if not current_user.get("is_active", False):
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
-
 
 async def get_current_active_superuser(
     current_user = Depends(get_current_user),

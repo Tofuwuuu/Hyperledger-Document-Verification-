@@ -22,7 +22,7 @@ async def initialize_database():
         "verification_requests", # Verification request tracking
         "audit_logs",         # System activity logs
         "jobs",               # Job listings
-        "applications",       # Job applications
+        "job_applications",   # Job applications from alumni
         "events",             # Event management
         "event_registrations", # Event registrations
         "document_requests",  # Document requests from alumni
@@ -30,6 +30,7 @@ async def initialize_database():
         "permissions",        # Permission definitions
         "notifications",      # User notifications
         "meetings",           # Virtual meetings
+        "employers",          # Employers collection
     ]
     
     # Get existing collections
@@ -83,11 +84,18 @@ async def initialize_database():
     await db.audit_logs.create_index("user_id")
     
     # Jobs collection indexes
-    await db.jobs.create_index("title")
+    await db.jobs.create_index("employer_id")
+    await db.jobs.create_index("status")
+    await db.jobs.create_index("created_at")
+    await db.jobs.create_index([("title", "text"), ("description", "text")])
+    await db.jobs.create_index([("skills", 1)])
     
-    # Applications collection indexes
-    await db.applications.create_index("job_id")
-    await db.applications.create_index("applicant_email")
+    # Job applications collection indexes
+    await db.job_applications.create_index("job_id")
+    await db.job_applications.create_index("alumni_id")
+    await db.job_applications.create_index([("job_id", 1), ("alumni_id", 1)], unique=True)
+    await db.job_applications.create_index("status")
+    await db.job_applications.create_index("created_at")
     
     # Events collection indexes
     await db.events.create_index("start_date")
@@ -106,6 +114,9 @@ async def initialize_database():
     await db.meetings.create_index("start_time")
     await db.meetings.create_index("status")
     await db.meetings.create_index([("event_id", 1), ("start_time", 1)])
+    
+    # Employers collection indexes
+    await db.employers.create_index("email", unique=True)
     
     print("Database initialization completed successfully!")
 

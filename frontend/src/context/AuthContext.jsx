@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/api';
 import { jwtDecode } from 'jwt-decode';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+
+// Import API_URL for loading employer data
+import { API_URL } from '../services/api';
 
 // Create the auth context
 const AuthContext = createContext();
@@ -22,40 +27,69 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
-  // Memoized function to load user data
+  // Memoized function to fetch user data
   const loadUserData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await authService.getCurrentUser();
       
-      // Normalize user data to ensure consistent ID field
-      const userData = response.data;
+      const userType = localStorage.getItem('user_type');
+      let response;
       
-      // Debug log to see what we're getting from the backend
-      console.log('Raw user data from backend:', userData);
-      
-      if (userData) {
-        // Ensure we always have both _id and id available and they're the same
-        if (userData._id && !userData.id) {
-          userData.id = userData._id;
-        } else if (userData.id && !userData._id) {
-          userData._id = userData.id;
+      if (userType === 'employer') {
+        // Load employer data
+        response = await axios.get(`${API_URL}/employers/me`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        console.log('Loaded employer data:', response.data);
+        
+        // Add employer flag to user data
+        const userData = {
+          ...response.data,
+          is_employer: true,
+          roles: ['employer']
+        };
+        
+        // Store in localStorage for later use
+        localStorage.setItem('user', JSON.stringify(userData));
+        setCurrentUser(userData);
+        setIsAuthenticated(true);
+        return userData;
+      } else {
+        // Regular user authentication
+        response = await authService.getCurrentUser();
+        
+        // Process user data
+        let userData = response.data;
+        console.log('Loaded user data:', userData);
+        
+        // Store roles and admin status for easy access
+        if (userData && !userData.roles) {
+          userData.roles = [];
+          
+          if (userData.is_admin) {
+            userData.roles.push('admin');
+          }
+          
+          if (userData.is_alumni) {
+            userData.roles.push('alumni');
+          }
+          
+          if (userData.is_staff) {
+            userData.roles.push('staff');
+          }
+          
+          console.log('Set user roles:', userData.roles);
         }
         
-        // Ensure field name consistency between backend and frontend
-        // The backend uses snake_case (has_completed_questionnaire)
-        // The frontend uses camelCase (hasCompletedQuestionnaire)
-        if ('has_completed_questionnaire' in userData) {
-          userData.hasCompletedQuestionnaire = userData.has_completed_questionnaire;
-          console.log('Set hasCompletedQuestionnaire to:', userData.hasCompletedQuestionnaire);
-        }
-        
-        console.log('Normalized user data:', userData);
+        // Store in localStorage for later use
+        localStorage.setItem('user', JSON.stringify(userData));
+        setCurrentUser(userData);
+        setIsAuthenticated(true);
+        return userData;
       }
-      
-      setCurrentUser(userData);
-      setIsAuthenticated(true);
-      return userData;
     } catch (error) {
       console.error('Error loading user data:', error);
       setCurrentUser(null);
@@ -122,62 +156,165 @@ export const AuthProvider = ({ children }) => {
     checkAuthStatus();
   }, [loadUserData, refreshToken]);
 
-  const login = async (email, password) => {
+  // Function to set current user data
+  const setCurrentUserData = (userData, userType = 'alumni') => {
+    console.log('Setting current user data:', userData);
+    console.log('User type:', userType);
+
+    // Make sure the current user object includes the user type
+    const userWithType = {
+      ...userData,
+      type: userType // Ensure the type property is always set
+    };
+
+    setCurrentUser(userWithType);
+    setIsAuthenticated(true);
+  };
+
+  // Function to fetch user profile after successful login
+  const fetchUserProfile = async (token, accountType) => {
     try {
-      setError(null);
+      // Create proper auth header configuration
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
+      
+      let userData;
+      
+      if (accountType === 'employer') {
+        // Fetch employer profile
+        const response = await axios.get(`${API_URL}/employers/me`, config);
+        userData = {
+          ...response.data,
+          is_employer: true,
+          roles: ['employer']
+        };
+      } else {
+        // Fetch regular user profile using config with token
+        const response = await axios.get(`${API_URL}/auth/me`, config);
+        userData = response.data;
+        
+        // Add roles if they don't exist
+        if (userData && !userData.roles) {
+          userData.roles = [];
+          
+          if (userData.is_admin) {
+            userData.roles.push('admin');
+          }
+          
+          if (userData.is_alumni) {
+            userData.roles.push('alumni');
+          }
+          
+          if (userData.is_staff) {
+            userData.roles.push('staff');
+          }
+        }
+      }
+      
+      // Save user data to localStorage and state
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('user_type', accountType);
+      setCurrentUserData(userData, accountType);
+      return userData;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+  };
+
+  // Login function
+  const login = async (email, password, isEmployer) => {
+    try {
       setLoading(true);
-      const data = await authService.login(email, password);
-      const userData = await loadUserData();
-      setIsAuthenticated(true);
-      return { success: true, data, user: userData };
+      console.log('Login attempt with:', { email, password, isEmployer });
+
+      // Use URLSearchParams for form-urlencoded data (OAuth2 compatible)
+      const params = new URLSearchParams();
+      
+      // Check if email is an object (old way) or a string (new way)
+      if (typeof email === 'object' && email !== null) {
+        // Handle the case where first parameter is an object containing credentials
+        params.append('username', email.email);
+        params.append('password', email.password);
+        console.log('Using object credentials:', { username: email.email });
+      } else {
+        // Handle the case where email and password are passed separately
+        params.append('username', email);
+        params.append('password', password);
+        console.log('Using string credentials:', { username: email });
+      }
+
+      // Login endpoint based on account type
+      const accountType = isEmployer ? 'employer' : 'alumni';
+      const endpoint = accountType === 'employer' 
+        ? `${API_URL}/employers/login` 
+        : `${API_URL}/auth/login`;
+
+      console.log(`Sending login request to: ${endpoint}`);
+      
+      // Use direct axios instance without interceptors
+      const response = await axios({
+        method: 'post',
+        url: endpoint,
+        data: params,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        timeout: 30000 // 30 second timeout
+      });
+      
+      const data = response.data;
+
+      if (data.access_token) {
+        console.log('Login successful, received token');
+        
+        // Store token in localStorage
+        localStorage.setItem('token', data.access_token);
+        
+        // Store refresh token if available
+        if (data.refresh_token) {
+          localStorage.setItem('refreshToken', data.refresh_token);
+        }
+        
+        // Store user type - get from response or use the account type
+        const userType = data.user_type || accountType;
+        localStorage.setItem('user_type', userType);
+        
+        // Get the user profile
+        await fetchUserProfile(data.access_token, userType);
+        
+        // Notify success
+        toast.success('Login successful!');
+        return true;
+      }
+      
+      // If we get here, something went wrong
+      toast.error('Login failed: Invalid response from server');
+      return false;
     } catch (error) {
       console.error('Login error:', error);
       
-      // Enhanced error handling
-      let errorMessage = 'An error occurred during login';
-      
-      // Check for response data
+      // Handle error response
       if (error.response) {
-        console.log('Error response status:', error.response.status);
-        console.log('Error response data:', error.response.data);
+        console.error('Error status:', error.response.status);
+        console.error('Error data:', error.response.data);
         
-        // Handle different error formats
-        if (error.response.data) {
-          if (typeof error.response.data === 'string') {
-            errorMessage = error.response.data;
-          } else if (error.response.data.detail) {
-            errorMessage = error.response.data.detail;
-          } else if (error.response.data.message) {
-            errorMessage = error.response.data.message;
-          } else if (error.response.data.error) {
-            errorMessage = error.response.data.error;
-          } else if (error.response.data.non_field_errors) {
-            // Django REST framework often returns errors this way
-            errorMessage = error.response.data.non_field_errors[0];
-          }
-        }
+        // Check if this is a wrong account type error
+        const errorDetail = error.response.data?.detail || '';
         
-        // Specific status code handling
-        if (error.response.status === 401) {
-          errorMessage = 'Invalid email or password';
-        } else if (error.response.status === 403) {
-          errorMessage = 'Account is inactive or blocked';
+        if (errorDetail.includes('ALUMNI/STUDENT account')) {
+          toast.error('This email is registered as a student/alumni account. Please select the correct account type.');
+        } else if (errorDetail.includes('EMPLOYER account')) {
+          toast.error('This email is registered as an employer account. Please select the correct account type.');
+        } else {
+          toast.error(`Login failed: ${errorDetail || 'Invalid credentials'}`);
         }
-      } else if (error.request) {
-        // Request was made but no response received
-        errorMessage = 'No response from server. Please check your connection.';
-      } else if (error.message) {
-        // Something else happened while setting up the request
-        errorMessage = error.message;
+      } else {
+        toast.error('Login failed: Network error or server unavailable');
       }
       
-      setError(errorMessage);
-      
-      // Rethrow with enhanced error object
-      const enhancedError = new Error(errorMessage);
-      enhancedError.originalError = error;
-      enhancedError.response = error.response;
-      throw enhancedError;
+      return false;
     } finally {
       setLoading(false);
     }
@@ -198,6 +335,29 @@ export const AuthProvider = ({ children }) => {
         throw error; // Pass the original error object with response intact
       } else {
         const errorMessage = 'An error occurred during registration';
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registerEmployer = async (employerData) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const response = await authService.registerEmployer(employerData);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('Employer registration error:', error);
+      
+      // Preserve the original error message from the backend
+      if (error.response?.data?.detail) {
+        setError(error.response.data.detail);
+        throw error; // Pass the original error object with response intact
+      } else {
+        const errorMessage = 'An error occurred during employer registration';
         setError(errorMessage);
         throw new Error(errorMessage);
       }
@@ -262,16 +422,33 @@ export const AuthProvider = ({ children }) => {
     }
   }, [updateCurrentUser]);
 
-  // Check if user has a specific role
-  const hasRole = useCallback((role) => {
-    if (!currentUser || !currentUser.roles) return false;
-    return currentUser.roles.includes(role);
-  }, [currentUser]);
-
   // Check if user is admin
   const isAdmin = useCallback(() => {
     if (!currentUser) return false;
-    return currentUser.is_admin === true;
+    
+    // Check if user has admin role from token roles claim
+    if (currentUser.roles && Array.isArray(currentUser.roles)) {
+      return currentUser.roles.includes('admin');
+    }
+    
+    // Old method - check isAdmin flag directly
+    return currentUser.isAdmin === true;
+  }, [currentUser]);
+
+  // Check if user has a specific role
+  const hasRole = useCallback((role) => {
+    if (!currentUser) return false;
+    
+    // Check from roles array
+    if (currentUser.roles && Array.isArray(currentUser.roles)) {
+      return currentUser.roles.includes(role);
+    }
+    
+    // Check specific flags for known roles
+    if (role === 'admin') return currentUser.isAdmin === true;
+    if (role === 'employer') return currentUser.is_employer === true;
+    
+    return false;
   }, [currentUser]);
 
   const value = {
@@ -281,6 +458,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     login,
     register,
+    registerEmployer,
     logout,
     refreshToken,
     hasRole,

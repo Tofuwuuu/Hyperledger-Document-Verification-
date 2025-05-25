@@ -5,7 +5,7 @@ let baseApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 // Remove trailing slash if present
 baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 // Add /api/v1 only if it's not already included
-const API_URL = baseApiUrl.includes('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
+export const API_URL = baseApiUrl.includes('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
 console.log('API URL:', API_URL); // Debug API URL
 
 // Flag to prevent multiple refresh token requests
@@ -138,6 +138,8 @@ export const authService = {
       if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
+        // Clear any previous user type
+        localStorage.removeItem('user_type');
       }
       
       return response.data;
@@ -184,6 +186,55 @@ export const authService = {
     }
   },
   
+  employerLogin: async (email, password) => {
+    console.log('Employer login attempt for:', email);
+    
+    try {
+      // Create URLSearchParams for form data
+      const params = new URLSearchParams();
+      params.append('username', email);
+      params.append('password', password);
+      
+      console.log('Sending employer login request to:', `${API_URL}/employers/login`);
+      
+      // Use direct axios instance without interceptors to bypass any potential issues
+      const response = await axios({
+        method: 'post',
+        url: `${API_URL}/employers/login`,
+        data: params,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        timeout: 30000 // 30 second timeout
+      });
+      
+      console.log('Employer login response:', response.data);
+      if (response.data.access_token) {
+        // Clear any previous auth data
+        localStorage.removeItem('user');
+        
+        // Set new auth data
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+        localStorage.setItem('user_type', 'employer'); // Mark as employer login
+        
+        console.log('Employer login successful, user_type set to employer');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Employer login request failed:', error.message);
+      
+      // Enhanced error logging
+      if (error.response) {
+        console.error('Error status:', error.response.status);
+        console.error('Error data:', error.response.data);
+      }
+      
+      throw error;
+    }
+  },
+  
   register: async (userData) => {
     try {
       console.log('Registration attempt with data:', userData);
@@ -200,17 +251,34 @@ export const authService = {
         timeout: 10000 // 10 second timeout
       });
       
-      console.log('Registration response:', response.data);
-      return response.data;
+      console.log('Registration successful:', response.data);
+      return response;
     } catch (error) {
-      console.error('Registration request failed:', error.message);
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-      } else if (error.request) {
-        // Request was made but no response received
-        console.error('No response received:', error.request);
-      }
+      console.error('Registration failed:', error);
+      throw error;
+    }
+  },
+  
+  registerEmployer: async (employerData) => {
+    try {
+      console.log('Employer registration attempt with data:', employerData);
+      console.log('Sending employer registration request to:', `${API_URL}/employers/register`);
+      
+      // Use direct axios instance to avoid interceptor issues
+      const response = await axios({
+        method: 'post',
+        url: `${API_URL}/employers/register`,
+        data: employerData,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 second timeout
+      });
+      
+      console.log('Employer registration successful:', response.data);
+      return response;
+    } catch (error) {
+      console.error('Employer registration failed:', error);
       throw error;
     }
   },
@@ -248,7 +316,21 @@ export const authService = {
   },
   
   getCurrentUser: async () => {
-    return api.get('/auth/me');
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      return axios.get(`${API_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      throw error;
+    }
   },
 
   checkAuth: async () => {
@@ -463,23 +545,29 @@ export const alumniService = {
 
 // Document services
 export const documentService = {
-  uploadDocument: async (data) => {
+  uploadDocument: async (documentData) => {
     const formData = new FormData();
-    formData.append('alumni_id', data.alumni_id);
-    formData.append('document_type', data.document_type);
-    formData.append('title', data.title);
-    
-    if (data.description) {
-      formData.append('description', data.description);
+    for (const key in documentData) {
+      formData.append(key, documentData[key]);
     }
     
-    formData.append('file', data.file);
-    
-    return api.post('/documents/upload', formData, {
+    const response = await api.post('/documents', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+        'Content-Type': 'multipart/form-data'
+      }
     });
+    
+    return response.data;
+  },
+  
+  getUserDocuments: async () => {
+    const response = await api.get('/documents');
+    return response.data;
+  },
+  
+  getDocumentById: async (id) => {
+    const response = await api.get(`/documents/${id}`);
+    return response.data;
   },
   
   getAlumniDocuments: async (alumniId) => {
@@ -501,11 +589,19 @@ export const documentService = {
 
 // Verification services
 export const verificationService = {
-  verifyDocument: async (documentId, hash) => {
-    return api.post('/verification/blockchain/verify', {
-      document_id: documentId,
-      hash: hash
-    });
+  verifyDocument: async (verificationCode) => {
+    try {
+      const response = await api.get(`/documents/verify/${verificationCode}`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.detail || 'Document verification failed'
+      };
+    }
   },
   
   storeDocument: async (documentId, hash, metadata = {}) => {

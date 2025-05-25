@@ -10,7 +10,8 @@ import {
   ExclamationCircleIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
-  XCircleIcon
+  XCircleIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 
 const DocumentRequestList = forwardRef((props, ref) => {
@@ -199,15 +200,35 @@ const DocumentRequestList = forwardRef((props, ref) => {
           <p className="mt-2 text-gray-500">Loading requests...</p>
         </div>
       ) : error ? (
-        <div className="text-center py-4 text-red-500">
-          <ExclamationCircleIcon className="h-8 w-8 mx-auto" />
-          <p className="mt-2">{error}</p>
-          <button
-            onClick={fetchRequests}
-            className="mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md shadow-sm"
-          >
-            Try Again
-          </button>
+        <div className="text-center py-4">
+          {error.toLowerCase().includes('internal server error') ? (
+            // Custom message for incomplete profile
+            <div className="flex flex-col items-center">
+              <UserCircleIcon className="h-12 w-12 text-blue-500 mb-2" />
+              <p className="text-lg font-medium text-gray-800">Please complete your profile</p>
+              <p className="mt-2 text-gray-600 text-center max-w-md">
+                To request documents, your profile must be complete with all required information. Please visit the Profile page to update your information.
+              </p>
+              <a 
+                href="/dashboard/profile"
+                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm"
+              >
+                Complete Profile
+              </a>
+            </div>
+          ) : (
+            // Standard error message for other errors
+            <>
+              <ExclamationCircleIcon className="h-8 w-8 mx-auto text-red-500" />
+              <p className="mt-2 text-red-500">{error}</p>
+              <button
+                onClick={fetchRequests}
+                className="mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md shadow-sm"
+              >
+                Try Again
+              </button>
+            </>
+          )}
         </div>
       ) : filteredRequests.length === 0 ? (
         <div className="text-center py-8 text-gray-500">

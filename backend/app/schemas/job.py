@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 from bson import ObjectId
@@ -12,24 +12,9 @@ class PyObjectId(ObjectId):
 
     @classmethod
     def validate(cls, v):
-        if not v:
-            return None
-        
-        # Already an ObjectId
-        if isinstance(v, ObjectId):
-            return v
-        
-        # String representation of ObjectId
-        if isinstance(v, str):
-            # Regular string ID handling
-            if ObjectId.is_valid(v):
-                return ObjectId(v)
-            
-            # If it's a string but not a valid ObjectId, return as is
-            # This allows for string IDs that aren't in ObjectId format
-            return v
-            
-        raise ValueError("Invalid ID format")
+        if not ObjectId.is_valid(v):
+            raise ValueError("Invalid ObjectId")
+        return ObjectId(v)
 
     @classmethod
     def __modify_schema__(cls, field_schema):
@@ -41,17 +26,11 @@ class JobStatus(str, Enum):
     ACTIVE = "active"
     CLOSED = "closed"
     FILLED = "filled"
-    ARCHIVED = "archived"
 
 
-class ApplicationStatus(str, Enum):
-    APPLIED = "applied"
-    REVIEWING = "reviewing"
-    SHORTLISTED = "shortlisted"
-    INTERVIEWED = "interviewed"
-    OFFERED = "offered"
-    HIRED = "hired"
-    REJECTED = "rejected"
+class JobSkill(BaseModel):
+    name: str
+    level: Optional[str] = None  # e.g., "beginner", "intermediate", "expert"
 
 
 class JobBase(BaseModel):
@@ -70,12 +49,10 @@ class JobBase(BaseModel):
 
 
 class JobCreate(JobBase):
-    """Schema for creating a new job posting"""
     pass
 
 
 class JobUpdate(BaseModel):
-    """Schema for updating a job posting - all fields optional"""
     title: Optional[str] = None
     description: Optional[str] = None
     location: Optional[str] = None
@@ -90,12 +67,10 @@ class JobUpdate(BaseModel):
 
 
 class JobInDB(JobBase):
-    """Schema for job stored in database"""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     employer_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    applicant_count: Optional[int] = 0
     
     class Config:
         json_encoders = {ObjectId: str}
@@ -104,13 +79,11 @@ class JobInDB(JobBase):
 
 
 class JobResponse(JobBase):
-    """Schema for job response to client"""
     id: str
     employer_id: str
     employer_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    applicant_count: Optional[int] = 0
     
     class Config:
         schema_extra = {
@@ -125,36 +98,29 @@ class JobResponse(JobBase):
                 "status": "active",
                 "employer_id": "60d21b4967d0d8992e610c80",
                 "created_at": "2023-06-22T10:00:00",
-                "updated_at": "2023-06-22T10:00:00",
-                "applicant_count": 3
+                "updated_at": "2023-06-22T10:00:00"
             }
         }
 
 
-class ApplicationBase(BaseModel):
-    """Base schema for job applications"""
+class JobApplicantBase(BaseModel):
     job_id: str
-    applicant_id: str
+    alumni_id: str
     cover_letter: Optional[str] = None
-    resume_url: Optional[str] = None
-    status: ApplicationStatus = ApplicationStatus.APPLIED
+    status: str = "applied"  # applied, reviewing, interviewed, rejected, hired
 
 
-class ApplicationCreate(ApplicationBase):
-    """Schema for creating a new application"""
+class JobApplicantCreate(JobApplicantBase):
     pass
 
 
-class ApplicationUpdate(BaseModel):
-    """Schema for updating an application - all fields optional"""
+class JobApplicantUpdate(BaseModel):
     cover_letter: Optional[str] = None
-    resume_url: Optional[str] = None
-    status: Optional[ApplicationStatus] = None
+    status: Optional[str] = None
     employer_notes: Optional[str] = None
 
 
-class ApplicationInDB(ApplicationBase):
-    """Schema for application stored in database"""
+class JobApplicantInDB(JobApplicantBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -166,41 +132,10 @@ class ApplicationInDB(ApplicationBase):
         arbitrary_types_allowed = True
 
 
-class ApplicationResponse(ApplicationBase):
-    """Schema for application response to client"""
+class JobApplicantResponse(JobApplicantBase):
     id: str
-    applicant_name: Optional[str] = None
-    applicant_email: Optional[str] = None
+    alumni_name: Optional[str] = None
+    alumni_email: Optional[str] = None
     job_title: Optional[str] = None
-    company_name: Optional[str] = None
     created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        schema_extra = {
-            "example": {
-                "id": "60d21b4967d0d8992e610c85",
-                "job_id": "60d21b4967d0d8992e610c80",
-                "applicant_id": "60d21b4967d0d8992e610c81",
-                "applicant_name": "John Doe",
-                "applicant_email": "john.doe@example.com",
-                "job_title": "Software Engineer",
-                "company_name": "Tech Solutions Inc.",
-                "cover_letter": "I am excited to apply...",
-                "resume_url": "/uploads/resumes/johndoe_resume.pdf",
-                "status": "applied",
-                "created_at": "2023-06-22T10:00:00",
-                "updated_at": "2023-06-22T10:00:00"
-            }
-        }
-
-
-class CandidateSearchResult(BaseModel):
-    """Schema for candidate search results"""
-    id: str
-    name: str
-    email: Optional[EmailStr] = None
-    program: Optional[str] = None
-    graduation_year: Optional[Union[int, str]] = None
-    skills: List[str] = []
-    match_percentage: float 
+    updated_at: datetime 

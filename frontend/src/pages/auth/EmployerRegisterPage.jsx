@@ -5,21 +5,41 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import cvsuLogo from '../../assets/cvsu-logo.png';
 
-// Validation schema
-const RegisterSchema = Yup.object().shape({
-  full_name: Yup.string()
-    .required('Full name is required')
-    .min(2, 'Name is too short'),
+// Industry options
+const industryOptions = [
+  'Information Technology',
+  'Healthcare',
+  'Education',
+  'Finance',
+  'Manufacturing',
+  'Retail',
+  'Agriculture',
+  'Construction',
+  'Transportation',
+  'Hospitality',
+  'Other'
+];
+
+// Validation schema for employer registration
+const EmployerRegisterSchema = Yup.object().shape({
+  company_name: Yup.string()
+    .required('Company name is required')
+    .min(2, 'Company name is too short'),
+  industry: Yup.string()
+    .required('Industry is required'),
+  contact_person: Yup.string()
+    .required('Contact person name is required')
+    .min(2, 'Contact person name is too short'),
   email: Yup.string()
     .email('Invalid email address')
     .required('Email is required'),
-  student_id: Yup.string()
-    .required('Student ID is required')
-    .matches(/^[0-9-]+$/, 'Student ID must contain only numbers and hyphens'),
-  graduation_year: Yup.number()
-    .required('Graduation year is required')
-    .min(1970, 'Graduation year must be after 1970')
-    .max(new Date().getFullYear(), 'Graduation year cannot be in the future'),
+  phone: Yup.string()
+    .required('Phone number is required')
+    .matches(/^[0-9+\- ]+$/, 'Phone number must contain only numbers, +, -, and spaces'),
+  website: Yup.string()
+    .url('Please enter a valid URL'),
+  address: Yup.string()
+    .required('Address is required'),
   password: Yup.string()
     .required('Password is required')
     .min(8, 'Password must be at least 8 characters')
@@ -35,8 +55,8 @@ const RegisterSchema = Yup.object().shape({
     .oneOf([true], 'You must accept the terms and conditions'),
 });
 
-export default function RegisterPage() {
-  const { register } = useAuth();
+export default function EmployerRegisterPage() {
+  const { registerEmployer } = useAuth();
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
@@ -46,25 +66,34 @@ export default function RegisterPage() {
     setGeneralError('');
     setIsLoading(true);
     
-    const userData = {
+    // Format website properly - either valid URL or undefined
+    let website = values.website;
+    if (!website || website.trim() === '') {
+      website = undefined; // Set to undefined if empty
+    } else if (!website.startsWith('http://') && !website.startsWith('https://')) {
+      website = `https://${website}`; // Add https:// if missing
+    }
+    
+    const employerData = {
       email: values.email,
-      full_name: values.full_name,
+      company_name: values.company_name,
+      industry: values.industry,
+      contact_person: values.contact_person,
+      phone: values.phone,
+      website: website, // Use the formatted website
+      address: values.address,
       password: values.password,
-      confirm_password: values.confirmPassword,
-      student_id: values.student_id,
-      graduation_year: parseInt(values.graduation_year),
-      is_active: true,
-      is_admin: false
+      confirm_password: values.confirmPassword
     };
     
     try {
-      await register(userData);
+      await registerEmployer(employerData);
       setRegistrationSuccess(true);
       setTimeout(() => {
         navigate('/login');
       }, 3000);
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('Employer registration failed:', error);
       
       // Display the exact error message from the backend
       if (error.response?.data?.detail) {
@@ -78,22 +107,14 @@ export default function RegisterPage() {
     }
   };
 
-  // Generate graduation year options
-  const currentYear = new Date().getFullYear();
-  const yearOptions = [];
-  for (let year = currentYear; year >= 1970; year--) {
-    yearOptions.push(year);
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
-      {/* Employer Registration Button */}
-      <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col py-12 sm:px-6 lg:px-8">
+      <div className="mb-6 ml-4">
         <Link 
-          to="/employer/register" 
+          to="/register" 
           className="inline-flex items-center justify-center px-5 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-cvsu-green hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
-          Register as an Employer
+          Register as an Alumni
         </Link>
       </div>
       
@@ -104,7 +125,7 @@ export default function RegisterPage() {
           alt="CVSU Logo"
         />
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Register for an account
+          Register as an Employer
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Or{' '}
@@ -122,7 +143,7 @@ export default function RegisterPage() {
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-green-800">Registration successful!</h3>
                   <div className="mt-2 text-sm text-green-700">
-                    <p>Your account has been created. You will be redirected to the login page shortly.</p>
+                    <p>Your employer account has been created. You will be redirected to the login page shortly.</p>
                   </div>
                 </div>
               </div>
@@ -144,35 +165,86 @@ export default function RegisterPage() {
               
               <Formik
                 initialValues={{ 
-                  full_name: '', 
-                  email: '', 
-                  student_id: '', 
-                  graduation_year: currentYear, 
-                  password: '', 
+                  company_name: '',
+                  industry: '',
+                  contact_person: '',
+                  email: '',
+                  phone: '',
+                  website: '',
+                  address: '',
+                  password: '',
                   confirmPassword: '',
                   terms: false
                 }}
-                validationSchema={RegisterSchema}
+                validationSchema={EmployerRegisterSchema}
                 onSubmit={handleSubmit}
               >
                 {({ isSubmitting, errors, touched }) => (
                   <Form className="space-y-6">
                     <div>
-                      <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">
-                        Full Name
+                      <label htmlFor="company_name" className="block text-sm font-medium text-gray-700">
+                        Company Name
                       </label>
                       <div className="mt-1">
                         <Field
-                          id="full_name"
-                          name="full_name"
+                          id="company_name"
+                          name="company_name"
                           type="text"
-                          autoComplete="name"
                           className={`form-input ${
-                            errors.full_name && touched.full_name ? 'border-red-500' : ''
+                            errors.company_name && touched.company_name ? 'border-red-500' : ''
                           }`}
                         />
                         <ErrorMessage
-                          name="full_name"
+                          name="company_name"
+                          component="p"
+                          className="mt-2 text-sm text-red-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="industry" className="block text-sm font-medium text-gray-700">
+                        Industry
+                      </label>
+                      <div className="mt-1">
+                        <Field
+                          id="industry"
+                          name="industry"
+                          as="select"
+                          className={`form-input ${
+                            errors.industry && touched.industry ? 'border-red-500' : ''
+                          }`}
+                        >
+                          <option value="">Select an industry</option>
+                          {industryOptions.map(industry => (
+                            <option key={industry} value={industry}>
+                              {industry}
+                            </option>
+                          ))}
+                        </Field>
+                        <ErrorMessage
+                          name="industry"
+                          component="p"
+                          className="mt-2 text-sm text-red-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="contact_person" className="block text-sm font-medium text-gray-700">
+                        Contact Person Name
+                      </label>
+                      <div className="mt-1">
+                        <Field
+                          id="contact_person"
+                          name="contact_person"
+                          type="text"
+                          className={`form-input ${
+                            errors.contact_person && touched.contact_person ? 'border-red-500' : ''
+                          }`}
+                        />
+                        <ErrorMessage
+                          name="contact_person"
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
@@ -181,7 +253,7 @@ export default function RegisterPage() {
 
                     <div>
                       <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                        Email address
+                        Email Address
                       </label>
                       <div className="mt-1">
                         <Field
@@ -202,20 +274,20 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="student_id" className="block text-sm font-medium text-gray-700">
-                        Student ID
+                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                        Phone Number
                       </label>
                       <div className="mt-1">
                         <Field
-                          id="student_id"
-                          name="student_id"
+                          id="phone"
+                          name="phone"
                           type="text"
                           className={`form-input ${
-                            errors.student_id && touched.student_id ? 'border-red-500' : ''
+                            errors.phone && touched.phone ? 'border-red-500' : ''
                           }`}
                         />
                         <ErrorMessage
-                          name="student_id"
+                          name="phone"
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
@@ -223,26 +295,43 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="graduation_year" className="block text-sm font-medium text-gray-700">
-                        Graduation Year
+                      <label htmlFor="website" className="block text-sm font-medium text-gray-700">
+                        Website (Optional)
                       </label>
                       <div className="mt-1">
                         <Field
-                          id="graduation_year"
-                          name="graduation_year"
-                          as="select"
+                          id="website"
+                          name="website"
+                          type="url"
+                          placeholder="https://example.com"
                           className={`form-input ${
-                            errors.graduation_year && touched.graduation_year ? 'border-red-500' : ''
+                            errors.website && touched.website ? 'border-red-500' : ''
                           }`}
-                        >
-                          {yearOptions.map(year => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </Field>
+                        />
                         <ErrorMessage
-                          name="graduation_year"
+                          name="website"
+                          component="p"
+                          className="mt-2 text-sm text-red-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                        Business Address
+                      </label>
+                      <div className="mt-1">
+                        <Field
+                          id="address"
+                          name="address"
+                          as="textarea"
+                          rows={2}
+                          className={`form-input ${
+                            errors.address && touched.address ? 'border-red-500' : ''
+                          }`}
+                        />
+                        <ErrorMessage
+                          name="address"
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
@@ -319,14 +408,14 @@ export default function RegisterPage() {
                       <button
                         type="submit"
                         disabled={isSubmitting || isLoading}
-                        className="btn-primary w-full flex justify-center"
+                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cvsu-green hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                       >
                         {isLoading ? (
                           <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                        ) : 'Register'}
+                        ) : 'Register as Employer'}
                       </button>
                     </div>
                   </Form>

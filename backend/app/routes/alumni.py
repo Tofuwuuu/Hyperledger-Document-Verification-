@@ -16,6 +16,7 @@ from app.schemas import (
 )
 from app.utils.auth import get_current_user, get_admin_user
 from app.config.database import get_database
+from app.schemas.job import JobResponse, JobApplicantCreate
 
 router = APIRouter(prefix="/alumni", tags=["Alumni"])
 
@@ -441,3 +442,235 @@ async def delete_alumni_profile(
         except Exception:
             # Ignore errors when deleting files
             pass 
+
+# Job related routes for alumni
+@router.get("/jobs", response_model=List[JobResponse])
+async def get_available_jobs(
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 10,
+    status: str = "active"
+):
+    """
+    Get all available job postings for alumni
+    """
+    # Get all jobs with specified status (default: active)
+    query = {"status": status}
+    
+    # Build the cursor with pagination
+    cursor = db.jobs.find(query).sort("created_at", -1).skip(skip).limit(limit)
+    
+    # Fetch the jobs
+    jobs = []
+    async for job in cursor:
+        # Get employer info
+        employer = None
+        if job.get("employer_id"):
+            employer = await db.employers.find_one({"_id": ObjectId(job["employer_id"])})
+            
+        # Format the response
+        jobs.append({
+            "id": str(job["_id"]),
+            "employer_id": job["employer_id"],
+            "employer_name": employer.get("company_name") if employer else job.get("company_name", ""),
+            "title": job["title"],
+            "description": job["description"],
+            "location": job["location"],
+            "company_name": job.get("company_name", ""),
+            "skills": job.get("skills", []),
+            "requirements": job.get("requirements", []),
+            "responsibilities": job.get("responsibilities", []),
+            "employment_type": job.get("employment_type"),
+            "salary_range": job.get("salary_range"),
+            "application_deadline": job.get("application_deadline"),
+            "is_remote": job.get("is_remote", False),
+            "status": job.get("status", "active"),
+            "created_at": job["created_at"],
+            "updated_at": job["updated_at"],
+        })
+    
+    return jobs
+
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+async def get_job_details(
+    job_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """
+    Get details of a specific job posting
+    """
+    try:
+        # Convert string ID to ObjectId
+        job_object_id = ObjectId(job_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid job ID format"
+        )
+    
+    # Fetch the job
+    job = await db.jobs.find_one({"_id": job_object_id})
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job posting not found"
+        )
+    
+    # Check if job is active or if current user has special access
+    if job.get("status") != "active" and current_user.get("user_type") not in ["employer", "admin"]:
+        if current_user.get("user_type") != "employer" or job["employer_id"] != str(current_user.get("id", current_user.get("_id"))):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job posting not found or no longer active"
+            )
+    
+    # Get employer info
+    employer = None
+    if job.get("employer_id"):
+        employer = await db.employers.find_one({"_id": ObjectId(job["employer_id"])})
+        
+    # Format the response
+    response_job = {
+        "id": str(job["_id"]),
+        "employer_id": job["employer_id"],
+        "employer_name": employer.get("company_name") if employer else job.get("company_name", ""),
+        "title": job["title"],
+        "description": job["description"],
+        "location": job["location"],
+        "company_name": job.get("company_name", ""),
+        "skills": job.get("skills", []),
+        "requirements": job.get("requirements", []),
+        "responsibilities": job.get("responsibilities", []),
+        "employment_type": job.get("employment_type"),
+        "salary_range": job.get("salary_range"),
+        "application_deadline": job.get("application_deadline"),
+        "is_remote": job.get("is_remote", False),
+        "status": job.get("status", "active"),
+        "created_at": job["created_at"],
+        "updated_at": job["updated_at"],
+    }
+    
+    return response_job
+
+@router.post("/jobs/{job_id}/apply", status_code=status.HTTP_201_CREATED)
+async def apply_for_job(
+    job_id: str,
+    application: JobApplicantCreate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """
+    Apply for a job posting (alumni only)
+    """
+    # Check if user is an alumni
+    if current_user.get("user_type") == "employer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Employers cannot apply for jobs"
+        )
+    
+    # Get the alumni ID
+    alumni_id = str(current_user.get("id", current_user.get("_id")))
+    
+    try:
+        # Verify the job exists and is active
+        job = await db.jobs.find_one({
+            "_id": ObjectId(job_id),
+            "status": "active"
+        })
+        
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job posting not found or no longer active"
+            )
+        
+        # Check if already applied
+        existing_application = await db.job_applications.find_one({
+            "job_id": job_id,
+            "alumni_id": alumni_id
+        })
+        
+        if existing_application:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You have already applied for this position"
+            )
+        
+        # Create application
+        now = datetime.utcnow()
+        application_data = {
+            "job_id": job_id,
+            "alumni_id": alumni_id,
+            "cover_letter": application.cover_letter,
+            "status": "applied",
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        # Insert the application
+        await db.job_applications.insert_one(application_data)
+        
+        return {"message": "Application submitted successfully"}
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while submitting your application: {str(e)}"
+        )
+
+@router.get("/applications", response_model=List[Dict])
+async def get_my_applications(
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """
+    Get all job applications submitted by the current alumni
+    """
+    # Check if user is an alumni
+    if current_user.get("user_type") == "employer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint is for alumni only"
+        )
+    
+    # Get the alumni ID
+    alumni_id = str(current_user.get("id", current_user.get("_id")))
+    
+    # Fetch applications
+    cursor = db.job_applications.find({"alumni_id": alumni_id})
+    
+    applications = []
+    async for app in cursor:
+        # Get job info
+        job = None
+        if app.get("job_id"):
+            job = await db.jobs.find_one({"_id": ObjectId(app["job_id"])})
+            
+            # Get employer info if job exists
+            employer = None
+            if job and job.get("employer_id"):
+                employer = await db.employers.find_one({"_id": ObjectId(job["employer_id"])})
+        
+        # Format the response
+        if job:
+            applications.append({
+                "id": str(app["_id"]),
+                "job_id": app["job_id"],
+                "job_title": job.get("title", "Unknown Position"),
+                "company_name": job.get("company_name") or (employer.get("company_name") if employer else "Unknown Company"),
+                "status": app.get("status", "applied"),
+                "cover_letter": app.get("cover_letter"),
+                "applied_date": app["created_at"],
+                "last_updated": app["updated_at"]
+            })
+    
+    # Sort by application date (newest first)
+    applications.sort(key=lambda x: x["applied_date"], reverse=True)
+    
+    return applications 

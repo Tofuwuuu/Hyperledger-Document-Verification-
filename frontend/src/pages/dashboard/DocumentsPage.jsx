@@ -49,11 +49,24 @@ export default function DocumentsPage() {
   }, [currentUser]);
 
   const fetchAlumniProfile = async () => {
-    if (!currentUser || !currentUser._id) return;
+    // Check if currentUser exists and has either _id or id property
+    if (!currentUser) return;
+    
+    // Get the user ID, checking both possible property names
+    const userId = currentUser._id || currentUser.id;
+    
+    // Debug log the user ID
+    console.log('Fetching alumni profile with user ID:', userId);
+    
+    if (!userId) {
+      console.error('User ID is undefined');
+      setError('User ID not found. Please try logging out and logging in again.');
+      return;
+    }
     
     setLoading(true);
     try {
-      const response = await alumniService.getAlumniByUserId(currentUser.id);
+      const response = await alumniService.getAlumniByUserId(userId);
       setAlumniProfile(response.data);
       
       // Fetch documents

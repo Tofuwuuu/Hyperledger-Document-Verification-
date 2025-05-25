@@ -45,8 +45,6 @@ const EmployerRecruitmentPage = () => {
         return;
       }
       
-      console.log('Fetching jobs with token');
-      
       // Create API config with token
       const config = {
         headers: {
@@ -55,18 +53,10 @@ const EmployerRecruitmentPage = () => {
         }
       };
       
-      // First try to get current user info to debug
-      try {
-        const userResponse = await axios.get(`${API_URL}/employers/me`, config);
-        console.log('Current employer data:', userResponse.data);
-      } catch (userError) {
-        console.error('Error fetching employer profile:', userError);
-      }
-      
-      // Now fetch jobs using the new recruitment API endpoint
+      // Now fetch jobs using the recruitment API endpoint
       const response = await axios.get(`${API_URL}/recruitment/jobs`, config);
       
-      console.log('Jobs response:', response.data);
+      console.log('Jobs fetched successfully:', response.data.length);
       setActiveJobs(response.data);
     } catch (error) {
       console.error('Error fetching jobs:', error);
@@ -135,6 +125,22 @@ const EmployerRecruitmentPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!jobFormData.title.trim()) {
+      toast.error('Job title is required');
+      return;
+    }
+    
+    if (!jobFormData.description.trim()) {
+      toast.error('Job description is required');
+      return;
+    }
+    
+    if (!jobFormData.location.trim()) {
+      toast.error('Job location is required');
+      return;
+    }
+    
     try {
       setLoading(true);
       
@@ -146,14 +152,15 @@ const EmployerRecruitmentPage = () => {
         return;
       }
       
-      // Create job using the new recruitment API endpoint
-      await axios.post(`${API_URL}/recruitment/jobs`, jobFormData, {
+      // Create job using the recruitment API endpoint
+      const response = await axios.post(`${API_URL}/recruitment/jobs`, jobFormData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       
+      console.log('Job created successfully:', response.data);
       toast.success('Job posting created successfully');
       
       // Reset form
@@ -167,6 +174,7 @@ const EmployerRecruitmentPage = () => {
         employment_type: 'full-time',
         is_remote: false
       });
+      setSkillInput('');
       
       // Refresh jobs list
       fetchJobs();
@@ -255,7 +263,7 @@ const EmployerRecruitmentPage = () => {
         return;
       }
       
-      // Delete job using the new recruitment API endpoint
+      // Use the recruitment API endpoint for deleting jobs
       await axios.delete(`${API_URL}/recruitment/jobs/${jobId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -265,8 +273,8 @@ const EmployerRecruitmentPage = () => {
       
       toast.success('Job posting deleted successfully');
       
-      // Refresh jobs list
-      fetchJobs();
+      // Update local state to remove the deleted job
+      setActiveJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       
     } catch (error) {
       console.error('Error deleting job posting:', error);
@@ -278,6 +286,12 @@ const EmployerRecruitmentPage = () => {
         
         if (error.response.status === 403) {
           toast.error('You do not have permission to delete this job posting.');
+        } else if (error.response.status === 404) {
+          toast.error('Job posting not found. It may have already been deleted.');
+          // Refresh jobs list to ensure accurate display
+          fetchJobs();
+        } else if (error.response.status === 400 && error.response.data?.detail === 'Invalid job ID format') {
+          toast.error('Invalid job ID format. The job posting cannot be deleted.');
         } else {
           toast.error(`Failed to delete job posting: ${error.response.data?.detail || 'Unknown error'}`);
         }

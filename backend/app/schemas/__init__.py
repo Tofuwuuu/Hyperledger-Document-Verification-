@@ -58,4 +58,19 @@ from .role import (
     RoleOut,
     AssignPermissionRequest,
     RolePaginatedResponse
+)
+
+from .job import (
+    JobStatus,
+    JobSkill,
+    JobBase,
+    JobCreate,
+    JobUpdate,
+    JobInDB,
+    JobResponse,
+    JobApplicantBase,
+    JobApplicantCreate,
+    JobApplicantUpdate,
+    JobApplicantInDB,
+    JobApplicantResponse
 ) 
