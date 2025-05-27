@@ -37,16 +37,6 @@ const ApplicationDetailPage = () => {
         }
       });
       
-      // Add detailed logging of the application data
-      console.log('Application data received:', response.data);
-      console.log('Applicant name value:', response.data.applicant_name);
-      console.log('Applicant data type check:', {
-        'applicant_name is null': response.data.applicant_name === null,
-        'applicant_name is undefined': response.data.applicant_name === undefined,
-        'applicant_name type': typeof response.data.applicant_name,
-        'applicant_name length': response.data.applicant_name ? response.data.applicant_name.length : 'N/A'
-      });
-      
       setApplication(response.data);
       setNotes(response.data.employer_notes || '');
       
@@ -233,13 +223,7 @@ const ApplicationDetailPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Name</p>
-                <p className="font-medium">
-                  {application.applicant_name && application.applicant_name !== 'Unknown' 
-                    ? application.applicant_name 
-                    : application.applicant_email 
-                      ? application.applicant_email.split('@')[0] 
-                      : 'Unknown'}
-                </p>
+                <p className="font-medium">{application.applicant_name || 'Unknown'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Email</p>
