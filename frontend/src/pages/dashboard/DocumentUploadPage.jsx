@@ -63,10 +63,35 @@ export default function DocumentUploadPage() {
   const fetchDocuments = async (alumniId) => {
     setLoading(true);
     try {
+      console.log(`Fetching documents for alumni: ${alumniId}`);
       const response = await documentService.getAlumniDocuments(alumniId);
       setDocuments(response.data);
+      console.log("Documents fetched successfully:", response.data);
     } catch (error) {
       console.error('Error fetching documents:', error);
+      
+      // More detailed error logging
+      if (error.response) {
+        console.error('Error response status:', error.response.status);
+        console.error('Error response data:', error.response.data);
+        
+        // More specific error message
+        if (error.response.status === 404) {
+          setError('Alumni profile not found. Please update your profile first.');
+        } else if (error.response.status === 403) {
+          setError('You are not authorized to view these documents.');
+        } else if (error.response.status === 500) {
+          setError(`Server error: ${error.response.data?.detail || 'Unknown internal server error'}`);
+        } else {
+          setError(`Failed to load documents (${error.response.status}): ${error.response.data?.detail || 'Unknown error'}`);
+        }
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+        setError('Network error. Please check your internet connection.');
+      } else {
+        console.error('Error message:', error.message);
+        setError('Failed to load documents. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

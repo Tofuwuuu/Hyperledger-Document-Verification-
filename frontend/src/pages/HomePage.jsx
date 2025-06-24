@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -56,8 +57,8 @@ export default function HomePage() {
             CVSU-Carmona Alumni
           </h1>
           <p className="mt-6 text-xl text-white max-w-3xl">
-            Welcome to the Cavite State University - Carmona Campus Alumni Profile
-            Management System with Blockchain Document Verification. Connect with fellow
+            Welcome to the Cavite State University - Carmona Campus Alumni Profile 
+            Management System with Document Verification. Connect with fellow 
             alumni and securely manage your academic credentials.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4">
@@ -81,10 +82,10 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-
+      
       {/* Upcoming Events section */}
       <UpcomingEvents />
-
+      
       {/* Features section */}
       <div className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

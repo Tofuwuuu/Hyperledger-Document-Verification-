@@ -9,8 +9,9 @@ if (import.meta.env.PROD || import.meta.env.VITE_API_URL) {
   baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
 }
 
-// API URL configuration
-export const API_URL = '/api/v1';
+// API URL configuration - matching the FastAPI API_PREFIX in backend settings
+// This handles cases where we're running directly on port 8000 vs through the Vite dev server
+export const API_URL = '/api/v1';  // Simplified to always use the proxy
 
 // Other configuration options
 export const DEFAULT_TIMEOUT = 10000; // 10 seconds

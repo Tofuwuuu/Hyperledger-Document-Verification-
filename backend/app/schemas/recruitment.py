@@ -106,11 +106,13 @@ class JobInDB(JobBase):
 class JobResponse(JobBase):
     """Schema for job response to client"""
     id: str
-    employer_id: str
+    employer_id: Optional[str] = None
     employer_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     applicant_count: Optional[int] = 0
+    match_score: Optional[float] = 0
+    matched_skills: Optional[List[str]] = []
     
     class Config:
         schema_extra = {
@@ -126,7 +128,9 @@ class JobResponse(JobBase):
                 "employer_id": "60d21b4967d0d8992e610c80",
                 "created_at": "2023-06-22T10:00:00",
                 "updated_at": "2023-06-22T10:00:00",
-                "applicant_count": 3
+                "applicant_count": 3,
+                "match_score": 0.85,
+                "matched_skills": ["Python", "JavaScript"]
             }
         }
 

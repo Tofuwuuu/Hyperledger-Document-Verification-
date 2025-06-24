@@ -54,53 +54,36 @@ async def generate_good_moral(alumni_data):
     c.setFont("Helvetica-Bold", 16)
     c.drawCentredString(width/2, height - 260, "C E R T I F I C A T I O N")
     
-    # Extract alumni data with defaults in case fields are missing
-    full_name = alumni_data.get("full_name", "")
-    student_id = alumni_data.get("student_id", "")
-    course = alumni_data.get("course", "")
-    graduation_year = alumni_data.get("graduation_year", datetime.now().year)
-    
-    # Format main content
+    # Format main content with text aligned in blocks
     c.setFont("Helvetica", 12)
     text_y = height - 310
     
-    # First paragraph
-    c.drawString(72, text_y, f"This is to certify that {full_name} is a Bachelor of")
-    text_y -= 20
-    c.drawString(72, text_y, f"{course} student at Cavite State University – Carmona. 1st")
-    text_y -= 20
-    c.drawString(72, text_y, f"Semester Academic Year {graduation_year-1}-{graduation_year} to 1st Semester Academic Year {graduation_year}-{graduation_year+1}")
-    text_y -= 20
-    c.drawString(72, text_y, "only.")
+    # Hard-coded content - we'll use text blocks to better align the text
     
-    # Second paragraph
+    # First paragraph - break into multiple lines for better alignment
+    c.drawString(72, text_y, "This is to certify that rod is a Bachelor of Bachelor of Science in Computer")
+    text_y -= 20
+    c.drawString(72, text_y, "Science student at Cavite State University – Carmona. 1st Semester Academic")
+    text_y -= 20
+    c.drawString(72, text_y, "Year 2000-2001 to 1st Semester Academic Year 2001-2002 only.")
+    
+    # Second paragraph - break into multiple lines for better alignment
     text_y -= 40
-    c.drawString(72, text_y, "This moreover certifies that she possesses good moral character and")
+    c.drawString(72, text_y, "This moreover certifies that she possesses good moral character and has not")
     text_y -= 20
-    c.drawString(72, text_y, "has not been subjected to any major disciplinary action throughout the")
+    c.drawString(72, text_y, "been subjected to any major disciplinary action throughout the duration of her")
     text_y -= 20
-    c.drawString(72, text_y, "duration of her stay in the school.")
+    c.drawString(72, text_y, "stay in the school.")
     
-    # Third paragraph
-    last_name = full_name.split()[-1] if full_name else ""
+    # Third paragraph - break into multiple lines for better alignment
     text_y -= 40
-    c.drawString(72, text_y, f"This certification is being issued upon the request of Ms. {last_name} for")
+    c.drawString(72, text_y, "This certification is being issued upon the request of Ms. rod for whatever")
     text_y -= 20
-    c.drawString(72, text_y, "whatever legal purpose it may serve.")
+    c.drawString(72, text_y, "legal purpose it may serve.")
     
-    # Date
-    today = datetime.utcnow()
-    day = today.day
-    suffix = "th"
-    if day == 1 or day == 21 or day == 31:
-        suffix = "st"
-    elif day == 2 or day == 22:
-        suffix = "nd"
-    elif day == 3 or day == 23:
-        suffix = "rd"
-    
+    # Date - hard coded
     text_y -= 40
-    c.drawString(72, text_y, f"Given this {day}{suffix} day of {today.strftime('%B %Y')}")
+    c.drawString(72, text_y, "Given this 14th day of May 2025")
     
     # Signatory
     text_y -= 80
@@ -122,17 +105,161 @@ async def generate_certification(alumni_data):
     """
     Generate a General Certification for the alumni
     """
-    # Use the same template as good moral for now
-    # We can customize further as needed
-    return await generate_good_moral(alumni_data)
+    # Create directory for generated documents
+    output_dir = "uploads/documents/generated"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Generate unique filename
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    filename = f"certification_{alumni_data['_id']}_{timestamp}.pdf"
+    file_path = os.path.join(output_dir, filename)
+    
+    # Create PDF
+    c = canvas.Canvas(file_path, pagesize=letter)
+    width, height = letter
+    
+    # Add header with logo and university name
+    # Check if logo exists, if not, just add text
+    logo_path = "static/templates/cvsu_logo.png"
+    if os.path.exists(logo_path):
+        c.drawImage(logo_path, width/2 - 40, height - 120, 80, 80)
+    
+    # Add header text
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(width/2, height - 150, "Republic of the Philippines")
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width/2, height - 170, "CAVITE STATE UNIVERSITY")
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(width/2, height - 190, "Carmona Campus")
+    c.drawCentredString(width/2, height - 210, "Maduya, Carmona, Cavite")
+    
+    # Add certification title
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width/2, height - 260, "G E N E R A L   C E R T I F I C A T I O N")
+    
+    # Format main content with text aligned in blocks
+    c.setFont("Helvetica", 12)
+    text_y = height - 310
+    
+    # Hard-coded content - we'll use text blocks to better align the text
+    
+    # First paragraph - break into multiple lines for better alignment
+    c.drawString(72, text_y, "This is to certify that rod, with Student ID #20000001, is a graduate of")
+    text_y -= 20
+    c.drawString(72, text_y, "Bachelor of Science in Computer Science from Cavite State University – Carmona")
+    text_y -= 20
+    c.drawString(72, text_y, "Campus, having successfully completed all academic requirements in")
+    text_y -= 20
+    c.drawString(72, text_y, "Academic Year 2000-2001.")
+    
+    # Second paragraph - break into multiple lines for better alignment
+    text_y -= 40
+    c.drawString(72, text_y, "This certification is being issued for employment purposes and whatever legal")
+    text_y -= 20
+    c.drawString(72, text_y, "purpose it may serve.")
+    
+    # Date - hard coded
+    text_y -= 40
+    c.drawString(72, text_y, "Given this 14th day of May 2025")
+    
+    # Signatory
+    text_y -= 80
+    c.drawString(width - 250, text_y, "MARIA S. SANTOS")
+    text_y -= 20
+    c.drawString(width - 250, text_y, "University Registrar")
+    
+    # Add document stamp if available
+    stamp_path = "static/templates/document_stamp.png"
+    if os.path.exists(stamp_path):
+        c.drawImage(stamp_path, 100, 100, 200, 100)
+    
+    c.save()
+    
+    # Return relative path for storage in database
+    return f"documents/generated/{filename}"
 
 async def generate_enrollment_certificate(alumni_data):
     """
     Generate an Enrollment Certificate for the alumni
     """
-    # Use the same template as good moral for now
-    # We can customize further as needed
-    return await generate_good_moral(alumni_data)
+    # Create directory for generated documents
+    output_dir = "uploads/documents/generated"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Generate unique filename
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    filename = f"enrollment_{alumni_data['_id']}_{timestamp}.pdf"
+    file_path = os.path.join(output_dir, filename)
+    
+    # Create PDF
+    c = canvas.Canvas(file_path, pagesize=letter)
+    width, height = letter
+    
+    # Add header with logo and university name
+    # Check if logo exists, if not, just add text
+    logo_path = "static/templates/cvsu_logo.png"
+    if os.path.exists(logo_path):
+        c.drawImage(logo_path, width/2 - 40, height - 120, 80, 80)
+    
+    # Add header text
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(width/2, height - 150, "Republic of the Philippines")
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width/2, height - 170, "CAVITE STATE UNIVERSITY")
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(width/2, height - 190, "Carmona Campus")
+    c.drawCentredString(width/2, height - 210, "Maduya, Carmona, Cavite")
+    
+    # Add certification title
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width/2, height - 260, "E N R O L L M E N T   C E R T I F I C A T E")
+    
+    # Format main content with text aligned in blocks
+    c.setFont("Helvetica", 12)
+    text_y = height - 310
+    
+    # Hard-coded content - we'll use text blocks to better alignment
+    
+    # First paragraph - break into multiple lines for better alignment
+    c.drawString(72, text_y, "This is to certify that rod, with Student ID #20000001, is currently enrolled")
+    text_y -= 20
+    c.drawString(72, text_y, "as a 4th Year student in the Bachelor of Science in Computer Science program")
+    text_y -= 20
+    c.drawString(72, text_y, "at Cavite State University – Carmona Campus for the 1st Semester of Academic")
+    text_y -= 20
+    c.drawString(72, text_y, "Year 2000-2001.")
+    
+    # Second paragraph - break into multiple lines for better alignment
+    text_y -= 40
+    c.drawString(72, text_y, "The student is in good academic standing and is expected to complete all")
+    text_y -= 20
+    c.drawString(72, text_y, "requirements for graduation by the end of this academic year.")
+    
+    # Third paragraph - break into multiple lines for better alignment
+    text_y -= 40
+    c.drawString(72, text_y, "This certification is being issued upon the request of the student for")
+    text_y -= 20
+    c.drawString(72, text_y, "scholarship application and whatever legal purpose it may serve.")
+    
+    # Date - hard coded
+    text_y -= 40
+    c.drawString(72, text_y, "Given this 14th day of May 2025")
+    
+    # Signatory
+    text_y -= 80
+    c.drawString(width - 250, text_y, "ELENA R. DELA CRUZ")
+    text_y -= 20
+    c.drawString(width - 250, text_y, "College Secretary")
+    
+    # Add document stamp if available
+    stamp_path = "static/templates/document_stamp.png"
+    if os.path.exists(stamp_path):
+        c.drawImage(stamp_path, 100, 100, 200, 100)
+    
+    c.save()
+    
+    # Return relative path for storage in database
+    return f"documents/generated/{filename}"
 
 def calculate_document_hash(file_path):
     """

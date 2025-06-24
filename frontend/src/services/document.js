@@ -62,6 +62,7 @@ const documentVerificationService = {
     }
     
     // Verify document hash on blockchain using updated API endpoint
+    // Pass both parameters explicitly to ensure correct API call
     return verificationService.verifyDocument(documentId, hash);
   },
   

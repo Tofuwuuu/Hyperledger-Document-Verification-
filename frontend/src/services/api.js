@@ -1,16 +1,18 @@
 import axios from 'axios';
 
-// Parse API URL to avoid path duplication
-let baseApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-// Remove trailing slash if present
-baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
-// Add /api/v1 only if it's not already included
-export const API_URL = baseApiUrl.includes('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`;
-console.log('API URL:', API_URL); // Debug API URL
+// Consistent API URL configuration - use relative paths for API proxy
+const API_URL = '/api/v1';
+export { API_URL };
+
+// Debug log current configuration
+console.log('API URL configured as:', API_URL);
 
 // Flag to prevent multiple refresh token requests
 let isRefreshing = false;
 let failedQueue = [];
+
+// Debug log for API requests
+const debugApiRequests = true;
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
@@ -38,6 +40,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Log all API requests when debug is enabled
+    if (debugApiRequests) {
+      console.log(`API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
+    }
+    
     return config;
   },
   (error) => {
@@ -364,14 +372,62 @@ export const alumniService = {
         throw new Error('User ID is required but missing');
       }
       
+      // Ensure required fields have values
+      const requiredFields = ['full_name', 'student_id', 'course', 'graduation_year', 'department', 'batch'];
+      const missingFields = requiredFields.filter(field => !profileData[field]);
+      
+      if (missingFields.length > 0) {
+        console.error('Missing required fields:', missingFields);
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      // REMOVE birthday field completely - we'll add it later when format is known
+      delete profileData.birthday;
+      console.log('Removed birthday field to avoid validation errors');
+      
+      // Ensure address doesn't exceed 200 characters
+      if (profileData.address && profileData.address.length > 200) {
+        console.warn('Address exceeds 200 characters, truncating...');
+        profileData.address = profileData.address.substring(0, 200);
+      }
+      
+      // Validate graduation_month - must be one of the allowed values
+      if (profileData.graduation_month) {
+        if (!["April", "September", "November"].includes(profileData.graduation_month)) {
+          console.warn('Invalid graduation_month detected before API call:', profileData.graduation_month);
+          delete profileData.graduation_month; // Remove invalid field entirely
+        } else {
+          console.log('Valid graduation_month:', profileData.graduation_month);
+        }
+      }
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No authentication token found');
+        throw new Error('Authentication token missing. Please log in again.');
+      }
+      
+      // Ensure achievements is properly formatted
+      if (profileData.achievements) {
+        if (!Array.isArray(profileData.achievements)) {
+          profileData.achievements = [];
+        } else {
+          // Make sure all achievements have a title property
+          profileData.achievements = profileData.achievements
+            .filter(a => a && (typeof a === 'string' || a.title))
+            .map(a => typeof a === 'string' ? { title: a } : a);
+        }
+      }
+      
       // Use direct axios instance for better debugging
       const response = await axios({
         method: 'post',
-        url: `${API_URL}/alumni`,
+        url: `${API_URL}/alumni/`, // Ensure trailing slash is present
         data: profileData,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         },
         timeout: 15000 // 15 second timeout
       });
@@ -383,6 +439,40 @@ export const alumniService = {
       if (error.response) {
         console.error('Error response data:', error.response.data);
         console.error('Error response status:', error.response.status);
+        
+        // If profile already exists, try to fetch and return it instead of throwing error
+        if (error.response.status === 400 && 
+            error.response.data.detail === "Alumni profile already exists for this user" &&
+            profileData.user_id) {
+          console.log('Profile already exists, fetching existing profile instead');
+          try {
+            // Use direct API call to avoid recursion
+            const existingProfile = await api.get(`/alumni/user/${profileData.user_id}`);
+            console.log('Successfully fetched existing profile:', existingProfile.data);
+            return existingProfile;
+          } catch (fetchError) {
+            console.error('Failed to fetch existing profile after "already exists" error:', fetchError);
+            // Continue with original error if fetch fails
+          }
+        }
+        
+        // Enhanced logging for validation errors
+        if (error.response.status === 422 && error.response.data.detail) {
+          if (Array.isArray(error.response.data.detail)) {
+            error.response.data.detail.forEach(validationError => {
+              console.error('Validation error:', JSON.stringify(validationError));
+              
+              // Log specific details about common fields
+              if (validationError.loc.includes('birthday')) {
+                console.error(`Birthday validation error: ${validationError.msg}`);
+              }
+              
+              if (validationError.loc.includes('graduation_month')) {
+                console.error(`Graduation month validation error: ${validationError.msg}`);
+              }
+            });
+          }
+        }
       } else if (error.request) {
         console.error('No response received:', error.request);
       }
@@ -551,7 +641,16 @@ export const documentService = {
       formData.append(key, documentData[key]);
     }
     
-    const response = await api.post('/documents', formData, {
+    console.log('Uploading document with data:', {
+      alumni_id: documentData.alumni_id,
+      document_type: documentData.document_type,
+      title: documentData.title,
+      description: documentData.description || 'None',
+      file_name: documentData.file?.name || 'No file'
+    });
+    
+    // Use the correct endpoint as defined in the backend
+    const response = await api.post('/documents/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -589,13 +688,37 @@ export const documentService = {
 
 // Verification services
 export const verificationService = {
-  verifyDocument: async (verificationCode) => {
+  verifyDocument: async (documentIdOrCode, hash = null) => {
     try {
-      const response = await api.get(`/documents/verify/${verificationCode}`);
-      return {
-        success: true,
-        data: response.data
-      };
+      // If hash is provided, use the blockchain verification endpoint
+      if (hash) {
+        const response = await api.post('/verification/blockchain/verify', {
+          document_id: documentIdOrCode,
+          hash: hash
+        });
+        return {
+          success: true,
+          data: response.data
+        };
+      } 
+      // If only documentIdOrCode is provided, use the document check endpoint
+      else {
+        // First try the blockchain check endpoint
+        try {
+          const response = await api.get(`/verification/check/${documentIdOrCode}`);
+          return {
+            success: true,
+            data: response.data
+          };
+        } catch (checkError) {
+          // Fall back to the legacy verification endpoint if check fails
+          const legacyResponse = await api.get(`/documents/verify/${documentIdOrCode}`);
+          return {
+            success: true,
+            data: legacyResponse.data
+          };
+        }
+      }
     } catch (error) {
       return {
         success: false,

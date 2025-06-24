@@ -40,6 +40,7 @@ export default function RegisterPage() {
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (values, { setSubmitting }) => {
@@ -84,6 +85,11 @@ export default function RegisterPage() {
   for (let year = currentYear; year >= 1970; year--) {
     yearOptions.push(year);
   }
+
+  // Toggle terms modal
+  const toggleTermsModal = () => {
+    setShowTermsModal(!showTermsModal);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
@@ -293,33 +299,42 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center">
-                      <Field
-                        id="terms"
-                        name="terms"
-                        type="checkbox"
-                        className={`h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded ${
-                          errors.terms && touched.terms ? 'border-red-500' : ''
-                        }`}
-                      />
-                      <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
-                        I agree to the{' '}
-                        <a href="#" className="font-medium text-cvsu-green hover:text-green-700">
-                          terms and conditions
-                        </a>
-                      </label>
+                    <div className="mt-6">
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 mt-0.5">
+                          <Field
+                            id="terms"
+                            name="terms"
+                            type="checkbox"
+                            className={`h-5 w-5 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded ${
+                              errors.terms && touched.terms ? 'border-red-500' : ''
+                            }`}
+                          />
+                        </div>
+                        <div className="ml-3">
+                          <button 
+                            type="button" 
+                            onClick={toggleTermsModal} 
+                            className="text-gray-700 hover:text-gray-900"
+                          >
+                            <span>I agree to the </span>
+                            <span className="font-medium text-cvsu-green hover:text-green-700">Terms and Conditions</span>
+                          </button>
+                          
+                          {errors.terms && touched.terms && (
+                            <p className="mt-2 text-sm text-red-600">
+                              You must accept the terms and conditions
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <ErrorMessage
-                      name="terms"
-                      component="p"
-                      className="mt-2 text-sm text-red-600"
-                    />
 
                     <div>
                       <button
                         type="submit"
                         disabled={isSubmitting || isLoading}
-                        className="btn-primary w-full flex justify-center"
+                        className="btn-primary w-full flex justify-center py-3 mt-6"
                       >
                         {isLoading ? (
                           <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -336,6 +351,77 @@ export default function RegisterPage() {
           )}
         </div>
       </div>
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-3xl max-h-[80vh] overflow-y-auto p-6 shadow-xl">
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-medium text-gray-900">Terms and Conditions & Data Privacy Notice</h3>
+              <button
+                type="button"
+                onClick={toggleTermsModal}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mt-4 space-y-6 text-sm text-gray-500">
+              <div>
+                <h4 className="font-bold text-gray-700 mb-2">Terms and Conditions</h4>
+                <p>By registering for an account on the CvSU Alumni System, you agree to the following terms:</p>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>You are a legitimate graduate or alumni of Cavite State University.</li>
+                  <li>All information provided during registration and profile creation is accurate and truthful.</li>
+                  <li>You will not share your account credentials with others or allow unauthorized access.</li>
+                  <li>You will use the system in accordance with its intended purpose and comply with all applicable laws and regulations.</li>
+                  <li>The university reserves the right to verify your alumni status and may disable accounts found to be in violation of these terms.</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-bold text-gray-700 mb-2">Data Privacy Notice (In compliance with RA 10173)</h4>
+                <p>Cavite State University values your privacy and is committed to protecting your personal information in accordance with the Philippine Data Privacy Act of 2012 (Republic Act No. 10173). By providing your information, you consent to the collection, use, storage, and processing of your personal data for the following purposes:</p>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>Alumni verification and authentication</li>
+                  <li>Communication of university events, programs, and opportunities</li>
+                  <li>Processing of document requests and alumni services</li>
+                  <li>Compiling statistics and conducting research to improve services</li>
+                  <li>Career development and networking opportunities</li>
+                  <li>Other legitimate purposes related to alumni relations</li>
+                </ul>
+                
+                <p className="mt-3">Your personal information will be kept secure and confidential. You have the right to:</p>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>Be informed about the processing of your personal data</li>
+                  <li>Access your personal information in our records</li>
+                  <li>Object to the processing of your personal data</li>
+                  <li>Rectify inaccuracies in your personal information</li>
+                  <li>Erasure or blocking of your personal information</li>
+                  <li>Be indemnified for damages due to inaccurate or unauthorized use of your personal information</li>
+                  <li>Data portability</li>
+                </ul>
+                
+                <p className="mt-3">For inquiries or concerns regarding your data privacy rights, please contact our Data Privacy Officer at privacy@cvsu.edu.ph.</p>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={toggleTermsModal}
+                className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-cvsu-green rounded-md hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500"
+              >
+                I Understand
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

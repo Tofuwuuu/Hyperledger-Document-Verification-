@@ -8,6 +8,7 @@ class PollingService {
     this.isPolling = false;
     this.pollFrequency = parseInt(import.meta.env.VITE_POLLING_INTERVAL || '5000', 10); // Default to 5 seconds
     this.role = null;
+    this.notificationFailureCount = 0;
     
     console.log(`Polling service initialized with frequency: ${this.pollFrequency}ms`);
   }
@@ -53,12 +54,8 @@ class PollingService {
         return;
       }
 
-      // Get base API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      // Remove trailing slash if present
-      baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      // Add /api/v1 only if it's not already included
-      const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      // Use the proxy path directly to avoid CORS issues
+      const apiUrl = '/api/v1';
       
       // Add a timestamp parameter to prevent caching
       const timestamp = new Date().getTime();
@@ -79,13 +76,30 @@ class PollingService {
 
       if (!response.ok) {
         console.error(`Failed to fetch notifications: ${response.status} ${response.statusText}`);
+        
         // If 401 Unauthorized, stop polling (token expired)
         if (response.status === 401) {
           console.error('Unauthorized access - stopping polling (token may have expired)');
           this.stopPolling();
         }
+        
+        // If 404 Not Found, the endpoint doesn't exist
+        if (response.status === 404) {
+          // Initialize failure count if not already set
+          this.notificationFailureCount = (this.notificationFailureCount || 0) + 1;
+          
+          // After 3 failures, assume notifications are not implemented and stop polling
+          if (this.notificationFailureCount >= 3) {
+            console.warn('Notifications endpoint not found after multiple attempts. Notifications disabled.');
+            this.stopPolling();
+          }
+        }
+        
         return;
       }
+
+      // Reset failure count on success
+      this.notificationFailureCount = 0;
 
       const data = await response.json();
       console.log(`Received notification data:`, data);

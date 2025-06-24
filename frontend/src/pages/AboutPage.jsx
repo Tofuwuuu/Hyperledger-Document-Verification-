@@ -92,7 +92,7 @@ export default function AboutPage() {
   return (
     <div className="bg-white">
       {/* Hero section with background overlay */}
-      <div className="relative bg-cover bg-center h-[500px]" style={{ backgroundImage: "url('/src/assets/cvsu-campus.jpg')" }}>
+      <div className="relative bg-cover bg-center h-[500px]" style={{ backgroundImage: "url('/src/assets/cvsu-hero.jpg')" }}>
         <div className="absolute inset-0 bg-gradient-to-r from-cvsu-green/90 to-cvsu-green/80"></div>
         <div className="absolute inset-0 bg-[url('/src/assets/pattern.svg')] opacity-10"></div>
         <div className="relative mx-auto max-w-7xl px-6 lg:px-8 h-full flex flex-col justify-center">

@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import PropTypes from 'prop-types';
@@ -5,7 +6,7 @@ import PropTypes from 'prop-types';
 const EventCard = ({ event, index = 0 }) => {
   // Animation delay based on index for staggered entrance
   const animationDelay = `${index * 150}ms`;
-
+  
   return (
     <div 
       className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 group animate-fadeIn"
@@ -59,7 +60,7 @@ const EventCard = ({ event, index = 0 }) => {
           </div>
         </div>
         
-        <Link 
+        <Link
           to={`/events/${event._id}`}
           className="inline-flex items-center justify-center w-full bg-cvsu-green hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded text-center transition-all duration-300 group-hover:shadow"
         >

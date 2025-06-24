@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, validator
 from datetime import datetime
 import re
@@ -124,7 +124,7 @@ class AlumniBase(BaseModel):
     
     # Employment Data Fields
     is_employed: Optional[str] = Field(None, description="Employment status (Yes, No, Never Employed)")
-    unemployment_reason: Optional[str] = Field(None, max_length=500, description="Reason for unemployment")
+    unemployment_reason: Optional[Union[str, List[str]]] = Field(None, description="Reason for unemployment")
     employment_status: Optional[str] = Field(None, description="Current employment status (Regular, Temporary, etc.)")
     occupation: Optional[str] = Field(None, max_length=200, description="Present occupation")
     business_type: Optional[str] = Field(None, description="Type of business if self-employed")
@@ -255,7 +255,7 @@ class AlumniUpdate(BaseModel):
     
     # Employment Data Fields
     is_employed: Optional[str] = Field(None, description="Employment status (Yes, No, Never Employed)")
-    unemployment_reason: Optional[str] = Field(None, max_length=500, description="Reason for unemployment")
+    unemployment_reason: Optional[Union[str, List[str]]] = Field(None, description="Reason for unemployment")
     employment_status: Optional[str] = Field(None, description="Current employment status (Regular, Temporary, etc.)")
     occupation: Optional[str] = Field(None, max_length=200, description="Present occupation")
     business_type: Optional[str] = Field(None, description="Type of business if self-employed")

@@ -193,17 +193,18 @@ async def get_verification_requests(
             VerificationStatus.REJECTED.value: "rejected"
         }
         
+        doc_id = str(doc["_id"])
         verification_request = {
-            "id": str(doc["_id"]),  # Convert ObjectId to string
+            "id": doc_id,  # Convert ObjectId to string
             "studentName": alumni["full_name"],
             "studentId": alumni.get("student_id", ""),
             "documentType": doc["document_type"],
-            "program": alumni.get("program", ""),
+            "program": alumni.get("course", ""),
             "submissionDate": doc["created_at"].isoformat(),
             "status": status_map.get(doc["verification_status"], "pending"),
-            "documentPreviewUrl": f"/api/v1/documents/{doc['_id']}/preview",
+            "documentPreviewUrl": f"/api/v1/documents/{doc_id}/preview",
             "notes": doc.get("admin_notes", ""),
-            "fileUrl": f"/api/v1/documents/{doc['_id']}/download"
+            "fileUrl": f"/api/v1/documents/{doc_id}/download"
         }
         result.append(verification_request)
     

@@ -5,38 +5,43 @@ import meetingConfig from './meetingConfig';
 const meetingService = {
   // Create a new meeting
   createMeeting: async (meetingData) => {
-    return api.post('/meetings', meetingData);
+    return api.post('/meetings/meetings', meetingData);
   },
   
   // Get a meeting by ID
   getMeeting: async (meetingId) => {
-    return api.get(`/meetings/${meetingId}`);
+    return api.get(`/meetings/meetings/${meetingId}`);
   },
   
   // Update meeting details
   updateMeeting: async (meetingId, updateData) => {
-    return api.put(`/meetings/${meetingId}`, updateData);
+    return api.put(`/meetings/meetings/${meetingId}`, updateData);
   },
   
   // Get all meetings for an event
   getEventMeetings: async (eventId) => {
-    return api.get(`/events/${eventId}/meetings`);
+    return api.get(`/meetings/events/${eventId}/meetings`);
+  },
+  
+  // Generate JWT token for meeting
+  generateToken: async (tokenData) => {
+    return api.post('/meetings/meetings/generate-token', tokenData);
   },
   
   // Record joining a meeting
   joinMeeting: async (meetingId) => {
-    return api.post(`/meetings/${meetingId}/join`);
+    return api.post(`/meetings/meetings/${meetingId}/join`);
   },
   
   // Record leaving a meeting
   leaveMeeting: async (meetingId) => {
-    return api.post(`/meetings/${meetingId}/leave`);
+    return api.post(`/meetings/meetings/${meetingId}/leave`);
   },
   
   // Start recording a meeting
   startRecording: async (meetingId) => {
     try {
-      const response = await api.post(`/meetings/${meetingId}/recording/start`);
+      const response = await api.post(`/meetings/meetings/${meetingId}/recording/start`);
       return response.data;
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -47,7 +52,7 @@ const meetingService = {
   // Stop recording a meeting
   stopRecording: async (meetingId) => {
     try {
-      const response = await api.post(`/meetings/${meetingId}/recording/stop`);
+      const response = await api.post(`/meetings/meetings/${meetingId}/recording/stop`);
       return response.data;
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -58,7 +63,7 @@ const meetingService = {
   // Get recording status
   getRecordingStatus: async (meetingId) => {
     try {
-      const response = await api.get(`/meetings/${meetingId}/recording`);
+      const response = await api.get(`/meetings/meetings/${meetingId}/recording`);
       return response.data;
     } catch (error) {
       console.error('Failed to get recording status:', error);

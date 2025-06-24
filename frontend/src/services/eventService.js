@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL } from '../config';
+import api from './api';
 
 const getToken = () => {
   return localStorage.getItem('token');
@@ -11,11 +12,9 @@ const getAuthHeader = () => {
 };
 
 // Event-related API calls
-export const getUpcomingEvents = async (limit = 5) => {
+export const getUpcomingEvents = async () => {
   try {
-    // Add timestamp parameter to prevent caching
-    const timestamp = new Date().getTime();
-    const response = await axios.get(`${API_URL}/events/upcoming?limit=${limit}&_t=${timestamp}`);
+    const response = await api.get('/events/upcoming');
     return response.data;
   } catch (error) {
     console.error('Error fetching upcoming events:', error);
@@ -23,26 +22,22 @@ export const getUpcomingEvents = async (limit = 5) => {
   }
 };
 
-export const getAllEvents = async (activeOnly = false) => {
+export const getAllEvents = async (activeOnly = true) => {
   try {
-    const response = await axios.get(`${API_URL}/events?active_only=${activeOnly}`, {
-      headers: getAuthHeader()
-    });
+    const response = await api.get(`/events?active_only=${activeOnly}`);
     return response.data;
   } catch (error) {
-    console.error('Error fetching all events:', error);
+    console.error('Error fetching events:', error);
     throw error;
   }
 };
 
 export const getEventById = async (eventId) => {
   try {
-    const response = await axios.get(`${API_URL}/events/${eventId}`, {
-      headers: getAuthHeader()
-    });
+    const response = await api.get(`/events/${eventId}`);
     return response.data;
   } catch (error) {
-    console.error(`Error fetching event with ID ${eventId}:`, error);
+    console.error(`Error fetching event ${eventId}:`, error);
     throw error;
   }
 };
@@ -69,14 +64,8 @@ export const createEvent = async (eventData) => {
     
     console.log('Sending cleaned event data:', JSON.stringify(cleanedData));
     
-    // Set proper content type header and increase timeout
-    const headers = {
-      ...getAuthHeader(),
-      'Content-Type': 'application/json'
-    };
-    
-    const response = await axios.post(`${API_URL}/events`, cleanedData, {
-      headers,
+    // Use the api instance instead of direct axios call for consistency
+    const response = await api.post('/events', cleanedData, {
       timeout: 10000 // 10 second timeout
     });
     
@@ -97,9 +86,7 @@ export const createEvent = async (eventData) => {
 
 export const updateEvent = async (eventId, eventData) => {
   try {
-    const response = await axios.put(`${API_URL}/events/${eventId}`, eventData, {
-      headers: getAuthHeader()
-    });
+    const response = await api.put(`/events/${eventId}`, eventData);
     return response.data;
   } catch (error) {
     console.error(`Error updating event with ID ${eventId}:`, error);
@@ -109,9 +96,7 @@ export const updateEvent = async (eventId, eventData) => {
 
 export const deleteEvent = async (eventId) => {
   try {
-    const response = await axios.delete(`${API_URL}/events/${eventId}`, {
-      headers: getAuthHeader()
-    });
+    const response = await api.delete(`/events/${eventId}`);
     return response.data;
   } catch (error) {
     console.error(`Error deleting event with ID ${eventId}:`, error);
@@ -123,31 +108,12 @@ export const deleteEvent = async (eventId) => {
 export const registerForEvent = async (eventId) => {
   try {
     console.log(`Registering for event with ID ${eventId}`);
-    // Get the current user ID from localStorage
-    const token = localStorage.getItem('token');
-    let userId = null;
     
-    if (token) {
-      try {
-        // Extract user ID from token payload
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(window.atob(base64));
-        userId = payload.sub; // 'sub' field contains the user ID
-      } catch (e) {
-        console.error('Error extracting user ID from token:', e);
-      }
-    }
-    
-    const payload = { 
-      event_id: eventId,
-      user_id: userId // Include user_id explicitly
-    };
+    // Simplified payload - the backend will extract user_id from the auth token
+    const payload = { event_id: eventId };
     console.log('Request payload:', JSON.stringify(payload));
     
-    const response = await axios.post(`${API_URL}/registrations`, payload, {
-      headers: getAuthHeader()
-    });
+    const response = await api.post('/registrations', payload);
     console.log('Registration successful:', response.data);
     
     // Add the new registration to localStorage cache
@@ -620,109 +586,31 @@ export const getEventAttendees = async (eventId) => {
   }
 };
 
-export const generateEventQRCode = async (eventId, type) => {
+// Consolidated QR code generation function
+export const generateEventQRCode = async (eventId, type = 'registration') => {
   try {
-    console.log(`Generating QR code for event ID: ${eventId} of type: ${type}`);
+    console.log(`Generating ${type} QR code for event: ${eventId}`);
     
-    // Default to registration type if not specified
-    const qrType = type || 'registration';
+    // Use API instance for consistency and proper auth handling
+    const response = await api.get(`/events/${eventId}/qrcode?type=${type}`);
     
-    // Use a timestamp to prevent caching
-    const timestamp = new Date().getTime();
-    
-    // Create the API URL with cache-busting parameter
-    const apiUrl = `${API_URL}/events/${eventId}/qrcode?type=${qrType}&_t=${timestamp}`;
-    console.log(`Calling QR code API at: ${apiUrl}`);
-    
-    const response = await axios({
-      method: 'get',
-      url: apiUrl,
-      headers: {
-        ...getAuthHeader(),
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      },
-      timeout: 30000, // Increased timeout to 30 seconds
-      responseType: 'json'
-    });
-    
-    console.log('QR code API response type:', typeof response.data);
-    if (typeof response.data === 'object') {
-      console.log('QR code API response keys:', Object.keys(response.data));
-    }
-    
-    // Extract the QR code URL from the response
-    let qrCodeUrl;
-    
-    if (typeof response.data === 'object' && response.data !== null) {
-      // Handle object response
-      qrCodeUrl = response.data.qr_code_url || response.data.attendance_qr_url;
-      
-      if (!qrCodeUrl) {
-        // Try to find any property that might contain the QR code
-        const possibleProps = ['qr_code', 'qrcode', 'qr_code_data', 'image', 'url'];
-        for (const prop of possibleProps) {
-          if (response.data[prop]) {
-            qrCodeUrl = response.data[prop];
-            console.log(`Found QR code in '${prop}' property`);
-            break;
-          }
-        }
-      }
+    // Check for response data structure and handle accordingly
+    if (response.data && response.data.qr_code_url) {
+      return response.data.qr_code_url;
     } else {
-      // Handle string response (might be direct base64 data)
-      qrCodeUrl = response.data;
+      console.error('Invalid QR code response format:', response.data);
+      throw new Error('Invalid QR code response format');
     }
-    
-    // Validate the QR code URL
-    if (!qrCodeUrl) {
-      console.error('QR code URL not found in response:', response.data);
-      throw new Error('QR code URL not found in response');
-    }
-    
-    // Ensure the QR code URL is in the correct format
-    if (typeof qrCodeUrl === 'string' && !qrCodeUrl.startsWith('data:image')) {
-      if (qrCodeUrl.match(/^[A-Za-z0-9+/=]+$/)) {
-        // Looks like a raw base64 string, convert to data URL
-        qrCodeUrl = `data:image/png;base64,${qrCodeUrl}`;
-        console.log('Converted raw base64 to data URL');
-      }
-    }
-    
-    console.log('QR code URL extracted successfully, type:', typeof qrCodeUrl);
-    if (typeof qrCodeUrl === 'string') {
-      console.log('QR code URL length:', qrCodeUrl.length);
-      console.log('QR code URL prefix:', qrCodeUrl.substring(0, 30) + '...');
-    }
-    
-    // Validate the QR code URL format
-    if (typeof qrCodeUrl !== 'string' || !qrCodeUrl.startsWith('data:image')) {
-      console.warn('QR code URL does not have expected format:', qrCodeUrl?.substring(0, 50) + '...');
-    }
-    
-    return qrCodeUrl;
   } catch (error) {
-    console.error(`Error generating QR code for event ID ${eventId}:`, error);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-    } else {
-      console.error('Error message:', error.message);
-    }
+    console.error(`Error generating ${type} QR code:`, error);
     throw error;
   }
 };
 
+// For backward compatibility, keep this function, but implement it using the consolidated function
 export const generateAttendanceQRCode = async (eventId) => {
-  try {
-    console.log(`Generating attendance QR code for event ID: ${eventId}`);
-    return await generateEventQRCode(eventId, 'attendance');
-  } catch (error) {
-    console.error(`Error generating attendance QR code for event ID ${eventId}:`, error);
-    throw error;
-  }
+  // Simply delegate to the main function with the appropriate type
+  return generateEventQRCode(eventId, 'attendance');
 };
 
 export const handleQuickRegistration = async (eventId, token) => {

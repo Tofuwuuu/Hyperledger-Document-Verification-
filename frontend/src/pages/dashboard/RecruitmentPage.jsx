@@ -4,6 +4,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import { API_URL } from '../../services/api';
+import { BriefcaseIcon, CheckCircleIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
 const RecruitmentPage = () => {
   const { currentUser, authToken } = useAuth();
@@ -14,11 +15,64 @@ const RecruitmentPage = () => {
   const [applyingToJobId, setApplyingToJobId] = useState(null);
   const [coverLetter, setCoverLetter] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [alumniSkills, setAlumniSkills] = useState([]);
+  const [showOnlyMatching, setShowOnlyMatching] = useState(false);
+  const [fetchingProfile, setFetchingProfile] = useState(true);
 
   useEffect(() => {
     fetchJobs();
     fetchMyApplications();
+    fetchAlumniProfile();
   }, []);
+  
+  // Fetch alumni profile to get skills
+  const fetchAlumniProfile = async () => {
+    try {
+      setFetchingProfile(true);
+      
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        toast.error('Authentication required. Please log in again.');
+        return;
+      }
+      
+      const userId = currentUser.id || currentUser._id;
+      const response = await axios.get(`${API_URL}/alumni/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const alumniData = response.data;
+      
+      // Parse skills from profile
+      let skills = [];
+      
+      // Extract skills from the skills text field (comma-separated)
+      if (alumniData.skills && typeof alumniData.skills === 'string') {
+        skills = alumniData.skills.split(',').map(skill => skill.trim().toLowerCase());
+      }
+      
+      // Add skills from competencies_from_college array
+      if (alumniData.competencies_from_college && Array.isArray(alumniData.competencies_from_college)) {
+        skills = [...skills, ...alumniData.competencies_from_college.map(skill => skill.toLowerCase())];
+      }
+      
+      // Remove duplicates
+      skills = [...new Set(skills)];
+      
+      setAlumniSkills(skills);
+      console.log('Alumni skills loaded:', skills);
+      
+    } catch (error) {
+      console.error('Error fetching alumni profile:', error);
+      // Don't show an error toast as this is a background feature
+    } finally {
+      setFetchingProfile(false);
+    }
+  };
 
   const fetchJobs = async () => {
     try {
@@ -41,7 +95,37 @@ const RecruitmentPage = () => {
       
       // Filter only active jobs
       const activeJobs = response.data.filter(job => job.status === 'active');
-      setJobs(activeJobs);
+      
+      // Calculate skill match percentage for each job
+      const jobsWithMatchScore = activeJobs.map(job => {
+        const jobSkills = job.skills || [];
+        
+        // If job has no skills, match score is 0
+        if (jobSkills.length === 0 || alumniSkills.length === 0) {
+          return { ...job, matchScore: 0, matchedSkills: [] };
+        }
+        
+        // Find skills that match (case-insensitive)
+        const matchedSkills = jobSkills.filter(skill => 
+          alumniSkills.some(alumniSkill => 
+            alumniSkill.toLowerCase() === skill.toLowerCase()
+          )
+        );
+        
+        // Calculate match percentage
+        const matchScore = Math.round((matchedSkills.length / jobSkills.length) * 100);
+        
+        return {
+          ...job,
+          matchScore,
+          matchedSkills
+        };
+      });
+      
+      // Sort jobs by match score (highest first)
+      jobsWithMatchScore.sort((a, b) => b.matchScore - a.matchScore);
+      
+      setJobs(jobsWithMatchScore);
     } catch (error) {
       console.error('Error fetching jobs:', error);
       toast.error('Failed to load job opportunities');
@@ -49,6 +133,11 @@ const RecruitmentPage = () => {
       setLoading(false);
     }
   };
+  
+  // Filter jobs based on showOnlyMatching state
+  const filteredJobs = showOnlyMatching 
+    ? jobs.filter(job => job.matchScore > 0)
+    : jobs;
 
   const fetchMyApplications = async () => {
     try {
@@ -206,17 +295,70 @@ const RecruitmentPage = () => {
       )}
 
       <div>
-        <h2 className="text-xl font-semibold mb-4">Available Positions</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Available Positions</h2>
+          
+          {/* Skills Matching Filter */}
+          <div className="flex items-center">
+            <button 
+              onClick={() => setShowOnlyMatching(!showOnlyMatching)}
+              className={`flex items-center px-3 py-1.5 rounded text-sm ${
+                showOnlyMatching 
+                  ? 'bg-cvsu-green text-white' 
+                  : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              <FunnelIcon className="h-4 w-4 mr-1" />
+              {showOnlyMatching ? 'Showing matching jobs' : 'Show matching jobs'}
+            </button>
+          </div>
+        </div>
+        
+        {/* Skills Match Summary */}
+        {!fetchingProfile && alumniSkills.length > 0 && (
+          <div className="bg-blue-50 mb-4 p-3 rounded-lg">
+            <div className="flex items-start">
+              <BriefcaseIcon className="h-5 w-5 text-blue-500 mr-2 mt-0.5" />
+              <div>
+                <p className="text-sm text-blue-700">
+                  <strong>Skills Matching:</strong> We found {jobs.filter(job => job.matchScore > 0).length} jobs matching your skills.
+                </p>
+                <div className="mt-1">
+                  <p className="text-xs text-blue-600">Your skills: {alumniSkills.join(', ')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-cvsu-green"></div>
           </div>
-        ) : jobs.length > 0 ? (
+        ) : filteredJobs.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {jobs.map((job) => (
-              <div key={job.id} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+            {filteredJobs.map((job) => (
+              <div key={job.id} className={`bg-white shadow rounded-lg overflow-hidden border ${
+                job.matchScore > 70 ? 'border-green-300' : 
+                job.matchScore > 40 ? 'border-blue-300' : 
+                job.matchScore > 0 ? 'border-gray-300' : 
+                'border-gray-200'
+              }`}>
                 <div className="p-5">
+                  {/* Match score indicator for matched jobs */}
+                  {job.matchScore > 0 && (
+                    <div className="flex items-center mb-2">
+                      <div className={`text-xs px-2 py-1 rounded-full font-medium flex items-center ${
+                        job.matchScore > 70 ? 'bg-green-100 text-green-800' :
+                        job.matchScore > 40 ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        <CheckCircleIcon className="h-3 w-3 mr-1" />
+                        {job.matchScore}% skills match
+                      </div>
+                    </div>
+                  )}
+                  
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">{job.title}</h3>
                   <p className="text-sm text-gray-600 mb-3">{job.company_name}</p>
                   
@@ -247,11 +389,24 @@ const RecruitmentPage = () => {
                     <div className="mb-4">
                       <p className="text-sm font-medium text-gray-700 mb-1">Skills:</p>
                       <div className="flex flex-wrap gap-1">
-                        {job.skills.map((skill, index) => (
-                          <span key={index} className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-800 mb-1">
-                            {skill}
-                          </span>
-                        ))}
+                        {job.skills.map((skill, index) => {
+                          const isMatched = job.matchedSkills && job.matchedSkills.some(
+                            s => s.toLowerCase() === skill.toLowerCase()
+                          );
+                          
+                          return (
+                            <span 
+                              key={index} 
+                              className={`px-2 py-1 text-xs rounded-md ${
+                                isMatched 
+                                  ? 'bg-green-100 text-green-800 border border-green-300' 
+                                  : 'bg-blue-100 text-blue-800'
+                              } mb-1`}
+                            >
+                              {skill}{isMatched && ' ✓'}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -267,7 +422,11 @@ const RecruitmentPage = () => {
                     ) : (
                       <button 
                         onClick={() => handleApply(job.id)}
-                        className="w-full px-4 py-2 bg-cvsu-green hover:bg-green-700 text-white rounded font-medium text-sm"
+                        className={`w-full px-4 py-2 text-white rounded font-medium text-sm ${
+                          job.matchScore > 50 
+                            ? 'bg-green-600 hover:bg-green-700' 
+                            : 'bg-cvsu-green hover:bg-green-700'
+                        }`}
                       >
                         Apply
                       </button>
@@ -293,6 +452,18 @@ const RecruitmentPage = () => {
             <p className="text-sm text-gray-600 mb-4">
               You are applying for: <span className="font-medium">{jobs.find(job => job.id === applyingToJobId)?.title}</span>
             </p>
+            
+            {/* Display skill match info if available */}
+            {jobs.find(job => job.id === applyingToJobId)?.matchScore > 0 && (
+              <div className="mb-4 bg-blue-50 p-3 rounded">
+                <p className="text-sm text-blue-800">
+                  <span className="font-semibold">Skills Match:</span> {jobs.find(job => job.id === applyingToJobId)?.matchScore}%
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Matching skills: {jobs.find(job => job.id === applyingToJobId)?.matchedSkills.join(', ')}
+                </p>
+              </div>
+            )}
             
             <form onSubmit={submitApplication}>
               <div className="mb-4">

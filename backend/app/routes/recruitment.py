@@ -885,4 +885,61 @@ async def search_candidates_by_skills(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search candidates: {str(e)}"
+        )
+
+@router.get("/stats", response_model=Dict)
+async def get_recruitment_stats(
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """
+    Get recruitment statistics for admin dashboard
+    """
+    # Verify that the current user is an admin or employer
+    if not (
+        current_user.get("is_admin") or 
+        current_user.get("user_type") == "employer" or 
+        current_user.get("type") == "employer"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access these statistics"
+        )
+    
+    try:
+        # Count total applications
+        total_applications = await db.job_applications.count_documents({})
+        
+        # Count applications by status
+        pending_applications = await db.job_applications.count_documents({
+            "status": {"$in": ["applied", "reviewing", "shortlisted", "interviewed"]}
+        })
+        
+        approved_applications = await db.job_applications.count_documents({
+            "status": "hired"
+        })
+        
+        rejected_applications = await db.job_applications.count_documents({
+            "status": "rejected"
+        })
+        
+        # Count total jobs
+        total_jobs = await db.jobs.count_documents({})
+        
+        # Count active jobs
+        active_jobs = await db.jobs.count_documents({"status": "active"})
+        
+        return {
+            "totalApplications": total_applications,
+            "pendingApplications": pending_applications,
+            "approvedApplications": approved_applications,
+            "rejectedApplications": rejected_applications,
+            "totalJobs": total_jobs,
+            "activeJobs": active_jobs
+        }
+    except Exception as e:
+        logger.error(f"Error fetching recruitment stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch recruitment stats: {str(e)}"
         ) 

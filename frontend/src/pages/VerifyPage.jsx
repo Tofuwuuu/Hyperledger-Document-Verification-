@@ -71,6 +71,7 @@ export default function VerifyPage() {
       
       // Then verify against the blockchain
       const result = await documentVerificationService.verifyDocumentOnBlockchain(documentId, hash);
+      console.log('Document verification result:', result);
       
       if (result.data && result.data.success) {
         setVerificationStatus(result.data.verified ? 'success' : 'error');
@@ -93,20 +94,41 @@ export default function VerifyPage() {
       {/* Hero section with pattern overlay */}
       <div className="relative bg-cover bg-center" style={{ backgroundColor: '#38a389' }}>
         <div className="absolute inset-0 bg-[url('/src/assets/pattern.svg')] opacity-10"></div>
-        <div className="relative mx-auto max-w-7xl px-6 lg:px-8 py-16 sm:py-24 text-center">
-          <div className="animate-slideDown">
-            <span className="inline-flex items-center rounded-full bg-white/20 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-white mb-5 shadow-md">
-              <ShieldCheckIcon className="h-4 w-4 mr-2" />
-              Blockchain Verification
-            </span>
+        <div className="relative mx-auto max-w-7xl px-6 lg:px-8 py-16 sm:py-24">
+          <div className="flex flex-col md:flex-row items-center justify-between">
+            <div className="text-center md:text-left md:max-w-xl">
+              <div className="animate-slideDown">
+                <span className="inline-flex items-center rounded-full bg-white/20 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-white mb-5 shadow-md">
+                  <ShieldCheckIcon className="h-4 w-4 mr-2" />
+                  Blockchain Verification
+                </span>
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl drop-shadow-md animate-fadeIn">
+                Document <span className="text-cvsu-yellow">Verification</span>
+              </h1>
+              <p className="mt-6 max-w-2xl text-xl leading-8 text-white/95 backdrop-blur-[2px] pl-3 border-l-4 border-cvsu-yellow animate-slideUp">
+                Verify the authenticity of any CVSU-Carmona document using our
+                blockchain-based verification system.
+              </p>
+            </div>
+            
+            <div className="hidden md:block mt-10 md:mt-0">
+              <div className="relative h-72 w-72 lg:h-96 lg:w-96 transform transition-all duration-500 hover:scale-105">
+                <div className="absolute inset-0 rounded-full bg-white/10 backdrop-blur-sm shadow-xl animate-pulse" style={{ animationDuration: '5s' }}></div>
+                <img 
+                  src="/src/assets/verification-image.png" 
+                  alt="Document verification illustration" 
+                  className="relative z-10 h-full w-full object-contain drop-shadow-2xl"
+                  onError={(e) => {
+                    // Fallback if the image doesn't exist
+                    e.target.src = "https://img.icons8.com/color/480/null/certificate-verification.png";
+                    e.target.classList.remove("object-contain");
+                    e.target.classList.add("object-cover");
+                  }}
+                />
+              </div>
+            </div>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl drop-shadow-md animate-fadeIn">
-            Document <span className="text-cvsu-yellow">Verification</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-xl leading-8 text-white/95 backdrop-blur-[2px] pl-3 border-l-4 border-cvsu-yellow animate-slideUp">
-            Verify the authenticity of any CVSU-Carmona document using our
-            blockchain-based verification system.
-          </p>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent"></div>
       </div>

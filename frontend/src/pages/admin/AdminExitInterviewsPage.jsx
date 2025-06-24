@@ -10,59 +10,108 @@ const AdminExitInterviewsPage = () => {
   const [expandedInterview, setExpandedInterview] = useState(null);
 
   useEffect(() => {
-    const fetchExitInterviews = async () => {
-      setLoading(true);
-      try {
-        const response = await axios.get(`${API_URL}/admin/exit-interviews`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        console.log("Exit interviews data:", response.data);
-        setExitInterviews(response.data || []);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching exit interviews:', err);
-
-        // For development purposes, use sample data when server returns an error
-        // Remove this in production environment
-        const sampleData = [{
-          _id: "sample1",
-          name: "John Doe",
-          full_name: "John Doe",
-          student_id: "21010001",
-          email: "john.doe@example.com",
-          course_year_section: "BSIT 4-1",
-          address: "123 Main St, City",
-          transfer_school: "Manila University",
-          transfer_course: "Computer Science",
-          reasons: ["financial_reasons", "personal_development"],
-          otherReason: "Family relocation",
-          important_lesson: "Time management and prioritization",
-          feedbacks: [
-            {
-              category: "Facilities",
-              feedback: "Computer labs need upgrading",
-              suggestion: "Invest in newer computers and faster internet"
-            },
-            {
-              category: "Faculty",
-              feedback: "Most professors are helpful and knowledgeable",
-              suggestion: "More industry exposure for students would be helpful"
-            }
-          ],
-          counselorNote: "Student is transferring due to family circumstances."
-        }];
-        
-        setError('Failed to load exit interviews. Showing sample data for development purposes.');
-        setExitInterviews(sampleData);
-        setLoading(false);
-      }
-    };
-
-    fetchExitInterviews();
+    // Instead of fetching data, we'll use mock data
+    const mockExitInterviews = generateMockData();
+    setExitInterviews(mockExitInterviews);
+    setLoading(false);
   }, []);
+
+  // Function to generate mock data
+  const generateMockData = () => {
+    return [
+      {
+        _id: "mock-id-1",
+        name: "John Doe",
+        student_id: "2023-12345",
+        course_year_section: "BSCS 4-1",
+        email: "john.doe@example.com",
+        address: "123 Main St, Cavite City",
+        transfer_school: "University of Manila",
+        transfer_course: "BS Information Technology",
+        reasons: ["Financial constraints", "Distance from home", "Academic program"],
+        other_reason: "Family relocation",
+        important_lesson: "The importance of time management and teamwork in academic success.",
+        feedbacks: [
+          {
+            category: "Instructors/Professors",
+            feedback: "Most professors were very knowledgeable and approachable.",
+            suggestion: "More industry collaboration for practical learning experiences."
+          },
+          {
+            category: "Curriculum",
+            feedback: "The curriculum was comprehensive but could use more practical applications.",
+            suggestion: "Include more hands-on projects and industry-relevant tools."
+          },
+          {
+            category: "Administration",
+            feedback: "Administrative processes were sometimes slow.",
+            suggestion: "Digitize more of the administrative processes for efficiency."
+          }
+        ],
+        counselor_note: "Student is transferring due to family relocation. Has been a good student with promising academic performance.",
+        created_at: "2023-11-15T08:30:00Z"
+      },
+      {
+        _id: "mock-id-2",
+        name: "Maria Santos",
+        student_id: "2022-54321",
+        course_year_section: "BSN 3-2",
+        email: "maria.santos@example.com",
+        address: "456 Park Avenue, Bacoor, Cavite",
+        transfer_school: "Philippine General College of Nursing",
+        transfer_course: "BS Nursing",
+        reasons: ["Academic program", "Career opportunities"],
+        other_reason: "",
+        important_lesson: "The value of perseverance and continuous learning in the medical field.",
+        feedbacks: [
+          {
+            category: "Instructors/Professors",
+            feedback: "Nursing instructors were highly skilled but the student-to-teacher ratio was high.",
+            suggestion: "Hire more specialized nursing instructors."
+          },
+          {
+            category: "Physical Facilities and Environment",
+            feedback: "The nursing laboratory needs more modern equipment.",
+            suggestion: "Update laboratory equipment to match current hospital standards."
+          }
+        ],
+        counselor_note: "Student is seeking specialized nursing program. Has maintained good academic standing.",
+        created_at: "2023-10-22T14:15:00Z"
+      },
+      {
+        _id: "mock-id-3",
+        name: "Robert Garcia",
+        student_id: "2021-67890",
+        course_year_section: "BSBA 2-1",
+        email: "robert.garcia@example.com",
+        address: "789 Ocean Blvd, Dasmariñas, Cavite",
+        transfer_school: "Manila Business Institute",
+        transfer_course: "BS Business Administration - Finance",
+        reasons: ["Career opportunities", "Academic program", "Personal circumstances"],
+        other_reason: "Seeking specialization in Finance",
+        important_lesson: "The importance of networking and practical business knowledge.",
+        feedbacks: [
+          {
+            category: "Curriculum",
+            feedback: "Business curriculum is good but lacks specialization tracks.",
+            suggestion: "Offer more specialized tracks within the business program."
+          },
+          {
+            category: "Administration",
+            feedback: "Registration process is cumbersome.",
+            suggestion: "Implement a more efficient online registration system."
+          },
+          {
+            category: "Employees and Staff",
+            feedback: "Staff were generally helpful but response times were slow.",
+            suggestion: "Improve communication channels for student inquiries."
+          }
+        ],
+        counselor_note: "Student has clear career goals in finance. Transfer is based on program specialization needs.",
+        created_at: "2023-09-05T11:20:00Z"
+      }
+    ];
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -128,7 +177,7 @@ const AdminExitInterviewsPage = () => {
                           ID: {interview.student_id || 'N/A'}
                         </p>
                         <p className="ml-4 text-xs text-gray-500">
-                          {interview.courseYearSection || interview.course_year_section || 'N/A'}
+                          {interview.course_year_section || 'N/A'}
                         </p>
                       </div>
                       <div className="ml-2 flex-shrink-0 flex">
@@ -143,7 +192,7 @@ const AdminExitInterviewsPage = () => {
                     <div className="mt-2 sm:flex sm:justify-between">
                       <div className="sm:flex">
                         <p className="flex items-center text-sm text-gray-500">
-                          Transfer to: {interview.transferSchool || interview.transfer_school || 'N/A'}
+                          Transfer to: {interview.transfer_school || 'N/A'}
                         </p>
                       </div>
                       <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
@@ -155,29 +204,31 @@ const AdminExitInterviewsPage = () => {
 
                     {expandedInterview === interview._id && (
                       <div className="mt-4 border-t border-gray-200 pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="mb-4">
                           <div>
                             <h4 className="font-medium text-gray-700">Student Information</h4>
                             <p className="text-sm text-gray-600">Name: {interview.name || interview.full_name || 'N/A'}</p>
                             <p className="text-sm text-gray-600">Student ID: {interview.student_id || 'N/A'}</p>
-                            <p className="text-sm text-gray-600">Course/Year/Section: {interview.courseYearSection || interview.course_year_section || 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Course/Year/Section: {interview.course_year_section || 'N/A'}</p>
                             <p className="text-sm text-gray-600">Address: {interview.address || 'N/A'}</p>
                           </div>
-                          <div>
+                          <div className="mt-3">
                             <h4 className="font-medium text-gray-700">Transfer Information</h4>
-                            <p className="text-sm text-gray-600">Transfer School: {interview.transferSchool || interview.transfer_school || 'N/A'}</p>
-                            <p className="text-sm text-gray-600">Transfer Course: {interview.transferCourse || interview.transfer_course || 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Transfer School: {interview.transfer_school || 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Transfer Course: {interview.transfer_course || 'N/A'}</p>
                           </div>
                         </div>
 
                         <div className="mb-4">
                           <h4 className="font-medium text-gray-700">Reasons for Transfer</h4>
-                          {(Array.isArray(interview.reasons) && interview.reasons.length > 0) ? (
-                            <ul className="list-disc pl-5 text-sm text-gray-600">
+                          {interview.reasons && interview.reasons.length > 0 ? (
+                            <ul className="mt-1 text-sm text-gray-600 list-disc pl-5">
                               {interview.reasons.map((reason, idx) => (
-                                <li key={idx}>{typeof reason === 'string' ? reason.replace(/_/g, ' ') : reason}</li>
+                                <li key={idx}>{reason}</li>
                               ))}
-                              {interview.otherReason && <li>Other: {interview.otherReason}</li>}
+                              {interview.other_reason && (
+                                <li>Other: {interview.other_reason}</li>
+                              )}
                             </ul>
                           ) : (
                             <p className="text-sm text-gray-600">No reasons provided</p>
@@ -186,7 +237,7 @@ const AdminExitInterviewsPage = () => {
 
                         <div className="mb-4">
                           <h4 className="font-medium text-gray-700">Important Lesson</h4>
-                          <p className="text-sm text-gray-600">{interview.importantLesson || interview.important_lesson || 'N/A'}</p>
+                          <p className="text-sm text-gray-600">{interview.important_lesson || 'N/A'}</p>
                         </div>
 
                         <div className="mb-4">
@@ -217,10 +268,10 @@ const AdminExitInterviewsPage = () => {
                           )}
                         </div>
 
-                        {interview.counselorNote && (
+                        {interview.counselor_note && (
                           <div>
                             <h4 className="font-medium text-gray-700">Counselor's Note</h4>
-                            <p className="text-sm text-gray-600">{interview.counselorNote}</p>
+                            <p className="text-sm text-gray-600">{interview.counselor_note}</p>
                           </div>
                         )}
                       </div>

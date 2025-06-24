@@ -276,7 +276,7 @@ async def get_all_alumni(
 async def get_alumni_by_user_id(user_id: str):
     db = get_database()
     
-    # Find alumni by user_id
+    # Find alumni
     alumni = await db.alumni.find_one({"user_id": user_id})
     if not alumni:
         raise HTTPException(
@@ -673,4 +673,130 @@ async def get_my_applications(
     # Sort by application date (newest first)
     applications.sort(key=lambda x: x["applied_date"], reverse=True)
     
-    return applications 
+    return applications
+
+@router.get("/jobs/recommended", response_model=List[JobResponse])
+async def get_recommended_jobs(
+    db=Depends(get_database),
+    current_user=Depends(get_current_user),
+    limit: int = 5
+):
+    """
+    Get job recommendations for the current alumni based on skills matching
+    """
+    # Verify user is alumni
+    if current_user.get("user_type") == "employer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint is for alumni only"
+        )
+    
+    # Get alumni profile
+    user_id = str(current_user.get("id", current_user.get("_id")))
+    alumni = await db.alumni.find_one({"user_id": user_id})
+    
+    if not alumni:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alumni profile not found"
+        )
+    
+    # Extract skills from the alumni profile
+    alumni_skills = []
+    
+    # Add skills from skills field (assuming comma-separated)
+    if alumni.get("skills"):
+        if isinstance(alumni.get("skills"), str):
+            alumni_skills.extend([skill.strip().lower() for skill in alumni.get("skills").split(",")])
+        elif isinstance(alumni.get("skills"), list):
+            alumni_skills.extend([skill.lower() for skill in alumni.get("skills")])
+    
+    # Add skills from competencies field
+    if alumni.get("competencies_from_college") and isinstance(alumni.get("competencies_from_college"), list):
+        alumni_skills.extend([skill.lower() for skill in alumni.get("competencies_from_college")])
+    
+    # If no skills found, return empty list
+    if not alumni_skills:
+        return []
+    
+    # Remove duplicates
+    alumni_skills = list(set(alumni_skills))
+    
+    # Find active jobs with matching skills
+    pipeline = [
+        # Match active jobs
+        {"$match": {"status": "active"}},
+        
+        # Add match score field
+        {"$addFields": {
+            "matchedSkills": {
+                "$filter": {
+                    "input": {"$ifNull": ["$skills", []]},
+                    "as": "skill",
+                    "cond": {"$in": [{"$toLower": "$$skill"}, alumni_skills]}
+                }
+            }
+        }},
+        
+        # Add match score percentage
+        {"$addFields": {
+            "skillCount": {"$size": {"$ifNull": ["$skills", []]}},
+            "matchedCount": {"$size": "$matchedSkills"},
+        }},
+        
+        # Calculate match percentage
+        {"$addFields": {
+            "matchScore": {
+                "$cond": [
+                    {"$eq": ["$skillCount", 0]},
+                    0,
+                    {"$multiply": [{"$divide": ["$matchedCount", "$skillCount"]}, 100]}
+                ]
+            }
+        }},
+        
+        # Only include jobs with at least one matched skill
+        {"$match": {"matchedCount": {"$gt": 0}}},
+        
+        # Sort by match score (highest first)
+        {"$sort": {"matchScore": -1}},
+        
+        # Limit results
+        {"$limit": limit}
+    ]
+    
+    # Execute pipeline
+    cursor = db.jobs.aggregate(pipeline)
+    
+    # Format results
+    jobs = []
+    async for job in cursor:
+        # Get employer info
+        employer = None
+        if job.get("employer_id"):
+            employer = await db.employers.find_one({"_id": ObjectId(job["employer_id"])})
+        
+        # Format the response
+        jobs.append({
+            "id": str(job["_id"]),
+            "employer_id": job["employer_id"],
+            "employer_name": employer.get("company_name") if employer else job.get("company_name", ""),
+            "title": job["title"],
+            "description": job["description"],
+            "location": job["location"],
+            "company_name": job.get("company_name", ""),
+            "skills": job.get("skills", []),
+            "requirements": job.get("requirements", []),
+            "responsibilities": job.get("responsibilities", []),
+            "employment_type": job.get("employment_type"),
+            "salary_range": job.get("salary_range"),
+            "application_deadline": job.get("application_deadline"),
+            "is_remote": job.get("is_remote", False),
+            "status": job.get("status", "active"),
+            "created_at": job["created_at"],
+            "updated_at": job["updated_at"],
+            "match_score": round(job.get("matchScore", 0)),
+            "matched_skills": job.get("matchedSkills", [])
+        })
+    
+    return jobs 

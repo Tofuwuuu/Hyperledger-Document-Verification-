@@ -27,7 +27,7 @@ class DocumentBase(BaseModel):
     alumni_id: str = Field(..., description="ID of the alumni who owns this document")
     document_type: DocumentType = Field(..., description="Type of document")
     title: str = Field(..., min_length=3, max_length=100, description="Document title")
-    description: Optional[str] = Field(None, max_length=500, description="Document description")
+    description: Optional[str] = Field(None, max_length=2000, description="Document description")
     file_path: str = Field(..., min_length=5, description="Path to the stored document file")
     file_hash: str = Field(..., min_length=32, description="Hash of the document file for verification")
     
@@ -49,7 +49,7 @@ class DocumentCreate(DocumentBase):
 class DocumentUpdate(BaseModel):
     document_type: Optional[DocumentType] = Field(None, description="Type of document")
     title: Optional[str] = Field(None, min_length=3, max_length=100, description="Document title")
-    description: Optional[str] = Field(None, max_length=500, description="Document description")
+    description: Optional[str] = Field(None, max_length=2000, description="Document description")
     file_path: Optional[str] = Field(None, min_length=5, description="Path to the stored document file")
     file_hash: Optional[str] = Field(None, min_length=32, description="Hash of the document file for verification")
     verification_status: Optional[VerificationStatus] = Field(None, description="Document verification status")
@@ -122,7 +122,7 @@ class DocumentUpload(BaseModel):
 class VerificationRequest(BaseModel):
     document_id: str = Field(..., description="ID of the document to verify")
     status: VerificationStatus = Field(..., description="New verification status")
-    admin_notes: Optional[str] = Field(None, max_length=500, description="Notes from the admin verifying the document")
+    admin_notes: Optional[str] = Field(None, max_length=2000, description="Notes from the admin verifying the document")
     
     @validator('status')
     def validate_status(cls, v):

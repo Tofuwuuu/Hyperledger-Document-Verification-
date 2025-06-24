@@ -68,8 +68,14 @@ const Questionnaire = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Fix: Get the API base URL from window.location to avoid duplication
+      const baseUrl = window.location.origin; // e.g. "http://localhost:8000"
+      const apiUrl = `${baseUrl}/api/v1/users/questionnaire`;
+      
+      console.log("Submitting questionnaire to URL:", apiUrl);
+      
       const response = await axios.post(
-        `${API_URL}/users/questionnaire`, 
+        apiUrl, 
         formData,
         {
           headers: {
@@ -357,7 +363,7 @@ const Questionnaire = () => {
         
         <div>
           <label htmlFor="counselorNote" className="block font-medium">
-            COUNSELOR'S NOTE during the INTERVIEW:
+            COUNSELOR'S NOTE during the INTERVIEW: <span className="text-gray-500 text-sm">(optional)</span>
           </label>
           <textarea 
             id="counselorNote"

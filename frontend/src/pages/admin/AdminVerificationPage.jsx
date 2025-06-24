@@ -7,6 +7,28 @@ import {
 } from '@heroicons/react/24/outline';
 import { adminVerificationService } from '../../services/api';
 import { fixStaticFileUrl } from '../../utils/url';
+import { getAuthToken } from '../../utils/auth';
+
+// Helper for fixing document URLs
+const ensureValidDocumentUrl = (url) => {
+  if (!url) return '';
+  
+  // Get the authentication token
+  const token = getAuthToken();
+  
+  // Make sure the URL is fully formed with the API prefix
+  let validUrl = url;
+  if (!validUrl.includes('/api/v1/')) {
+    validUrl = `/api/v1${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+  
+  // Add authentication token as a query parameter
+  if (token) {
+    validUrl = `${validUrl}${validUrl.includes('?') ? '&' : '?'}token=${token}`;
+  }
+  
+  return validUrl;
+};
 
 export default function AdminVerificationPage() {
   const [verificationRequests, setVerificationRequests] = useState([]);
@@ -283,7 +305,7 @@ export default function AdminVerificationPage() {
                   <h4 className="text-sm font-medium text-gray-500 mb-2">Document Preview</h4>
                   <div className="relative bg-gray-200 h-64 rounded flex items-center justify-center overflow-hidden">
                     <img 
-                      src={fixStaticFileUrl(selectedRequest.documentPreviewUrl)} 
+                      src={ensureValidDocumentUrl(selectedRequest.documentPreviewUrl)} 
                       alt="Document Preview" 
                       className="max-w-full max-h-full object-contain"
                       onError={(e) => {
@@ -294,10 +316,15 @@ export default function AdminVerificationPage() {
                   </div>
                   <div className="mt-2 flex justify-center">
                     <a 
-                      href={fixStaticFileUrl(selectedRequest.fileUrl)} 
+                      href={ensureValidDocumentUrl(selectedRequest.fileUrl)} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-cvsu-green hover:text-cvsu-green-dark text-sm font-medium"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        // Open in the same window to preserve auth context
+                        window.open(ensureValidDocumentUrl(selectedRequest.fileUrl), '_blank', 'noopener,noreferrer');
+                      }}
                     >
                       <span className="flex items-center">
                         <EyeIcon className="h-4 w-4 mr-1" />

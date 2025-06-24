@@ -41,165 +41,238 @@ export default function DashboardLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdminUser = isAdmin();
   const isEmployerUser = currentUser?.type === 'employer' || currentUser?.is_employer === true;
+  const [fullNavigation, setFullNavigation] = useState([]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  // Common navigation items for all users
-  const commonNavigation = [
-    { 
-      name: 'Dashboard', 
-      href: isAdminUser ? '/admin' : isEmployerUser ? '/employer' : '/alumni', 
-      icon: HomeIcon, 
-      current: location.pathname === (isAdminUser ? '/admin' : isEmployerUser ? '/employer' : '/alumni')
-    },
-    { 
-      name: 'Profile', 
-      href: isAdminUser ? '/admin/profile' : isEmployerUser ? '/employer/profile' : '/alumni/profile', 
-      icon: UserCircleIcon, 
-      current: location.pathname === (isAdminUser ? '/admin/profile' : isEmployerUser ? '/employer/profile' : '/alumni/profile')
-    },
-  ];
+  // Initialize navigation with dropdown state
+  useEffect(() => {
+    // Common navigation items for all users
+    const commonNavItems = isAdminUser || isEmployerUser ? [
+      { 
+        name: 'Dashboard', 
+        href: isAdminUser ? '/admin' : '/employer', 
+        icon: HomeIcon, 
+        current: location.pathname === (isAdminUser ? '/admin' : '/employer')
+      },
+      { 
+        name: 'Profile', 
+        href: isAdminUser ? '/admin/profile' : '/employer/profile', 
+        icon: UserCircleIcon, 
+        current: location.pathname === (isAdminUser ? '/admin/profile' : '/employer/profile')
+      },
+    ] : [];
 
-  // Employer-specific navigation items
-  const employerNavigation = [
-    {
-      name: 'Verify Documents',
-      href: '/employer/verifications',
-      icon: DocumentMagnifyingGlassIcon,
-      current: location.pathname === '/employer/verifications'
-    },
-    {
-      name: 'Recruitment Skills',
-      href: '/employer/recruitment',
-      icon: UserGroupIcon,
-      current: location.pathname === '/employer/recruitment'
-    }
-  ];
+    // Employer-specific navigation items
+    const employerItems = [
+      {
+        name: 'Verify Documents',
+        href: '/employer/verifications',
+        icon: DocumentMagnifyingGlassIcon,
+        current: location.pathname === '/employer/verifications'
+      },
+      {
+        name: 'Recruitment Skills',
+        href: '/employer/recruitment',
+        icon: UserGroupIcon,
+        current: location.pathname === '/employer/recruitment'
+      }
+    ];
 
-  // Alumni-specific navigation items
-  const alumniNavigation = [
-    { 
-      name: 'Documents', 
-      href: '/alumni/documents', 
-      icon: DocumentCheckIcon, 
-      current: location.pathname === '/alumni/documents'
-    },
-    {
-      name: 'Upload Documents',
-      href: '/alumni/documents/upload',
-      icon: DocumentArrowUpIcon,
-      current: location.pathname === '/alumni/documents/upload'
-    },
-    {
-      name: 'Document Requests',
-      href: '/alumni/document-requests',
-      icon: DocumentIcon,
-      current: location.pathname === '/alumni/document-requests'
-    },
-    {
-      name: 'My Registrations', 
-      href: '/alumni/registrations', 
-      icon: QrCodeIcon, 
-      current: location.pathname === '/alumni/registrations'
-    },
-    {
-      name: 'Recruitment Skills', 
-      href: '/alumni/recruitment', 
-      icon: UserGroupIcon, 
-      current: location.pathname === '/alumni/recruitment'
-    },
-  ];
+    // Alumni-specific navigation items
+    const alumniItems = [
+      { 
+        name: 'Dashboard', 
+        href: '/alumni', 
+        icon: HomeIcon, 
+        current: location.pathname === '/alumni'
+      },
+      {
+        name: 'Profile', 
+        href: '/alumni/profile', 
+        icon: UserCircleIcon, 
+        current: location.pathname === '/alumni/profile'
+      },
+      {
+        name: 'Document Center',
+        href: '#',
+        icon: DocumentIcon,
+        current: location.pathname === '/alumni/documents' ||
+                location.pathname === '/alumni/documents/upload' ||
+                location.pathname === '/alumni/document-requests',
+        isDropdown: true,
+        isOpen: false, // Start closed
+        children: [
+          { 
+            name: 'My Documents', 
+            href: '/alumni/documents', 
+            icon: DocumentCheckIcon, 
+            current: location.pathname === '/alumni/documents'
+          },
+          {
+            name: 'Upload Documents',
+            href: '/alumni/documents/upload',
+            icon: DocumentArrowUpIcon,
+            current: location.pathname === '/alumni/documents/upload'
+          },
+          {
+            name: 'Document Requests',
+            href: '/alumni/document-requests',
+            icon: DocumentIcon,
+            current: location.pathname === '/alumni/document-requests'
+          }
+        ]
+      },
+      {
+        name: 'Activities',
+        href: '#',
+        icon: UserGroupIcon,
+        current: location.pathname === '/alumni/registrations' ||
+                location.pathname === '/alumni/recruitment',
+        isDropdown: true,
+        isOpen: false,
+        children: [
+          {
+            name: 'My Registrations', 
+            href: '/alumni/registrations', 
+            icon: QrCodeIcon, 
+            current: location.pathname === '/alumni/registrations'
+          },
+          {
+            name: 'Recruitment Skills', 
+            href: '/alumni/recruitment', 
+            icon: UserGroupIcon, 
+            current: location.pathname === '/alumni/recruitment'
+          }
+        ]
+      }
+    ];
 
-  // Admin-only navigation items
-  const adminOnlyNavigation = [
-    { 
-      name: 'User Verification', 
-      href: '/admin/user-verification', 
-      icon: FingerPrintIcon, 
-      current: location.pathname === '/admin/user-verification' 
-    },
-    { 
-      name: 'Document Verification', 
-      href: '/admin/verifications', 
-      icon: ClipboardDocumentCheckIcon, 
-      current: location.pathname === '/admin/verifications' 
-    },
-    { 
-      name: 'All Documents', 
-      href: '/admin/admin-documents', 
-      icon: DocumentCheckIcon, 
-      current: location.pathname === '/admin/admin-documents' 
-    },
-    {
-      name: 'Manage Document Requests',
-      href: '/admin/document-requests-admin',
-      icon: DocumentIcon,
-      current: location.pathname === '/admin/document-requests-admin'
-    },
-    {
-      name: 'Exit Interviews',
-      href: '/admin/exit-interviews',
-      icon: AcademicCapIcon,
-      current: location.pathname === '/admin/exit-interviews'
-    },
-    { 
-      name: 'User Management', 
-      href: '/admin/users', 
-      icon: UserGroupIcon, 
-      current: location.pathname === '/admin/users' 
-    },
-    { 
-      name: 'Role Management', 
-      href: '/admin/roles', 
-      icon: ShieldCheckIcon, 
-      current: location.pathname === '/admin/roles' 
-    },
-    { 
-      name: 'Events Management', 
-      href: '/admin/events', 
-      icon: CalendarIcon, 
-      current: location.pathname === '/admin/events' || location.pathname === '/admin/events/new' || location.pathname.startsWith('/admin/events/edit/'),
-      subItems: [
-        { 
-          name: 'All Events', 
-          href: '/admin/events',
-          current: location.pathname === '/admin/events'
-        },
-        { 
-          name: 'Event Registrations', 
-          href: '/admin/event-registrations',
-          current: location.pathname.includes('/admin/events/registrations')
-        }
-      ]
-    },
-    {
-      name: 'Alumni Management',
-      href: '/admin/alumni',
-      icon: AcademicCapIcon,
-      current: location.pathname === '/admin/alumni' || location.pathname.startsWith('/admin/alumni/')
-    }
-  ];
+    // Admin-only navigation items
+    const adminItems = [
+      { 
+        name: 'User Management',
+        href: '#', // No direct link when it's a dropdown parent
+        icon: UserGroupIcon,
+        current: location.pathname === '/admin/users' || 
+                location.pathname === '/admin/roles' || 
+                location.pathname === '/admin/user-verification',
+        isDropdown: true,
+        isOpen: false, // Start closed
+        children: [
+          { 
+            name: 'User Verification', 
+            href: '/admin/user-verification', 
+            icon: FingerPrintIcon, 
+            current: location.pathname === '/admin/user-verification' 
+          },
+          { 
+            name: 'Manage Users', 
+            href: '/admin/users', 
+            icon: UserGroupIcon, 
+            current: location.pathname === '/admin/users' 
+          },
+          { 
+            name: 'Role Management', 
+            href: '/admin/roles', 
+            icon: ShieldCheckIcon, 
+            current: location.pathname === '/admin/roles' 
+          },
+        ]
+      },
+      {
+        name: 'Document Management',
+        href: '#',
+        icon: DocumentIcon,
+        current: location.pathname === '/admin/verifications' || 
+                location.pathname === '/admin/document-requests-admin',
+        isDropdown: true,
+        isOpen: false, // Start closed
+        children: [
+          { 
+            name: 'Document Verification', 
+            href: '/admin/verifications', 
+            icon: ClipboardDocumentCheckIcon, 
+            current: location.pathname === '/admin/verifications' 
+          },
+          {
+            name: 'Document Requests',
+            href: '/admin/document-requests-admin',
+            icon: DocumentIcon,
+            current: location.pathname === '/admin/document-requests-admin'
+          }
+        ]
+      },
+      { 
+        name: 'Events Management', 
+        href: '#', 
+        icon: CalendarIcon,
+        current: location.pathname === '/admin/events' || 
+                location.pathname === '/admin/events/new' || 
+                location.pathname.startsWith('/admin/events/edit/') ||
+                location.pathname.includes('/admin/events/registrations'),
+        isDropdown: true,
+        isOpen: false, // Start closed
+        children: [
+          { 
+            name: 'All Events', 
+            href: '/admin/events',
+            icon: CalendarIcon,
+            current: location.pathname === '/admin/events'
+          },
+          { 
+            name: 'Event Registrations', 
+            href: '/admin/event-registrations',
+            icon: QrCodeIcon,
+            current: location.pathname.includes('/admin/events/registrations')
+          }
+        ]
+      },
+      {
+        name: 'Alumni Services',
+        href: '#',
+        icon: AcademicCapIcon,
+        current: location.pathname === '/admin/alumni' || 
+                location.pathname.startsWith('/admin/alumni/') ||
+                location.pathname === '/admin/exit-interviews',
+        isDropdown: true,
+        isOpen: false, // Start closed
+        children: [
+          {
+            name: 'Alumni Management',
+            href: '/admin/alumni',
+            icon: AcademicCapIcon,
+            current: location.pathname === '/admin/alumni' || location.pathname.startsWith('/admin/alumni/')
+          },
+          {
+            name: 'Exit Interviews',
+            href: '/admin/exit-interviews',
+            icon: AcademicCapIcon,
+            current: location.pathname === '/admin/exit-interviews'
+          }
+        ]
+      }
+    ];
 
-  // Combine navigation based on user role
-  const fullNavigation = isAdminUser 
-    ? [...commonNavigation, ...adminOnlyNavigation] 
-    : isEmployerUser
-    ? [...commonNavigation, ...employerNavigation]
-    : [...commonNavigation, ...alumniNavigation];
+    // Combine navigation based on user role
+    const items = isAdminUser 
+      ? [...commonNavItems, ...adminItems] 
+      : isEmployerUser
+      ? [...commonNavItems, ...employerItems]
+      : [...commonNavItems, ...alumniItems];
+
+    setFullNavigation(items);
+  }, [isAdminUser, isEmployerUser, location.pathname]);
 
   // Fetch notifications on component mount
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        // Get base API URL
-        let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        // Remove trailing slash if present
-        baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-        // Add /api/v1 only if it's not already included
-        const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+        // Use the proxy path directly to avoid CORS issues
+        const apiUrl = '/api/v1';
         
         // Add a timestamp parameter to prevent caching
         const timestamp = new Date().getTime();
@@ -246,11 +319,11 @@ export default function DashboardLayout() {
   // Handle notification click
   const handleNotificationClick = async (notificationId) => {
     try {
-      // Get base API URL
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // Use the proxy path directly
+      const apiUrl = '/api/v1';
       
-      await fetch(`${baseUrl}/api/v1/notifications/${notificationId}/read`, {
-        method: 'POST',
+      await fetch(`${apiUrl}/notifications/${notificationId}/read`, {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -269,11 +342,11 @@ export default function DashboardLayout() {
   // Mark all notifications as read
   const markAllAsRead = async () => {
     try {
-      // Get base API URL
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // Use the proxy path directly
+      const apiUrl = '/api/v1';
       
-      await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
-        method: 'POST',
+      await fetch(`${apiUrl}/notifications/mark-all-read`, {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -347,25 +420,100 @@ export default function DashboardLayout() {
                         <ul role="list" className="-mx-2 space-y-1">
                           {fullNavigation.map((item) => (
                             <li key={item.name}>
-                              <Link
-                                to={item.href}
-                                className={classNames(
-                                  item.current
-                                    ? 'bg-gray-50 text-cvsu-green'
-                                    : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                  'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                                )}
-                              >
-                                <item.icon
-                                  className={classNames(
-                                    item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
-                                    'h-6 w-6 shrink-0'
+                              {item.isDropdown ? (
+                                // Dropdown menu item for mobile
+                                <div>
+                                  <button
+                                    className={classNames(
+                                      item.current
+                                        ? 'bg-gray-50 text-cvsu-green'
+                                        : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                      'group flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                                    )}
+                                    onClick={() => {
+                                      setFullNavigation(nav => 
+                                        nav.map(navItem => 
+                                          navItem.name === item.name 
+                                            ? {...navItem, isOpen: !navItem.isOpen} 
+                                            : navItem
+                                        )
+                                      );
+                                    }}
+                                  >
+                                    <item.icon
+                                      className={classNames(
+                                        item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                        'h-6 w-6 shrink-0'
+                                      )}
+                                      aria-hidden="true"
+                                    />
+                                    {item.name}
+                                    <svg 
+                                      className={classNames(
+                                        item.isOpen ? 'rotate-90' : '',
+                                        'ml-auto h-5 w-5 flex-none text-gray-400 transition-transform'
+                                      )}
+                                      viewBox="0 0 20 20" 
+                                      fill="currentColor" 
+                                      aria-hidden="true"
+                                    >
+                                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                  {/* Dropdown children */}
+                                  {item.isOpen && item.children && (
+                                    <ul className="mt-1 pl-8 space-y-1">
+                                      {item.children.map((child) => (
+                                        <li key={child.name}>
+                                          <Link
+                                            to={child.href}
+                                            className={classNames(
+                                              child.current
+                                                ? 'bg-gray-50 text-cvsu-green'
+                                                : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                              'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
+                                            )}
+                                            onClick={() => setSidebarOpen(false)}
+                                          >
+                                            {child.icon && (
+                                              <child.icon
+                                                className={classNames(
+                                                  child.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                                  'h-5 w-5 shrink-0'
+                                                )}
+                                                aria-hidden="true"
+                                              />
+                                            )}
+                                            {child.name}
+                                          </Link>
+                                        </li>
+                                      ))}
+                                    </ul>
                                   )}
-                                  aria-hidden="true"
-                                />
-                                {item.name}
-                              </Link>
-                              {item.subItems && (
+                                </div>
+                              ) : (
+                                // Regular menu item
+                                <Link
+                                  to={item.href}
+                                  className={classNames(
+                                    item.current
+                                      ? 'bg-gray-50 text-cvsu-green'
+                                      : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                    'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                                  )}
+                                  onClick={() => setSidebarOpen(false)}
+                                >
+                                  <item.icon
+                                    className={classNames(
+                                      item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                      'h-6 w-6 shrink-0'
+                                    )}
+                                    aria-hidden="true"
+                                  />
+                                  {item.name}
+                                </Link>
+                              )}
+                              {!item.isDropdown && item.subItems && (
                                 <ul className="mt-1 pl-8 space-y-1">
                                   {item.subItems.map((subItem) => (
                                     <li key={subItem.name}>
@@ -377,6 +525,7 @@ export default function DashboardLayout() {
                                             : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
                                           'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
                                         )}
+                                        onClick={() => setSidebarOpen(false)}
                                       >
                                         {subItem.name}
                                       </Link>
@@ -426,25 +575,100 @@ export default function DashboardLayout() {
                 <ul role="list" className="-mx-2 mt-2 space-y-1">
                   {fullNavigation.map((item) => (
                     <li key={item.name}>
-                      <Link
-                        to={item.href}
-                        className={classNames(
-                          item.current
-                            ? 'bg-gray-50 text-cvsu-green'
-                            : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                          'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                        )}
-                      >
-                        <item.icon
-                          className={classNames(
-                            item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
-                            'h-6 w-6 shrink-0'
+                      {item.isDropdown ? (
+                        // Dropdown menu item
+                        <div>
+                          <button
+                            className={classNames(
+                              item.current
+                                ? 'bg-gray-50 text-cvsu-green'
+                                : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                              'group flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                            )}
+                            onClick={() => {
+                              // Toggle dropdown state - add this function
+                              setFullNavigation(nav => 
+                                nav.map(navItem => 
+                                  navItem.name === item.name 
+                                    ? {...navItem, isOpen: !navItem.isOpen} 
+                                    : navItem
+                                )
+                              );
+                            }}
+                          >
+                            <item.icon
+                              className={classNames(
+                                item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                'h-6 w-6 shrink-0'
+                              )}
+                              aria-hidden="true"
+                            />
+                            {item.name}
+                            <svg 
+                              className={classNames(
+                                item.isOpen ? 'rotate-90' : '',
+                                'ml-auto h-5 w-5 flex-none text-gray-400 transition-transform'
+                              )}
+                              viewBox="0 0 20 20" 
+                              fill="currentColor" 
+                              aria-hidden="true"
+                            >
+                              <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          {/* Dropdown children */}
+                          {item.isOpen && item.children && (
+                            <ul className="mt-1 pl-8 space-y-1">
+                              {item.children.map((child) => (
+                                <li key={child.name}>
+                                  <Link
+                                    to={child.href}
+                                    className={classNames(
+                                      child.current
+                                        ? 'bg-gray-50 text-cvsu-green'
+                                        : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                                      'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
+                                    )}
+                                  >
+                                    {child.icon && (
+                                      <child.icon
+                                        className={classNames(
+                                          child.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                                          'h-5 w-5 shrink-0'
+                                        )}
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                    {child.name}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
                           )}
-                          aria-hidden="true"
-                        />
-                        {item.name}
-                      </Link>
-                      {item.subItems && (
+                        </div>
+                      ) : (
+                        // Regular menu item
+                        <Link
+                          to={item.href}
+                          className={classNames(
+                            item.current
+                              ? 'bg-gray-50 text-cvsu-green'
+                              : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
+                            'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
+                          )}
+                        >
+                          <item.icon
+                            className={classNames(
+                              item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
+                              'h-6 w-6 shrink-0'
+                            )}
+                            aria-hidden="true"
+                          />
+                          {item.name}
+                        </Link>
+                      )}
+                      {/* Keep existing subItems support for backward compatibility */}
+                      {!item.isDropdown && item.subItems && (
                         <ul className="mt-1 pl-8 space-y-1">
                           {item.subItems.map((subItem) => (
                             <li key={subItem.name}>

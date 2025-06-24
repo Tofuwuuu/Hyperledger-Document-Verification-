@@ -4,6 +4,52 @@ import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import { getAllEvents, deleteEvent, generateEventQRCode, generateAttendanceQRCode } from '../../services/eventService';
 
+// Import icons
+import { PencilIcon, TrashIcon, QrCodeIcon, UsersIcon, ClipboardDocumentCheckIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+
+// Custom CSS for tooltips
+const tooltipStyles = `
+  .tooltip-container {
+    position: relative;
+  }
+  
+  .tooltip-container .tooltip-text {
+    visibility: hidden;
+    width: auto;
+    min-width: 80px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 5px 8px;
+    position: absolute;
+    z-index: 20;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  
+  .tooltip-container .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+  }
+  
+  .tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+  }
+`;
+
 const AdminEventsPage = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +60,29 @@ const AdminEventsPage = () => {
   const [qrCodeType, setQrCodeType] = useState("registration");
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const [qrCodeError, setQrCodeError] = useState(null);
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  // Handle dropdown toggle
+  const toggleDropdown = (id, event) => {
+    // Stop propagation to prevent immediate closing from document event listener
+    if (event) {
+      event.stopPropagation();
+    }
+    setOpenDropdownId(openDropdownId === id ? null : id);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Only close if clicking outside of any dropdown menu
+      if (!event.target.closest('.dropdown-menu') && !event.target.closest('.dropdown-toggle')) {
+        setOpenDropdownId(null);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -153,6 +222,9 @@ const AdminEventsPage = () => {
 
   return (
     <div className="p-6">
+      {/* Add tooltip styles */}
+      <style>{tooltipStyles}</style>
+      
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Manage Events</h1>
         <Link
@@ -256,53 +328,93 @@ const AdminEventsPage = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-2">
+                      {/* Primary actions as buttons with icons */}
                       <Link
                         to={`/admin/events/edit/${event._id}`}
-                        className="text-indigo-600 hover:text-indigo-900"
+                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full tooltip-container"
+                        title="Edit event"
                       >
-                        Edit
+                        <PencilIcon className="h-4 w-4" />
+                        <span className="tooltip-text">Edit</span>
                       </Link>
+                      
                       <Link
                         to={`/admin/events/registrations/${event._id}`}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="View and export registrations"
+                        className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full tooltip-container"
+                        title="View registrations"
                       >
-                        View Registrations
+                        <UsersIcon className="h-4 w-4" />
+                        <span className="tooltip-text">Registrations</span>
                       </Link>
+                      
                       <Link
                         to={`/admin/events/attendees/${event._id}`}
-                        className="text-green-600 hover:text-green-900"
+                        className="p-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-full tooltip-container"
+                        title="Manage attendees"
                       >
-                        Attendees
+                        <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                        <span className="tooltip-text">Attendees</span>
                       </Link>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleGenerateQRCode(event._id, 'registration');
-                        }}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        Registration QR
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleGenerateQRCode(event._id, 'attendance');
-                        }}
-                        className="text-purple-600 hover:text-purple-900"
-                      >
-                        Attendance QR
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleDeleteEvent(event._id);
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                      
+                      {/* Actions dropdown menu */}
+                      <div className="relative inline-block">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleDropdown(event._id, e);
+                          }}
+                          className="p-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-full dropdown-toggle"
+                          title="More actions"
+                        >
+                          <EllipsisVerticalIcon className="h-4 w-4" />
+                        </button>
+                        
+                        {openDropdownId === event._id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200 dropdown-menu">
+                            <div className="py-1" role="menu" aria-orientation="vertical">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateQRCode(event._id, 'registration');
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                role="menuitem"
+                              >
+                                <QrCodeIcon className="mr-2 h-4 w-4 text-green-600" />
+                                Registration QR
+                              </button>
+                              
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateQRCode(event._id, 'attendance');
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                                role="menuitem"
+                              >
+                                <QrCodeIcon className="mr-2 h-4 w-4 text-purple-600" />
+                                Attendance QR
+                              </button>
+                              
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteEvent(event._id);
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                                role="menuitem"
+                              >
+                                <TrashIcon className="mr-2 h-4 w-4 text-red-600" />
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>

@@ -77,6 +77,10 @@ class AlumniUpdate(BaseModel):
     civil_status: Optional[CivilStatus] = None
     birthday: Optional[datetime] = None
     region_of_origin: Optional[str] = None
+    skills: Optional[str] = None
+    special_projects: Optional[str] = None
+    professional_organizations: Optional[str] = None
+    competencies_from_college: Optional[List[str]] = None
     
 class AlumniInDB(AlumniBase):
     id: str = Field(..., alias="_id")

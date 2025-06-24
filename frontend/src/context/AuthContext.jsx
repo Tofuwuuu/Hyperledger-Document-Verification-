@@ -274,7 +274,7 @@ export const AuthProvider = ({ children }) => {
         
         // Store refresh token if available
         if (data.refresh_token) {
-          localStorage.setItem('refreshToken', data.refresh_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
         }
         
         // Store user type - get from response or use the account type

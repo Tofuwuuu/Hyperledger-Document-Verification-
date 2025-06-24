@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, CheckIcon, XMarkIcon, CameraIcon, UserCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
+import { adminUserService } from '../../services/api';
+import { toast } from 'react-toastify';
 
 export default function AdminProfilePage() {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshUserData } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     full_name: '',
@@ -18,12 +20,14 @@ export default function AdminProfilePage() {
   });
   const [initialProfile, setInitialProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [formSubmitting, setFormSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     fetchAdminProfile();
@@ -34,46 +38,63 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      // In a real implementation, you would fetch the admin's profile from an API
-      // For now, we'll populate it from the currentUser object
-      const adminData = {
-        _id: currentUser._id,
-        full_name: currentUser.full_name || 'System Administrator',
-        employee_id: currentUser.employee_id || '',
-        department: currentUser.department || 'IT Department',
-        position: currentUser.position || 'System Administrator',
-        email: currentUser.email || 'admin@cvsu.edu.ph',
-        phone: currentUser.phone || '',
-        address: currentUser.address || '',
-        bio: currentUser.bio || '',
-        profile_picture: currentUser.profile_picture || ''
+      // In a real implementation with the API
+      let adminData;
+      if (currentUser._id) {
+        // Try to get full profile from API first
+        try {
+          const response = await adminUserService.getAdminUser(currentUser._id);
+          adminData = response.data;
+          setLastUpdated(new Date());
+        } catch (error) {
+          console.error('Error fetching from API, using local data:', error);
+          // Fallback to using currentUser data
+          adminData = {
+            _id: currentUser._id,
+            full_name: currentUser.full_name || 'System Administrator',
+            employee_id: currentUser.employee_id || '',
+            department: currentUser.department || 'IT Department',
+            position: currentUser.position || 'System Administrator',
+            email: currentUser.email || 'admin@cvsu.edu.ph',
+            phone: currentUser.phone || '',
+            address: currentUser.address || '',
+            bio: currentUser.bio || '',
+            profile_picture: currentUser.profile_picture || ''
+          };
+        }
+      } else {
+        // Fallback to using currentUser data
+        adminData = {
+          _id: currentUser._id,
+          full_name: currentUser.full_name || 'System Administrator',
+          employee_id: currentUser.employee_id || '',
+          department: currentUser.department || 'IT Department',
+          position: currentUser.position || 'System Administrator',
+          email: currentUser.email || 'admin@cvsu.edu.ph',
+          phone: currentUser.phone || '',
+          address: currentUser.address || '',
+          bio: currentUser.bio || '',
+          profile_picture: currentUser.profile_picture || ''
+        };
+      }
+      
+      const profileData = {
+        id: adminData._id,
+        full_name: adminData.full_name || 
+                  ((adminData.first_name || '') + 
+                   (adminData.last_name ? ' ' + adminData.last_name : '')),
+        employee_id: adminData.employee_id || '',
+        department: adminData.department || 'IT Department',
+        position: adminData.position || 'System Administrator',
+        email: adminData.email || '',
+        phone: adminData.phone || '',
+        address: adminData.address || '',
+        bio: adminData.bio || '',
+        profile_picture: adminData.profile_picture || ''
       };
       
-      setProfile({
-        id: adminData._id,
-        full_name: adminData.full_name,
-        employee_id: adminData.employee_id,
-        department: adminData.department,
-        position: adminData.position,
-        email: adminData.email,
-        phone: adminData.phone,
-        address: adminData.address,
-        bio: adminData.bio,
-        profile_picture: adminData.profile_picture
-      });
-      
-      setInitialProfile({
-        id: adminData._id,
-        full_name: adminData.full_name,
-        employee_id: adminData.employee_id,
-        department: adminData.department,
-        position: adminData.position,
-        email: adminData.email,
-        phone: adminData.phone,
-        address: adminData.address,
-        bio: adminData.bio,
-        profile_picture: adminData.profile_picture
-      });
+      setProfile(profileData);
+      setInitialProfile({...profileData});
       
       if (adminData.profile_picture) {
         setPreviewUrl(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/${adminData.profile_picture}`);
@@ -81,6 +102,7 @@ export default function AdminProfilePage() {
     } catch (error) {
       console.error('Error fetching admin profile:', error);
       setErrorMessage('Failed to fetch profile information.');
+      toast.error('Failed to load profile. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -106,6 +128,19 @@ export default function AdminProfilePage() {
     const file = e.target.files[0];
     if (!file) return;
     
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image is too large. Please select an image under 5MB.');
+      return;
+    }
+    
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Invalid file type. Please select a JPEG, PNG or GIF image.');
+      return;
+    }
+    
     setProfilePicture(file);
     
     // Create preview
@@ -123,8 +158,17 @@ export default function AdminProfilePage() {
     try {
       // In a real implementation, you would upload the profile picture to an API
       // await adminService.uploadProfilePicture(profile.id, profilePicture);
-      console.log('Would upload profile picture here');
       
+      // Example implementation with FormData:
+      const formData = new FormData();
+      formData.append('profile_picture', profilePicture);
+      
+      // Simulating API call - replace with actual API call when endpoint is ready
+      // const response = await adminUserService.uploadProfilePicture(profile.id, formData);
+      
+      console.log('Would upload profile picture here'); // Remove this in production
+      
+      toast.success('Profile picture updated successfully!');
       setSuccessMessage('Profile picture updated successfully!');
       setProfilePicture(null);
       
@@ -133,6 +177,7 @@ export default function AdminProfilePage() {
     } catch (error) {
       console.error('Error uploading profile picture:', error);
       setErrorMessage('Failed to upload profile picture.');
+      toast.error('Failed to upload profile picture. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -140,6 +185,8 @@ export default function AdminProfilePage() {
 
   const startEditing = () => {
     setIsEditing(true);
+    setSuccessMessage('');
+    setErrorMessage('');
   };
 
   const cancelEditing = () => {
@@ -148,6 +195,8 @@ export default function AdminProfilePage() {
     }
     setIsEditing(false);
     setValidationErrors({});
+    setSuccessMessage('');
+    setErrorMessage('');
   };
 
   const saveProfile = async () => {
@@ -157,22 +206,50 @@ export default function AdminProfilePage() {
       return;
     }
     
-    setLoading(true);
+    setFormSubmitting(true);
     try {
       // In a real implementation, you would save the profile to an API
-      // const response = await adminService.updateAdminProfile(profile);
-      console.log('Would save admin profile:', profile);
+      // Prepare the data to send to API
+      const userData = {
+        full_name: profile.full_name, // Keep this for backwards compatibility
+        first_name: profile.full_name, // Map full_name to first_name for now
+        last_name: '', // Set last_name as empty as we're using full_name 
+        employee_id: profile.employee_id,
+        department: profile.department || 'IT Department',
+        position: profile.position || 'System Administrator',
+        email: profile.email,
+        phone: profile.phone,
+        address: profile.address,
+        bio: profile.bio
+      };
+      
+      // Make the API call to update the user
+      try {
+        if (profile.id) {
+          await adminUserService.updateAdminUser(profile.id, userData);
+          // Refresh the user data in context if available
+          if (refreshUserData) {
+            await refreshUserData();
+          }
+        }
+      } catch (apiError) {
+        console.error('API error updating profile:', apiError);
+        throw new Error(apiError.message || 'Failed to communicate with server');
+      }
       
       setSuccessMessage('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
       setIsEditing(false);
       
       // Update initialProfile to match current profile
       setInitialProfile({...profile});
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error updating admin profile:', error);
-      setErrorMessage('Failed to update profile information.');
+      setErrorMessage('Failed to update profile information. ' + error.message);
+      toast.error('Failed to update profile. Please try again.');
     } finally {
-      setLoading(false);
+      setFormSubmitting(false);
     }
   };
 
@@ -205,12 +282,18 @@ export default function AdminProfilePage() {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cvsu-green"></div>
+        <p className="ml-3 text-lg text-gray-700">Loading profile...</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
+      {/* Page header with action buttons */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Administrator Profile</h1>
+      </div>
+      
       {/* Success and error messages */}
       {successMessage && (
         <div className="mb-4 bg-green-50 p-4 rounded-md">
@@ -262,8 +345,8 @@ export default function AdminProfilePage() {
         </div>
       )}
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-gray-200">
           <div>
             <h3 className="text-lg leading-6 font-medium text-gray-900">Administrator Profile</h3>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">Personal details and contact information</p>
@@ -272,17 +355,17 @@ export default function AdminProfilePage() {
             <button
               type="button"
               onClick={startEditing}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green transition duration-150 ease-in-out"
             >
               <PencilIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
-              Edit
+              Edit Profile
             </button>
           ) : (
             <div className="flex space-x-2">
               <button
                 type="button"
                 onClick={cancelEditing}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green transition duration-150 ease-in-out"
               >
                 <XMarkIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
                 Cancel
@@ -290,59 +373,125 @@ export default function AdminProfilePage() {
               <button
                 type="button"
                 onClick={saveProfile}
-                className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-cvsu-green hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+                disabled={formSubmitting}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-cvsu-green hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green transition duration-150 ease-in-out"
               >
-                <CheckIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
-                Save
+                {formSubmitting ? (
+                  <>
+                    <ArrowPathIcon className="animate-spin -ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
+                    Save Changes
+                  </>
+                )}
               </button>
             </div>
           )}
         </div>
         
-        <div className="border-t border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4 py-5 sm:p-6">
+        <div className="px-4 py-5 sm:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Profile Picture */}
             <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Profile Picture</label>
-              <div className="mt-2 flex flex-col items-center">
-                <div className="w-40 h-40 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {previewUrl ? (
-                    <img src={previewUrl} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-gray-400 text-2xl">
-                      {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : 'A'}
-                    </span>
-                  )}
-                </div>
-                
-                {isEditing && (
-                  <div className="mt-4 flex flex-col items-center">
-                    <label
-                      htmlFor="profile-picture"
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer"
-                    >
-                      Change Picture
-                      <input
-                        id="profile-picture"
-                        name="profile-picture"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleProfilePictureChange}
-                        className="sr-only"
-                      />
-                    </label>
-                    {profilePicture && (
-                      <button
-                        type="button"
-                        onClick={uploadProfilePicture}
-                        disabled={isUploading}
-                        className="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cvsu-green hover:bg-green-700 focus:outline-none"
-                      >
-                        {isUploading ? 'Uploading...' : 'Upload Picture'}
-                      </button>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Profile Picture</label>
+                  <div className="mt-2 flex flex-col items-center">
+                    <div className="w-40 h-40 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center relative group">
+                      {previewUrl ? (
+                        <>
+                          <img src={previewUrl} alt="Profile" className="w-full h-full object-cover" />
+                          {isEditing && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <label
+                                htmlFor="profile-picture"
+                                className="cursor-pointer text-white p-2 rounded-full bg-gray-800 hover:bg-gray-700"
+                              >
+                                <CameraIcon className="h-8 w-8" />
+                                <input
+                                  id="profile-picture"
+                                  name="profile-picture"
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleProfilePictureChange}
+                                  className="sr-only"
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-center w-full h-full bg-gray-200">
+                            <UserCircleIcon className="h-24 w-24 text-gray-400" />
+                          </div>
+                          {isEditing && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <label
+                                htmlFor="profile-picture"
+                                className="cursor-pointer text-white p-2 rounded-full bg-gray-800 hover:bg-gray-700"
+                              >
+                                <CameraIcon className="h-8 w-8" />
+                                <input
+                                  id="profile-picture"
+                                  name="profile-picture"
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleProfilePictureChange}
+                                  className="sr-only"
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    {isEditing && profilePicture && (
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={uploadProfilePicture}
+                          disabled={isUploading}
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cvsu-green hover:bg-green-700 focus:outline-none"
+                        >
+                          {isUploading ? (
+                            <>
+                              <ArrowPathIcon className="animate-spin -ml-0.5 mr-2 h-4 w-4" />
+                              Uploading...
+                            </>
+                          ) : 'Upload Picture'}
+                        </button>
+                      </div>
+                    )}
+                    
+                    {!isEditing && lastUpdated && (
+                      <p className="text-xs text-gray-500 mt-3">
+                        Last updated: {lastUpdated.toLocaleString()}
+                      </p>
                     )}
                   </div>
-                )}
+                </div>
+                
+                {/* Account status section */}
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <h4 className="text-sm font-medium text-gray-900">Account Status</h4>
+                  <div className="mt-2 flex flex-col space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Type:</span>
+                      <span className="text-sm font-medium text-gray-900">Administrator</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Status:</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Active
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -361,10 +510,14 @@ export default function AdminProfilePage() {
                         id="full_name"
                         value={profile.full_name}
                         onChange={handleInputChange}
-                        className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
+                        className={`shadow-sm block w-full sm:text-sm rounded-md ${
+                          validationErrors.full_name 
+                            ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
+                            : 'focus:ring-cvsu-green focus:border-cvsu-green border-gray-300'
+                        }`}
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.full_name}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.full_name}</p>
                     )}
                     <FieldError name="full_name" />
                   </div>
@@ -385,7 +538,7 @@ export default function AdminProfilePage() {
                         className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.employee_id || 'Not specified'}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.employee_id || 'Not specified'}</p>
                     )}
                   </div>
                 </div>
@@ -405,7 +558,7 @@ export default function AdminProfilePage() {
                         className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.department || 'Not specified'}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.department !== '' ? profile.department : 'Not specified'}</p>
                     )}
                   </div>
                 </div>
@@ -425,7 +578,7 @@ export default function AdminProfilePage() {
                         className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.position || 'Not specified'}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.position !== '' ? profile.position : 'Not specified'}</p>
                     )}
                   </div>
                 </div>
@@ -442,10 +595,14 @@ export default function AdminProfilePage() {
                         id="email"
                         value={profile.email}
                         onChange={handleInputChange}
-                        className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
+                        className={`shadow-sm block w-full sm:text-sm rounded-md ${
+                          validationErrors.email 
+                            ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
+                            : 'focus:ring-cvsu-green focus:border-cvsu-green border-gray-300'
+                        }`}
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.email}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.email}</p>
                     )}
                     <FieldError name="email" />
                   </div>
@@ -466,7 +623,7 @@ export default function AdminProfilePage() {
                         className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.phone || 'Not specified'}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.phone || 'Not specified'}</p>
                     )}
                   </div>
                 </div>
@@ -486,7 +643,7 @@ export default function AdminProfilePage() {
                         className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.address || 'Not specified'}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md">{profile.address || 'Not specified'}</p>
                     )}
                   </div>
                 </div>
@@ -500,18 +657,42 @@ export default function AdminProfilePage() {
                       <textarea
                         id="bio"
                         name="bio"
-                        rows={3}
+                        rows={4}
                         value={profile.bio}
                         onChange={handleInputChange}
                         className="shadow-sm focus:ring-cvsu-green focus:border-cvsu-green block w-full sm:text-sm border-gray-300 rounded-md"
+                        placeholder="Tell us about yourself..."
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{profile.bio || 'No bio provided'}</p>
+                      <p className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded-md min-h-[6rem]">{profile.bio || 'No bio provided'}</p>
                     )}
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Password change section */}
+      <div className="bg-white shadow sm:rounded-lg mb-6">
+        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+          <h3 className="text-lg leading-6 font-medium text-gray-900">Account Security</h3>
+          <p className="mt-1 max-w-2xl text-sm text-gray-500">Password and security settings</p>
+        </div>
+        <div className="px-4 py-5 sm:p-6">
+          <h4 className="text-base font-medium text-gray-900">Change Password</h4>
+          <p className="mt-1 text-sm text-gray-500">
+            Update your password to maintain security. We recommend using a strong password that you don't use elsewhere.
+          </p>
+          <div className="mt-5">
+            <button
+              type="button"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+              onClick={() => toast.info('Password change functionality will be implemented soon.')}
+            >
+              Change Password
+            </button>
           </div>
         </div>
       </div>

@@ -877,30 +877,60 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
   return (
     <div className="bg-gray-50 min-h-screen">
       {/* Hero section with profile picture and name */}
-      <div className="bg-cvsu-green py-12 mb-8">
+      <div className="bg-gradient-to-r from-cvsu-green to-green-600 py-14 mb-10 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full opacity-10">
+          <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+            <defs>
+              <pattern id="pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M0 20 L40 20 M20 0 L20 40" stroke="white" strokeWidth="1" fill="none" />
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="100%" height="100%" fill="url(#pattern)" />
+          </svg>
+        </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row items-center">
-            <div className="mb-6 lg:mb-0 lg:mr-8">
-              <img
-                src={getProfileImageUrl(alumni.profile_picture)}
-                alt={alumni.full_name}
-                className="h-48 w-48 rounded-full object-cover border-4 border-white shadow-lg"
-              />
+          <div className="flex flex-col lg:flex-row items-center relative z-10">
+            <div className="mb-8 lg:mb-0 lg:mr-10">
+              <div className="relative">
+                <img
+                  src={getProfileImageUrl(alumni.profile_picture)}
+                  alt={alumni.full_name}
+                  className="h-52 w-52 rounded-full object-cover border-4 border-white shadow-xl"
+                />
+                <div className="absolute -bottom-2 -right-2 bg-cvsu-yellow text-gray-800 rounded-full px-3 py-1 text-sm font-semibold border-2 border-white shadow-md flex items-center">
+                  <AcademicCapIcon className="h-4 w-4 mr-1" />
+                  {alumni.graduation_year}
+                </div>
+              </div>
             </div>
             <div className="text-center lg:text-left">
-              <h1 className="text-3xl font-bold text-white sm:text-4xl">{alumni.full_name}</h1>
-              <p className="mt-2 text-xl text-white opacity-90">{alumni.course}</p>
-              <div className="mt-2 flex flex-wrap justify-center lg:justify-start gap-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white">
-                  <AcademicCapIcon className="h-4 w-4 mr-1" />
+              <h1 className="text-3xl font-bold text-white sm:text-4xl mb-2 drop-shadow-md">{alumni.full_name}</h1>
+              <p className="text-xl text-white opacity-90 mb-4 font-medium">{alumni.course}</p>
+              <div className="flex flex-wrap justify-center lg:justify-start gap-3 mb-4">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm border border-white/30">
+                  <AcademicCapIcon className="h-4 w-4 mr-1.5" />
                   Class of {alumni.graduation_year}
                 </span>
                 {alumni.department && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm border border-white/30">
                     {alumni.department}
                   </span>
                 )}
+                {alumni.batch && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm border border-white/30">
+                    {alumni.batch}
+                  </span>
+                )}
               </div>
+              
+              {alumni.current_job && alumni.current_employer && (
+                <div className="mt-1 text-white/90">
+                  <span className="flex items-center justify-center lg:justify-start">
+                    <BriefcaseIcon className="h-5 w-5 mr-2" />
+                    {alumni.current_job} at {alumni.current_employer}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -910,113 +940,138 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left column - Personal information */}
           <div className="lg:col-span-1">
-            <div className="bg-white shadow rounded-lg p-6 mb-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Personal Information</h2>
-              
-              {alumni.phone && (
-                <div className="flex items-start mb-3">
-                  <svg className="h-5 w-5 text-gray-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Phone</p>
-                    <p className="text-gray-900">{alumni.phone}</p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex items-start mb-3">
-                <svg className="h-5 w-5 text-gray-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Email</p>
-                  <p className="text-gray-900">{alumni.email}</p>
-                </div>
+            <div className="bg-white shadow-md rounded-xl overflow-hidden mb-6 transition-all duration-300 hover:shadow-lg">
+              <div className="bg-gray-50 px-6 py-4 border-b">
+                <h2 className="text-lg font-bold text-gray-900">Personal Information</h2>
               </div>
-              
-              {alumni.address && (
-                <div className="flex items-start mb-3">
-                  <MapPinIcon className="h-5 w-5 text-gray-500 mt-0.5 mr-2" />
+              <div className="p-6">
+                {alumni.phone && (
+                  <div className="flex items-start mb-4">
+                    <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                      <svg className="h-5 w-5 text-cvsu-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Phone</p>
+                      <p className="text-gray-900 font-medium">{alumni.phone}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-start mb-4">
+                  <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                    <svg className="h-5 w-5 text-cvsu-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                    </svg>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Address</p>
-                    <p className="text-gray-900">{alumni.address}</p>
+                    <p className="text-sm font-medium text-gray-500">Email</p>
+                    <p className="text-gray-900 font-medium">{alumni.email}</p>
                   </div>
                 </div>
-              )}
-              
-              <div className="flex items-start mb-3">
-                <CalendarIcon className="h-5 w-5 text-gray-500 mt-0.5 mr-2" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Student ID</p>
-                  <p className="text-gray-900">{alumni.student_id}</p>
+                
+                {alumni.address && (
+                  <div className="flex items-start mb-4">
+                    <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                      <MapPinIcon className="h-5 w-5 text-cvsu-green" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Address</p>
+                      <p className="text-gray-900">{alumni.address}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-start mb-4">
+                  <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                    <svg className="h-5 w-5 text-cvsu-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Student ID</p>
+                    <p className="text-gray-900 font-medium">{alumni.student_id}</p>
+                  </div>
                 </div>
+                
+                {alumni.sex && (
+                  <div className="flex items-start mb-4">
+                    <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                      <svg className="h-5 w-5 text-cvsu-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Sex</p>
+                      <p className="text-gray-900">{alumni.sex.charAt(0).toUpperCase() + alumni.sex.slice(1)}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {alumni.civil_status && (
+                  <div className="flex items-start mb-4">
+                    <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                      <svg className="h-5 w-5 text-cvsu-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Civil Status</p>
+                      <p className="text-gray-900">{alumni.civil_status.charAt(0).toUpperCase() + alumni.civil_status.slice(1)}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {alumni.birthday && (
+                  <div className="flex items-start mb-4">
+                    <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                      <CalendarIcon className="h-5 w-5 text-cvsu-green" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Birthday</p>
+                      <p className="text-gray-900">{formatDate(alumni.birthday)}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {alumni.region_of_origin && (
+                  <div className="flex items-start">
+                    <div className="bg-cvsu-green/10 p-2 rounded-full mr-3">
+                      <MapPinIcon className="h-5 w-5 text-cvsu-green" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Region of Origin</p>
+                      <p className="text-gray-900">{alumni.region_of_origin}</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              
-              {alumni.sex && (
-                <div className="flex items-start mb-3">
-                  <svg className="h-5 w-5 text-gray-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Sex</p>
-                    <p className="text-gray-900">{alumni.sex.charAt(0).toUpperCase() + alumni.sex.slice(1)}</p>
-                  </div>
-                </div>
-              )}
-              
-              {alumni.civil_status && (
-                <div className="flex items-start mb-3">
-                  <svg className="h-5 w-5 text-gray-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Civil Status</p>
-                    <p className="text-gray-900">{alumni.civil_status.charAt(0).toUpperCase() + alumni.civil_status.slice(1)}</p>
-                  </div>
-                </div>
-              )}
-              
-              {alumni.birthday && (
-                <div className="flex items-start mb-3">
-                  <CalendarIcon className="h-5 w-5 text-gray-500 mt-0.5 mr-2" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Birthday</p>
-                    <p className="text-gray-900">{formatDate(alumni.birthday)}</p>
-                  </div>
-                </div>
-              )}
-              
-              {alumni.region_of_origin && (
-                <div className="flex items-start mb-3">
-                  <MapPinIcon className="h-5 w-5 text-gray-500 mt-0.5 mr-2" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Region of Origin</p>
-                    <p className="text-gray-900">{alumni.region_of_origin}</p>
-                  </div>
-                </div>
-              )}
             </div>
             
             {/* Social Media Links */}
             {alumni.social_media && alumni.social_media.length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Connect</h2>
-                <div className="space-y-3">
-                  {alumni.social_media.map((social, index) => (
-                    <a 
-                      key={index}
-                      href={social.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center text-cvsu-green hover:text-green-700"
-                    >
-                      <span className="capitalize mr-2">{social.platform}</span>
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  ))}
+              <div className="bg-white shadow-md rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg">
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <h2 className="text-lg font-bold text-gray-900">Connect</h2>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-3">
+                    {alumni.social_media.map((social, index) => (
+                      <a 
+                        key={index}
+                        href={social.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center p-3 rounded-lg border border-gray-200 text-cvsu-green hover:bg-cvsu-green/5 hover:border-cvsu-green transition-colors"
+                      >
+                        <span className="capitalize mr-2 font-medium">{social.platform}</span>
+                        <svg className="h-4 w-4 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1026,109 +1081,140 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
           <div className="lg:col-span-2">
             {/* Bio section */}
             {alumni.bio && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-3">Biography</h2>
-                <p className="text-gray-700 whitespace-pre-line">{alumni.bio}</p>
+              <div className="bg-white shadow-md rounded-xl overflow-hidden mb-6 transition-all duration-300 hover:shadow-lg">
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <h2 className="text-lg font-bold text-gray-900">Biography</h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-gray-700 whitespace-pre-line leading-relaxed">{alumni.bio}</p>
+                </div>
               </div>
             )}
             
             {/* Education section */}
             {alumni.education && alumni.education.length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Education</h2>
-                <div className="space-y-4">
-                  {alumni.education.map((edu, index) => (
-                    <div key={index} className="border-l-2 border-cvsu-green pl-4 py-1">
-                      <div className="flex items-center">
-                        <AcademicCapIcon className="h-5 w-5 text-cvsu-green mr-2" />
-                        <h3 className="font-medium text-gray-900">{edu.degree}</h3>
-                      </div>
-                      {edu.major && <p className="text-gray-600 ml-7">Major: {edu.major}</p>}
-                      <p className="text-gray-600 ml-7">Graduated: {edu.graduation_year}</p>
-                      {edu.honors && edu.honors.length > 0 && (
-                        <div className="ml-7 mt-1">
-                          <p className="text-sm text-gray-500">Honors:</p>
-                          <ul className="list-disc list-inside text-gray-600 text-sm">
-                            {edu.honors.map((honor, idx) => (
-                              <li key={idx}>{honor}</li>
-                            ))}
-                          </ul>
+              <div className="bg-white shadow-md rounded-xl overflow-hidden mb-6 transition-all duration-300 hover:shadow-lg">
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <h2 className="text-lg font-bold text-gray-900">Education</h2>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-6">
+                    {alumni.education.map((edu, index) => (
+                      <div key={index} className="relative pl-8 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-cvsu-green">
+                        <div className="absolute left-0 top-0 w-4 h-4 rounded-full bg-cvsu-green -translate-x-1/2"></div>
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                          <div className="flex items-center">
+                            <AcademicCapIcon className="h-5 w-5 text-cvsu-green mr-2" />
+                            <h3 className="font-medium text-gray-900">{edu.degree}</h3>
+                          </div>
+                          {edu.major && <p className="text-gray-600 ml-7">Major: {edu.major}</p>}
+                          <p className="text-gray-600 ml-7">Graduated: {edu.graduation_year}</p>
+                          {edu.honors && edu.honors.length > 0 && (
+                            <div className="ml-7 mt-2 p-2 bg-cvsu-green/5 rounded-md border-l-2 border-cvsu-green">
+                              <p className="text-sm font-medium text-gray-700">Honors:</p>
+                              <ul className="list-disc list-inside text-gray-600 text-sm mt-1">
+                                {edu.honors.map((honor, idx) => (
+                                  <li key={idx}>{honor}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
             
             {/* Work Experience section */}
             {alumni.work_experience && alumni.work_experience.length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Work Experience</h2>
-                <div className="space-y-4">
-                  {alumni.work_experience.map((work, index) => (
-                    <div key={index} className="border-l-2 border-cvsu-green pl-4 py-1">
-                      <div className="flex items-center">
-                        <BriefcaseIcon className="h-5 w-5 text-cvsu-green mr-2" />
-                        <h3 className="font-medium text-gray-900">{work.position}</h3>
+              <div className="bg-white shadow-md rounded-xl overflow-hidden mb-6 transition-all duration-300 hover:shadow-lg">
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <h2 className="text-lg font-bold text-gray-900">Work Experience</h2>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-6">
+                    {alumni.work_experience.map((work, index) => (
+                      <div key={index} className="relative pl-8 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-cvsu-green">
+                        <div className="absolute left-0 top-0 w-4 h-4 rounded-full bg-cvsu-green -translate-x-1/2"></div>
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                          <div className="flex items-center">
+                            <BriefcaseIcon className="h-5 w-5 text-cvsu-green mr-2" />
+                            <h3 className="font-medium text-gray-900">{work.position}</h3>
+                          </div>
+                          <p className="text-gray-600 ml-7 font-medium">{work.company}</p>
+                          <p className="text-gray-500 ml-7 text-sm">
+                            {formatDate(work.start_date)} - {work.is_current ? 'Present' : formatDate(work.end_date)}
+                          </p>
+                          {work.description && (
+                            <p className="text-gray-600 ml-7 mt-2 text-sm leading-relaxed">{work.description}</p>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-gray-600 ml-7">{work.company}</p>
-                      <p className="text-gray-600 ml-7 text-sm">
-                        {formatDate(work.start_date)} - {work.is_current ? 'Present' : formatDate(work.end_date)}
-                      </p>
-                      {work.description && (
-                        <p className="text-gray-600 ml-7 mt-1 text-sm">{work.description}</p>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
             
             {/* Achievements section */}
             {alumni.achievements && alumni.achievements.length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Achievements</h2>
-                <div className="space-y-4">
-                  {alumni.achievements.map((achievement, index) => (
-                    <div key={index} className="border-l-2 border-cvsu-green pl-4 py-1">
-                      <h3 className="font-medium text-gray-900">{achievement.title}</h3>
-                      {achievement.issuer && <p className="text-gray-600 ml-1">{achievement.issuer}</p>}
-                      {achievement.date && <p className="text-gray-600 ml-1 text-sm">{formatDate(achievement.date)}</p>}
-                      {achievement.description && (
-                        <p className="text-gray-600 ml-1 mt-1 text-sm">{achievement.description}</p>
-                      )}
-                    </div>
-                  ))}
+              <div className="bg-white shadow-md rounded-xl overflow-hidden mb-6 transition-all duration-300 hover:shadow-lg">
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <h2 className="text-lg font-bold text-gray-900">Achievements</h2>
+                </div>
+                <div className="p-6">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {alumni.achievements.map((achievement, index) => (
+                      <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                        <div className="flex items-center mb-2">
+                          <svg className="h-5 w-5 text-cvsu-green mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                          <h3 className="font-medium text-gray-900">{achievement.title}</h3>
+                        </div>
+                        {achievement.issuer && <p className="text-gray-600 ml-7">{achievement.issuer}</p>}
+                        {achievement.date && <p className="text-gray-500 ml-7 text-sm">{formatDate(achievement.date)}</p>}
+                        {achievement.description && (
+                          <p className="text-gray-600 ml-7 mt-2 text-sm">{achievement.description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
             
             {/* Verified Documents section */}
             {documents.length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Verified Documents</h2>
-                <div className="space-y-2">
-                  {documents.map((doc) => (
-                    <div key={doc._id} className="flex items-center p-2 border border-gray-200 rounded-md">
-                      <DocumentIcon className="h-6 w-6 text-cvsu-green mr-3" />
-                      <div>
-                        <h3 className="font-medium text-gray-900">{doc.title}</h3>
-                        <p className="text-sm text-gray-500">{doc.document_type}</p>
+              <div className="bg-white shadow-md rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg">
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <h2 className="text-lg font-bold text-gray-900">Verified Documents</h2>
+                </div>
+                <div className="p-6">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {documents.map((doc) => (
+                      <div key={doc._id} className="flex flex-col p-4 border border-gray-200 rounded-lg hover:border-cvsu-green hover:bg-cvsu-green/5 transition-colors">
+                        <div className="flex items-center mb-2">
+                          <DocumentIcon className="h-6 w-6 text-cvsu-green mr-3" />
+                          <h3 className="font-medium text-gray-900">{doc.title}</h3>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-3">{doc.document_type}</p>
+                        <div className="mt-auto">
+                          <Link
+                            to={`/verify?id=${doc._id}`}
+                            className="inline-flex items-center px-3 py-2 bg-cvsu-green/10 text-sm text-cvsu-green rounded-md hover:bg-cvsu-green/20 transition-colors"
+                          >
+                            <span>Verify</span>
+                            <svg className="ml-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
+                        </div>
                       </div>
-                      <div className="ml-auto">
-                        <Link
-                          to={`/verify?id=${doc._id}`}
-                          className="inline-flex items-center text-sm text-cvsu-green hover:text-green-700"
-                        >
-                          <span>Verify</span>
-                          <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

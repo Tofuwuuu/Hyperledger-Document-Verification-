@@ -258,4 +258,62 @@ async def get_current_user_ws(token: str):
     except JWTError:
         raise Exception("Invalid token")
     except Exception as e:
-        raise Exception(f"Authentication failed: {str(e)}") 
+        raise Exception(f"Authentication failed: {str(e)}")
+
+async def validate_token(token: str):
+    """
+    Validate a token and return the user data
+    This is similar to get_current_user but accepts a token string directly
+    without using the Depends mechanism
+    
+    Args:
+        token: JWT token string
+        
+    Returns:
+        User data dictionary if valid, None otherwise
+    """
+    try:
+        # Decode JWT
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        token_type: str = payload.get("type", "")
+        user_type: str = payload.get("user_type", "")
+        
+        if user_id is None:
+            return None
+        
+        # Get user from database
+        db = get_database()
+        user = None
+        
+        # Check if this is an employer token
+        if user_type == "employer":
+            # For employer tokens, look in the employers collection
+            user = await db.employers.find_one({"_id": user_id})
+            if not user:
+                # Try with ObjectId conversion if string ID lookup fails
+                try:
+                    user = await db.employers.find_one({"_id": ObjectId(user_id)})
+                except:
+                    pass
+            
+            # Add employer type if found
+            if user:
+                user["user_type"] = "employer"
+                user["type"] = "employer"  # Keep for backward compatibility
+        else:
+            # Default to looking in the users collection
+            user = await db.users.find_one({"_id": user_id})
+            if not user:
+                # Try employers collection as fallback
+                try:
+                    user = await db.employers.find_one({"_id": user_id})
+                    if user:
+                        user["user_type"] = "employer"
+                        user["type"] = "employer"  # Keep for backward compatibility
+                except:
+                    pass
+        
+        return user
+    except JWTError:
+        return None 

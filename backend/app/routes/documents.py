@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Security
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 import hashlib
 import uuid
+from fastapi.responses import FileResponse, Response
+from fastapi.security import OAuth2PasswordBearer
 
 from app.schemas import (
     DocumentCreate,
@@ -18,12 +20,15 @@ from app.schemas import (
     DocumentSearchResult,
     VerificationStatus
 )
-from app.utils.auth import get_current_user, get_admin_user
+from app.utils.auth import get_current_user, get_admin_user, validate_token
 from app.config.database import get_database
 from app.blockchain.fabric import generate_document_hash
 from app.services.notification_service import create_notification, NotificationTypes
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+
+# Initialize OAuth2 scheme for token authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Upload document
 @router.post("/upload", response_model=DocumentOut)
@@ -112,45 +117,71 @@ async def get_alumni_documents(
     db = get_database()
     
     # Verify alumni exists
-    alumni = await db.alumni.find_one({"_id": alumni_id})
-    if not alumni:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alumni profile not found"
-        )
-    
-    # Check if user is viewing their own documents or is an admin
-    if alumni["user_id"] != current_user["_id"] and not current_user.get("is_admin", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to view documents for this alumni"
-        )
-    
-    # Get documents
-    documents = await db.documents.find({"alumni_id": alumni_id}).to_list(None)
-    
-    # Ensure all _id fields are strings to pass validation
-    for doc in documents:
-        if "_id" in doc and not isinstance(doc["_id"], str):
-            doc["_id"] = str(doc["_id"])
+    try:
+        # Try different formats for alumni_id to ensure we find the correct record
+        from bson import ObjectId
         
-        # Add admin name for verified documents
-        if doc.get("verification_status") == "verified" and doc.get("verified_by"):
+        # First try with original format
+        alumni = await db.alumni.find_one({"_id": alumni_id})
+        
+        # If not found, try with ObjectId
+        if not alumni:
             try:
-                admin = await db.users.find_one({"_id": doc["verified_by"]})
-                if admin:
-                    admin_name = admin.get("full_name", "Unknown Admin")
-                    admin_position = admin.get("position", "")
-                    
-                    if admin_position:
-                        doc["verified_by_name"] = f"{admin_name} - {admin_position}"
-                    else:
-                        doc["verified_by_name"] = admin_name
+                alumni = await db.alumni.find_one({"_id": ObjectId(alumni_id)})
             except Exception as e:
-                print(f"Error fetching admin details: {e}")
-                doc["verified_by_name"] = "System"
-    
-    return documents
+                print(f"Error converting to ObjectId: {str(e)}")
+        
+        # If still not found, try with string _id
+        if not alumni:
+            alumni = await db.alumni.find_one({"_id": str(alumni_id)})
+            
+        if not alumni:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Alumni profile not found"
+            )
+        
+        # Check if user is viewing their own documents or is an admin
+        if alumni["user_id"] != current_user["_id"] and not current_user.get("is_admin", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view documents for this alumni"
+            )
+        
+        # Get documents using appropriate alumni_id format
+        alumni_id_to_use = alumni["_id"]
+        documents = await db.documents.find({"alumni_id": alumni_id_to_use}).to_list(None)
+        
+        # Ensure all _id fields are strings to pass validation
+        for doc in documents:
+            if "_id" in doc and not isinstance(doc["_id"], str):
+                doc["_id"] = str(doc["_id"])
+            
+            # Add admin name for verified documents
+            if doc.get("verification_status") == "verified" and doc.get("verified_by"):
+                try:
+                    admin = await db.users.find_one({"_id": doc["verified_by"]})
+                    if admin:
+                        admin_name = admin.get("full_name", "Unknown Admin")
+                        admin_position = admin.get("position", "")
+                        
+                        if admin_position:
+                            doc["averified_by_name"] = f"{admin_name} - {admin_position}"
+                        else:
+                            doc["verified_by_name"] = admin_name
+                except Exception as e:
+                    print(f"Error fetching admin details: {e}")
+                    doc["verified_by_name"] = "System"
+        
+        return documents
+    except Exception as e:
+        print(f"Error in get_alumni_documents: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving documents: {str(e)}"
+        )
 
 # Search documents with filters
 @router.get("/search", response_model=DocumentSearchResult)
@@ -469,4 +500,268 @@ async def delete_document(
             os.remove(document["file_path"])
         except Exception:
             # Ignore errors when deleting files
-            pass 
+            pass
+
+# Download document file
+@router.get("/{document_id}/download", response_class=FileResponse)
+async def download_document(
+    document_id: str,
+    token: Optional[str] = Query(None, description="Authentication token"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    # If token is provided and current_user is None, try to authenticate with token
+    if token and current_user is None:
+        try:
+            current_user = await validate_token(token)
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token"
+                )
+        except Exception as e:
+            print(f"Token authentication failed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
+    
+    # If still no current_user, return Unauthorized
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    db = get_database()
+    
+    print(f"Attempting to download document with ID: {document_id}")
+    
+    # Find document
+    document = await db.documents.find_one({"_id": document_id})
+    if not document:
+        print(f"Document not found with ID: {document_id}")
+        # Try with ObjectId
+        try:
+            from bson import ObjectId
+            document = await db.documents.find_one({"_id": ObjectId(document_id)})
+            if document:
+                print(f"Document found with ObjectId: {document_id}")
+        except Exception as e:
+            print(f"Error trying ObjectId: {str(e)}")
+            
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found"
+            )
+    
+    print(f"Document found: {document.get('title')} with file path: {document.get('file_path')}")
+    
+    # Verify alumni exists
+    alumni = await db.alumni.find_one({"_id": document["alumni_id"]})
+    if not alumni:
+        print(f"Alumni not found with ID: {document['alumni_id']}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alumni profile not found"
+        )
+    
+    print(f"Alumni found: {alumni.get('full_name')}")
+    
+    # Check if user is viewing their own document or is an admin
+    if alumni["user_id"] != current_user["_id"] and not current_user.get("is_admin", False):
+        # If document is verified, anyone can view it
+        if document["verification_status"] != VerificationStatus.VERIFIED.value:
+            print(f"User {current_user['_id']} not authorized to view document")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this document"
+            )
+    
+    # Check if file exists
+    file_path = document["file_path"]
+    if not os.path.exists(file_path):
+        print(f"File not found at path: {file_path}")
+        
+        # Try alternative path constructions
+        alt_paths = [
+            os.path.join(os.getcwd(), file_path),
+            file_path.replace('\\', '/'),
+            file_path.replace('/', '\\')
+        ]
+        
+        found_path = None
+        for alt_path in alt_paths:
+            print(f"Trying alternative path: {alt_path}")
+            if os.path.exists(alt_path):
+                print(f"File found at alternative path: {alt_path}")
+                file_path = alt_path
+                found_path = True
+                break
+        
+        if not found_path:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document file not found"
+            )
+    
+    # Get file extension for media type
+    file_extension = os.path.splitext(file_path)[1].lower()
+    media_type = None
+    
+    if file_extension in [".pdf"]:
+        media_type = "application/pdf"
+    elif file_extension in [".jpg", ".jpeg"]:
+        media_type = "image/jpeg"
+    elif file_extension in [".png"]:
+        media_type = "image/png"
+    elif file_extension in [".doc", ".docx"]:
+        media_type = "application/msword"
+    else:
+        media_type = "application/octet-stream"
+    
+    filename = f"{document['document_type']}-{document['title']}{file_extension}"
+    
+    print(f"Returning file: {filename} with media type: {media_type}")
+    
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        filename=filename
+    )
+
+# Get document preview
+@router.get("/{document_id}/preview", response_class=Response)
+async def preview_document(
+    document_id: str,
+    token: Optional[str] = Query(None, description="Authentication token"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    # If token is provided and current_user is None, try to authenticate with token
+    if token and current_user is None:
+        try:
+            current_user = await validate_token(token)
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token"
+                )
+        except Exception as e:
+            print(f"Token authentication failed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
+    
+    # If still no current_user, return Unauthorized
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    db = get_database()
+    
+    print(f"Attempting to preview document with ID: {document_id}")
+    
+    # Find document
+    document = await db.documents.find_one({"_id": document_id})
+    if not document:
+        print(f"Document not found with ID: {document_id}")
+        # Try with ObjectId
+        try:
+            from bson import ObjectId
+            document = await db.documents.find_one({"_id": ObjectId(document_id)})
+            if document:
+                print(f"Document found with ObjectId: {document_id}")
+        except Exception as e:
+            print(f"Error trying ObjectId: {str(e)}")
+            
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found"
+            )
+    
+    print(f"Document found: {document.get('title')} with file path: {document.get('file_path')}")
+    
+    # Verify alumni exists
+    alumni = await db.alumni.find_one({"_id": document["alumni_id"]})
+    if not alumni:
+        print(f"Alumni not found with ID: {document['alumni_id']}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alumni profile not found"
+        )
+    
+    print(f"Alumni found: {alumni.get('full_name')}")
+    
+    # Check if user is viewing their own document or is an admin
+    if alumni["user_id"] != current_user["_id"] and not current_user.get("is_admin", False):
+        # If document is verified, anyone can view it
+        if document["verification_status"] != VerificationStatus.VERIFIED.value:
+            print(f"User {current_user['_id']} not authorized to view document")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this document"
+            )
+    
+    # Check if file exists
+    file_path = document["file_path"]
+    if not os.path.exists(file_path):
+        print(f"File not found at path: {file_path}")
+        
+        # Try alternative path constructions
+        alt_paths = [
+            os.path.join(os.getcwd(), file_path),
+            file_path.replace('\\', '/'),
+            file_path.replace('/', '\\')
+        ]
+        
+        found_path = None
+        for alt_path in alt_paths:
+            print(f"Trying alternative path: {alt_path}")
+            if os.path.exists(alt_path):
+                print(f"File found at alternative path: {alt_path}")
+                file_path = alt_path
+                found_path = True
+                break
+        
+        if not found_path:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document file not found"
+            )
+    
+    # Get file extension for media type
+    file_extension = os.path.splitext(file_path)[1].lower()
+    
+    print(f"Preview file with extension: {file_extension}")
+    
+    # For images, return them directly as the preview
+    if file_extension in [".jpg", ".jpeg", ".png"]:
+        media_type = "image/jpeg" if file_extension in [".jpg", ".jpeg"] else "image/png"
+        
+        with open(file_path, "rb") as file:
+            content = file.read()
+        
+        print(f"Returning image preview with media type: {media_type}")
+        return Response(content=content, media_type=media_type)
+    
+    # For PDFs, return the first page as preview (just return the PDF for now)
+    elif file_extension == ".pdf":
+        with open(file_path, "rb") as file:
+            content = file.read()
+        
+        print(f"Returning PDF preview")
+        return Response(content=content, media_type="application/pdf")
+    
+    # For other formats, return a placeholder
+    else:
+        print(f"Preview not available for file extension: {file_extension}")
+        # You could implement conversion to images here for other document types
+        # For now, just return a not implemented error
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Preview not available for this document type"
+        ) 
