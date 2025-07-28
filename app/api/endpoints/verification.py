@@ -1,5 +1,10 @@
 """
 Document Verification API endpoints
+
+This module provides API endpoints for document verification,
+both using the database records and blockchain (Hyperledger Fabric).
+The blockchain implementation can operate in real mode (connecting to
+actual Fabric nodes) or local simulation mode for development and testing.
 """
 
 import json

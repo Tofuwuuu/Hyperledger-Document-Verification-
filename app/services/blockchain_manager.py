@@ -47,7 +47,7 @@ class BlockchainManager:
     Blockchain Manager for document verification
     
     This class provides a unified interface for blockchain operations,
-    with the ability to switch between mock and real implementations.
+    with the ability to switch between local simulation and real implementations.
     """
     
     def __init__(self):
@@ -62,20 +62,20 @@ class BlockchainManager:
             logger.info(f"Channel: {CHANNEL_NAME}")
             logger.info(f"Chaincode: {CHAINCODE_NAME}")
         else:
-            logger.info("BlockchainManager initialized in MOCK mode")
+            logger.info("BlockchainManager initialized in LOCAL SIMULATION mode")
         
         # Initialize client if using real blockchain
         if self.use_real_blockchain and FABRIC_CLIENT_AVAILABLE:
             # Note: Real client initialization happens on demand
             pass
         elif self.use_real_blockchain and not FABRIC_CLIENT_AVAILABLE:
-            logger.warning("Real blockchain requested but FabricClient not available. Using mock implementation.")
+            logger.warning("Real blockchain requested but FabricClient not available. Using local simulation implementation.")
             self.use_real_blockchain = False
     
     async def _get_real_client(self) -> bool:
         """Get or initialize real blockchain client"""
         if not self.client:
-            # Initialize the mock client first in case real initialization fails
+            # Initialize the local simulation client first in case real initialization fails
             initialize_fabric_client()
             
             if FABRIC_CLIENT_AVAILABLE:
@@ -88,7 +88,7 @@ class BlockchainManager:
                         )
                         connected = self.client.connect()
                         if not connected:
-                            logger.error("Failed to connect to Fabric network. Falling back to mock implementation.")
+                            logger.error("Failed to connect to Fabric network. Falling back to local simulation implementation.")
                             self.use_real_blockchain = False
                             return False
                         return True
@@ -149,10 +149,10 @@ class BlockchainManager:
                             "document_id": document_id
                         }
                 else:
-                    # Fall back to mock implementation
-                    logger.warning("Real blockchain client not available. Using mock implementation.")
+                    # Fall back to local simulation implementation
+                    logger.warning("Real blockchain client not available. Using local simulation implementation.")
             
-            # Use mock implementation
+            # Use local simulation implementation
             result = await store_document_hash(document_id, document_hash, metadata)
             
             if result.get("success"):
@@ -166,7 +166,7 @@ class BlockchainManager:
                 
                 return {
                     "success": True,
-                    "transaction_id": result.get("transaction_id", "mock_tx_id"),
+                    "transaction_id": result.get("transaction_id", "local_simulation_tx_id"),
                     "document_id": document_id,
                     "hash": document_hash,
                     "timestamp": datetime.now().isoformat()
@@ -227,10 +227,10 @@ class BlockchainManager:
                             "document_id": document_id
                         }
                 else:
-                    # Fall back to mock implementation
-                    logger.warning("Real blockchain client not available. Using mock implementation.")
+                    # Fall back to local simulation implementation
+                    logger.warning("Real blockchain client not available. Using local simulation implementation.")
             
-            # Use mock implementation
+            # Use local simulation implementation
             result = await verify_document_hash(document_id, document_hash)
             
             if result.get("success"):
@@ -282,14 +282,12 @@ class BlockchainManager:
                     )
                     
                     if result.get("success"):
-                        history = result.get("data", "[]")
-                        
-                        # Parse history if it's a string
-                        if isinstance(history, str):
-                            try:
-                                history = json.loads(history)
-                            except json.JSONDecodeError:
-                                history = []
+                        history_data = result.get("data", "[]")
+                        try:
+                            history = json.loads(history_data)
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse document history: {history_data}")
+                            history = []
                         
                         return {
                             "success": True,
@@ -297,17 +295,17 @@ class BlockchainManager:
                             "document_id": document_id
                         }
                     else:
-                        logger.error(f"Failed to get document history from blockchain: {result.get('message')}")
+                        logger.error(f"Failed to get document history: {result.get('message')}")
                         return {
                             "success": False,
                             "message": result.get("message", "Unknown error"),
                             "document_id": document_id
                         }
                 else:
-                    # Fall back to mock implementation
-                    logger.warning("Real blockchain client not available. Using mock implementation.")
+                    # Fall back to local simulation implementation
+                    logger.warning("Real blockchain client not available. Using local simulation implementation.")
             
-            # Use mock implementation
+            # Use local simulation implementation
             result = await get_document_history(document_id)
             
             if result.get("success"):
