@@ -31,104 +31,98 @@ CONTRACT_NAME = os.getenv("CONTRACT_NAME", "")
 # Mock storage for testing
 mock_storage = {}
 
-# Create a MockFabricClient for testing
-class MockFabricClient:
+class LocalSimulationFabricClient:
+    """
+    Local simulation implementation of Fabric client for testing and development
+    This provides similar functionality to a real Fabric client but stores data locally
+    """
+    
     def __init__(self):
-        self.storage = {}
-        print("MockFabricClient initialized")
+        self.document_store = {}  # In-memory document store
     
     async def store_document(self, document_id, document_hash, metadata):
-        """Store document hash in mock blockchain"""
-        transaction_id = f"mock_tx_{uuid.uuid4().hex[:8]}"
-        timestamp = datetime.now().isoformat()
-        
-        # Store document in mock storage
-        self.storage[document_id] = {
-            "hash": document_hash,
-            "metadata": metadata,
-            "transaction_id": transaction_id,
-            "timestamp": timestamp
-        }
-        
-        print(f"[MOCK] Stored document {document_id} with hash {document_hash[:8]}...")
-        
-        return {
-            "success": True,
-            "transaction_id": transaction_id,
-            "document_id": document_id,
-            "hash": document_hash,
-            "timestamp": timestamp
-        }
+        """Store document hash in local simulation storage"""
+        try:
+            # Store the document hash with timestamp
+            timestamp = datetime.now().isoformat()
+            tx_id = f"local_sim_{hashlib.md5(f'{document_id}_{timestamp}'.encode()).hexdigest()}"
+            
+            self.document_store[document_id] = {
+                'hash': document_hash,
+                'metadata': metadata,
+                'timestamp': timestamp,
+                'tx_id': tx_id
+            }
+            
+            return {
+                "success": True, 
+                "transaction_id": tx_id,
+                "message": "Document stored in local simulation storage"
+            }
+        except Exception as e:
+            return {"success": False, "message": str(e)}
     
     async def verify_document(self, document_id, document_hash):
-        """Verify document hash against mock blockchain"""
-        if document_id not in self.storage:
-            return {
-                "success": True,
-                "verified": False,
-                "message": "Document not found in blockchain"
-            }
-        
-        stored_doc = self.storage[document_id]
-        verified = stored_doc["hash"] == document_hash
-        
-        print(f"[MOCK] Verifying document {document_id}")
-        print(f"[MOCK] Stored hash: {stored_doc['hash'][:8]}...")
-        print(f"[MOCK] Provided hash: {document_hash[:8]}...")
-        print(f"[MOCK] Match: {verified}")
-        
-        return {
-            "success": True,
-            "verified": verified,
-            "document_id": document_id
-        }
+        """Verify document hash against local simulation storage"""
+        try:
+            if document_id in self.document_store:
+                stored_doc = self.document_store[document_id]
+                verified = stored_doc['hash'] == document_hash
+                
+                return {
+                    "success": True, 
+                    "verified": verified,
+                    "data": "true" if verified else "false"
+                }
+            else:
+                return {
+                    "success": True, 
+                    "verified": False,
+                    "data": "Document not found in local simulation storage"
+                }
+        except Exception as e:
+            return {"success": False, "message": str(e)}
     
     async def get_document_history(self, document_id):
-        """Get document history from mock blockchain"""
-        if document_id not in self.storage:
-            return {
-                "success": True,
-                "history": [],
-                "message": "Document not found in blockchain"
-            }
-        
-        # In a real blockchain, this would return multiple versions
-        # For mock, we'll just return the current version
-        doc = self.storage[document_id]
-        
-        history = [{
-            "txId": doc["transaction_id"],
-            "hash": doc["hash"],
-            "metadata": doc["metadata"],
-            "timestamp": doc["timestamp"]
-        }]
-        
-        return {
-            "success": True,
-            "history": history,
-            "document_id": document_id
-        }
+        """Get document history from local simulation storage"""
+        try:
+            if document_id in self.document_store:
+                stored_doc = self.document_store[document_id]
+                
+                # Create a history entry
+                history = [{
+                    'timestamp': stored_doc['timestamp'],
+                    'hash': stored_doc['hash'],
+                    'tx_id': stored_doc['tx_id'],
+                    'metadata': stored_doc['metadata']
+                }]
+                
+                return {"success": True, "history": history}
+            else:
+                return {"success": True, "history": []}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
 
 # Global client instances
 fabric_client = None
-mock_client = MockFabricClient()
+local_simulation_client = LocalSimulationFabricClient()
 
 def initialize_fabric_client():
     """Initialize blockchain client (real or mock)"""
-    global fabric_client, mock_client
+    global fabric_client, local_simulation_client
     
     # Check if we should use the real blockchain
     use_real = os.getenv("USE_REAL_BLOCKCHAIN", "false").lower() == "true"
     
     if not use_real or not FABRIC_SDK_AVAILABLE:
-        print("Using mock blockchain implementation")
+        print("Using local simulation implementation")
         return True
         
     try:
         # Check if network config exists
         if not NETWORK_CONFIG_PATH or not os.path.exists(NETWORK_CONFIG_PATH):
             print(f"Network config not found at {NETWORK_CONFIG_PATH}")
-            print("Using mock blockchain implementation")
+            print("Using local simulation implementation")
             return True
             
         # Determine file format based on extension
@@ -147,19 +141,19 @@ def initialize_fabric_client():
         # Check if admin user exists
         if not admin:
             print(f"Admin user {ORG_USER} not found in organization {ORG_NAME}")
-            print("Using mock blockchain implementation")
+            print("Using local simulation implementation")
             return True
         
         print(f"Hyperledger Fabric client initialized successfully (Channel: {CHANNEL_NAME}, Chaincode: {CHAINCODE_NAME})")
         return True
     except Exception as e:
         print(f"Error initializing Fabric client: {str(e)}")
-        print("Using mock blockchain implementation")
+        print("Using local simulation implementation")
         return True
 
 async def store_document_hash(document_id, document_hash, metadata):
     """Store document hash in blockchain"""
-    global fabric_client, mock_client
+    global fabric_client, local_simulation_client
     
     if not fabric_client:
         if not initialize_fabric_client():
@@ -170,8 +164,8 @@ async def store_document_hash(document_id, document_hash, metadata):
         use_real = os.getenv("USE_REAL_BLOCKCHAIN", "false").lower() == "true"
         
         if not use_real or not FABRIC_SDK_AVAILABLE:
-            # Use mock implementation
-            return await mock_client.store_document(document_id, document_hash, metadata)
+            # Use local simulation implementation
+            return await local_simulation_client.store_document(document_id, document_hash, metadata)
         
         # Convert metadata to string if it's a dict
         if isinstance(metadata, dict):
@@ -234,7 +228,7 @@ async def store_document_hash(document_id, document_hash, metadata):
 
 async def verify_document_hash(document_id, document_hash):
     """Verify document hash from blockchain"""
-    global fabric_client, mock_client
+    global fabric_client, local_simulation_client
     
     if not fabric_client:
         if not initialize_fabric_client():
@@ -245,8 +239,8 @@ async def verify_document_hash(document_id, document_hash):
         use_real = os.getenv("USE_REAL_BLOCKCHAIN", "false").lower() == "true"
         
         if not use_real or not FABRIC_SDK_AVAILABLE:
-            # Use mock implementation
-            return await mock_client.verify_document(document_id, document_hash)
+            # Use local simulation implementation
+            return await local_simulation_client.verify_document(document_id, document_hash)
         
         # Create args - all args must be strings
         args = [document_id, document_hash]
@@ -306,7 +300,7 @@ def generate_document_hash(file_content):
 
 async def get_document_history(document_id):
     """Get document history from blockchain"""
-    global fabric_client, mock_client
+    global fabric_client, local_simulation_client
     
     if not fabric_client:
         if not initialize_fabric_client():
@@ -317,8 +311,8 @@ async def get_document_history(document_id):
         use_real = os.getenv("USE_REAL_BLOCKCHAIN", "false").lower() == "true"
         
         if not use_real or not FABRIC_SDK_AVAILABLE:
-            # Use mock implementation
-            return await mock_client.get_document_history(document_id)
+            # Use local simulation implementation
+            return await local_simulation_client.get_document_history(document_id)
         
         # Create args
         args = [document_id]

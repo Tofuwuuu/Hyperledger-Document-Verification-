@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: cvsu_alumni
+      # Add other environment variables as needed, e.g., for JWT secrets, Fabric config
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    volumes:
+      - ./backend/wallet:/app/wallet # Mount wallet for Hyperledger Fabric
+      - ./backend/uploads:/app/uploads # Mount uploads directory
+      - ./backend/documents:/app/documents # Mount documents directory
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
