@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 from app.config.database import get_database
 from app.models.user import User
 import hashlib
+from app.core.config import settings
 
 # Define TokenData class
 class TokenData(BaseModel):
@@ -92,6 +93,18 @@ def get_admin_bypass_header(request: Request) -> Optional[str]:
     """Get admin bypass header from request if it exists"""
     return request.headers.get("X-Admin-Bypass")
 
+def _is_admin_bypass_allowed(request: Optional[Request]) -> bool:
+    if not request:
+        return False
+    if settings.ENV.lower() != "development":
+        return False
+    if not settings.ENABLE_ADMIN_BYPASS:
+        return False
+    # Optional shared secret to avoid accidental exposure even in dev
+    if settings.ADMIN_BYPASS_SECRET:
+        return request.headers.get("X-Admin-Bypass-Secret") == settings.ADMIN_BYPASS_SECRET
+    return True
+
 async def get_current_user(request: Request = None, authorization: str = Header(None), token: str = Depends(oauth2_scheme)):
     """
     Get current user from token
@@ -107,13 +120,19 @@ async def get_current_user(request: Request = None, authorization: str = Header(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Check for admin bypass header and token format
+    # Check for admin bypass header and token format (dev-only, explicitly enabled)
     admin_bypass = False
     if request and authorization:
         admin_bypass_header = get_admin_bypass_header(request)
         scheme, param = get_authorization_scheme_param(authorization)
         
-        if admin_bypass_header == "true" and scheme.lower() == "bearer" and param and param.startswith("admin_access_token_"):
+        if (
+            _is_admin_bypass_allowed(request)
+            and admin_bypass_header == "true"
+            and scheme.lower() == "bearer"
+            and param
+            and param.startswith("admin_access_token_")
+        ):
             logger.info(f"Admin bypass detected with token: {param[:20]}...")
             admin_bypass = True
     

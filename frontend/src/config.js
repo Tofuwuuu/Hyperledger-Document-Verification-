@@ -1,13 +1,18 @@
-// Use environment variable with fallback
-const isDevelopment = import.meta.env.MODE === 'development';
-// For development, use the direct URL to the backend
-let baseApiUrl = isDevelopment 
-  ? 'http://localhost:8000/api/v1' // Direct URL to backend in development
-  : (import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com');
+function normalizeApiOrigin(value) {
+  if (!value) return '';
+  let v = value.trim();
+  v = v.endsWith('/') ? v.slice(0, -1) : v;
+  // Accept either origin-only or origin+`/api/v1` env values.
+  if (v.endsWith('/api/v1')) v = v.slice(0, -('/api/v1'.length));
+  return v;
+}
 
-// Remove trailing slash if present
-baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
-// Add /api/v1 only if it's not already included and we're not in development mode
-export const API_URL = isDevelopment 
-  ? baseApiUrl 
-  : (baseApiUrl.includes('/api/v1') ? baseApiUrl : `${baseApiUrl}/api/v1`); 
+export const API_ORIGIN =
+  normalizeApiOrigin(import.meta.env.VITE_API_URL) ||
+  normalizeApiOrigin(import.meta.env.VITE_API_ORIGIN) ||
+  'http://localhost:8000';
+
+export const API_PREFIX = '/api/v1';
+
+// In dev we prefer the Vite proxy. In prod we call the absolute URL.
+export const API_URL = import.meta.env.DEV ? API_PREFIX : `${API_ORIGIN}${API_PREFIX}`;

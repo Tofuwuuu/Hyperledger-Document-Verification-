@@ -1,6 +1,8 @@
-version: '3'
+version: '3.8'
 
 services:
+  # ==================== CVSU Alumni Application Services ====================
+  
   mongodb:
     image: mongo:latest
     container_name: cvsu_alumni_mongodb
@@ -13,6 +15,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+      - blockchain-network
 
   mongo-express:
     image: mongo-express:latest
@@ -27,9 +30,100 @@ services:
     networks:
       - app-network
 
+  # ==================== Hyperledger Fabric Blockchain Network ====================
+  
+  # Fabric Gateway (talks to peer/orderer via Fabric Gateway SDK)
+  fabric-gateway:
+    build:
+      context: ./fabric-gateway
+      dockerfile: Dockerfile
+    container_name: cvsu_fabric_gateway
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - PEER_ENDPOINT=peer0.org1.example.com:7051
+      - PEER_TLS_ROOTCERT=/crypto/peer/tls/ca.crt
+      - MSP_ID=Org1MSP
+      - CHANNEL_NAME=alumni-channel
+      - CHAINCODE_NAME=document-verification
+      - CERT_PATH=/crypto/signcerts
+      - KEY_DIR=/crypto/keystore
+    volumes:
+      - ./fabric-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts:/crypto/signcerts:ro
+      - ./fabric-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore:/crypto/keystore:ro
+      - ./fabric-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls:/crypto/peer/tls:ro
+    networks:
+      - blockchain-network
+    restart: unless-stopped
+
+  # Blockchain Explorer (Mock)
+  blockchain-explorer:
+    image: nginx:alpine
+    container_name: cvsu_blockchain_explorer
+    ports:
+      - "8080:80"
+    volumes:
+      - ./blockchain-explorer:/usr/share/nginx/html
+    networks:
+      - blockchain-network
+    restart: unless-stopped
+
+  # ==================== CVSU Alumni Backend Service ====================
+  
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cvsu_alumni_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017/cvsu_alumni
+      - BLOCKCHAIN_ENABLED=true
+      - FABRIC_GATEWAY_URL=http://fabric-gateway:3001
+      - ENV=development
+      - ENABLE_CSRF=false
+      - ENABLE_ADMIN_BYPASS=false
+    depends_on:
+      - mongodb
+      - fabric-gateway
+    networks:
+      - app-network
+      - blockchain-network
+    restart: unless-stopped
+
+  # ==================== CVSU Alumni Frontend Service ====================
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cvsu_alumni_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://backend:8000
+      - VITE_BLOCKCHAIN_ENABLED=true
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# ==================== Docker Networks ====================
+
 networks:
   app-network:
+    name: cvsu_alumni_app_network
     driver: bridge
 
+  blockchain-network:
+    name: cvsu_alumni_blockchain_network
+    external: true
+
+# ==================== Docker Volumes ====================
+
 volumes:
-  mongodb_data: 
+  mongodb_data:
+    name: cvsu_alumni_mongodb_data 

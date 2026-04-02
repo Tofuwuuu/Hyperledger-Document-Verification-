@@ -223,11 +223,11 @@ export default function LoginPage() {
               remember: false
             }}
             validationSchema={LoginSchema}
-            onSubmit={async (values, { setSubmitting }) => {
+            onSubmit={async (values, { setSubmitting, setFieldError }) => {
               // Explicit event prevention
               try {
                 console.log('Form submitted with values:', { ...values, password: '***HIDDEN***' });
-                await handleSubmit(values, { setSubmitting });
+                await handleSubmit(values, { setSubmitting, setFieldError });
               } catch (error) {
                 console.error('Form submission error:', error);
                 // Make sure we don't reload even if there's an unhandled error

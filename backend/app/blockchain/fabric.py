@@ -6,6 +6,10 @@ import asyncio
 import uuid
 from datetime import datetime
 
+# Prefer HTTP Fabric Gateway in dev/runtime when enabled
+from app.core.config import settings
+from app.blockchain import fabric_gateway as gateway
+
 # Import Fabric SDK if available
 try:
     # Uncomment actual Fabric imports
@@ -159,6 +163,8 @@ def initialize_fabric_client():
 
 async def store_document_hash(document_id, document_hash, metadata):
     """Store document hash in blockchain"""
+    if settings.BLOCKCHAIN_ENABLED and gateway.is_gateway_enabled():
+        return await gateway.store_document_hash(str(document_id), str(document_hash), metadata if isinstance(metadata, dict) else {"metadata": metadata})
     global fabric_client, mock_client
     
     if not fabric_client:
@@ -234,6 +240,8 @@ async def store_document_hash(document_id, document_hash, metadata):
 
 async def verify_document_hash(document_id, document_hash):
     """Verify document hash from blockchain"""
+    if settings.BLOCKCHAIN_ENABLED and gateway.is_gateway_enabled():
+        return await gateway.verify_document_hash(str(document_id), str(document_hash))
     global fabric_client, mock_client
     
     if not fabric_client:
@@ -306,6 +314,8 @@ def generate_document_hash(file_content):
 
 async def get_document_history(document_id):
     """Get document history from blockchain"""
+    if settings.BLOCKCHAIN_ENABLED and gateway.is_gateway_enabled():
+        return await gateway.get_document_history(str(document_id))
     global fabric_client, mock_client
     
     if not fabric_client:

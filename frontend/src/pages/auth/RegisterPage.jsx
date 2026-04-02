@@ -25,11 +25,7 @@ const RegisterSchema = Yup.object().shape({
     .max(new Date().getFullYear(), 'Graduation year cannot be in the future'),
   password: Yup.string()
     .required('Password is required')
-    .min(8, 'Password must be at least 8 characters')
-    .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      'Password must contain at least one uppercase letter, one lowercase letter, and one number'
-    ),
+    .min(6, 'Password must be at least 6 characters'),
   confirmPassword: Yup.string()
     .required('Please confirm your password')
     .oneOf([Yup.ref('password'), null], 'Passwords must match'),
@@ -282,7 +278,7 @@ export default function RegisterPage() {
                         />
                         {touched.password && !errors.password && (
                           <p className="mt-1 text-xs text-gray-500">
-                            Password must have at least 8 characters, including uppercase, lowercase, and numbers.
+                            Password must have at least 6 characters.
                           </p>
                         )}
                       </div>

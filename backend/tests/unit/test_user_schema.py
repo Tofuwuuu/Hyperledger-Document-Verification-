@@ -98,43 +98,7 @@ class TestUserSchemas:
         with pytest.raises(ValidationError) as exc_info:
             UserCreate(
                 email="valid@example.com",
-                password="Short1!"  # Less than 8 characters
-            )
-        errors = exc_info.value.errors()
-        assert any("password" in str(error["loc"]) for error in errors)
-        
-        # No uppercase
-        with pytest.raises(ValidationError) as exc_info:
-            UserCreate(
-                email="valid@example.com",
-                password="nouppercase123!"
-            )
-        errors = exc_info.value.errors()
-        assert any("password" in str(error["loc"]) for error in errors)
-        
-        # No lowercase
-        with pytest.raises(ValidationError) as exc_info:
-            UserCreate(
-                email="valid@example.com",
-                password="NOLOWERCASE123!"
-            )
-        errors = exc_info.value.errors()
-        assert any("password" in str(error["loc"]) for error in errors)
-        
-        # No digit
-        with pytest.raises(ValidationError) as exc_info:
-            UserCreate(
-                email="valid@example.com",
-                password="NoDigitsHere!"
-            )
-        errors = exc_info.value.errors()
-        assert any("password" in str(error["loc"]) for error in errors)
-        
-        # No special character
-        with pytest.raises(ValidationError) as exc_info:
-            UserCreate(
-                email="valid@example.com",
-                password="NoSpecialChars123"
+                password="short"  # Less than 6 characters
             )
         errors = exc_info.value.errors()
         assert any("password" in str(error["loc"]) for error in errors)

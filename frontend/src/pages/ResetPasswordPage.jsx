@@ -74,8 +74,8 @@ export default function ResetPasswordPage() {
       return;
     }
     
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
       return;
     }
     
@@ -298,10 +298,7 @@ export default function ResetPasswordPage() {
               <div className="mt-6">
                 <h3 className="text-sm font-medium text-gray-700">Password requirements:</h3>
                 <ul className="mt-2 text-xs text-gray-500 list-disc list-inside space-y-1">
-                  <li>At least 8 characters</li>
-                  <li>At least one uppercase letter</li>
-                  <li>At least one number</li>
-                  <li>At least one special character</li>
+                  <li>At least 6 characters</li>
                 </ul>
               </div>
             )}

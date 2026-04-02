@@ -7,7 +7,8 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '')
-  const API_BASE_URL = env.VITE_API_URL || 'http://localhost:8000'
+  const rawApi = env.VITE_API_URL || env.VITE_API_ORIGIN || 'http://localhost:8000'
+  const API_BASE_URL = rawApi.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '')
 
   return {
     plugins: [react()],
@@ -24,16 +25,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true,
-          rewrite: (path) => {
-            // Fix path routing by removing any /api/v1 duplications
-            const parts = path.split('/api/v1');
-            // Keep only the first /api/v1 occurrence
-            if (parts.length > 1) {
-              const correctedPath = '/api/v1' + parts[parts.length - 1];
-              return correctedPath;
-            }
-            return path;
-          },
           configure: (proxy, _options) => {
             proxy.on('error', (err, _req, _res) => {
               console.log('proxy error', err);

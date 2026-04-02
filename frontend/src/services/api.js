@@ -9,24 +9,8 @@ import {
 import { API_URL as CONFIG_API_URL } from '../config';
 import { prepareProfileData } from '../utils/profile-helpers';
 
-// Base URL for the API - different for development vs production
-let API_BASE_URL;
-
-if (import.meta.env.DEV) {
-  // In development, use the proxy from Vite config
-  API_BASE_URL = '/api/v1';
-  console.log('Using Vite proxy for API calls in development');
-} else {
-  // In production, use the environment variable or config
-  const baseApiUrl = import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com';
-  // Clean up URL format (remove trailing slash if present)
-  const baseApiUrl_clean = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
-  // Add /api/v1 only if it's not already included
-  API_BASE_URL = baseApiUrl_clean.includes('/api/v1') ? baseApiUrl_clean : `${baseApiUrl_clean}/api/v1`;
-}
-
-// Use imported config URL or fallback to locally defined URL
-export const API_URL = CONFIG_API_URL || API_BASE_URL;
+// Single source of truth (see `src/config.js`)
+export const API_URL = CONFIG_API_URL;
 console.log('API URL configured as:', API_URL); // Debug API URL
 
 // Flag to prevent multiple refresh token requests
@@ -397,7 +381,7 @@ export const authService = {
       const { remember, ...loginCredentials } = credentials;
       
       // Now use the MFA check endpoint which may return direct login or MFA challenge
-      const mfaCheckUrl = `${API_URL}/api/v1/auth/login/mfa-check`.replace('/api/v1/api/v1', '/api/v1');
+      const mfaCheckUrl = `${API_URL}/auth/login/mfa-check`;
       const response = await axios.post(mfaCheckUrl, loginCredentials, {
         headers: {
           'Content-Type': 'application/json'
@@ -420,8 +404,7 @@ export const authService = {
       params.append('password', credentials.password);
       params.append('remember', remember !== undefined ? remember : false);
       
-      // Ensure proper URL format with no duplication
-      const loginUrl = `${API_URL}/api/v1/auth/login`.replace('/api/v1/api/v1', '/api/v1');
+      const loginUrl = `${API_URL}/auth/login`;
       
       console.log('Using login URL:', loginUrl);
       
@@ -507,8 +490,7 @@ export const authService = {
     try {
       console.log('Registration attempt with data:', userData);
       
-      // Ensure proper URL format with no duplication
-      const registerUrl = `${API_URL}/api/v1/auth/register`.replace('/api/v1/api/v1', '/api/v1');
+      const registerUrl = `${API_URL}/auth/register`;
       
       console.log('Sending registration request to:', registerUrl);
       

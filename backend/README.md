@@ -12,7 +12,7 @@ This is the backend for the CVSU Carmona Alumni Profile Management System with B
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.11+ (recommended for dev; matches the Docker image)
 - MongoDB
 - Hyperledger Fabric (or access to a Hyperledger Fabric network)
 
@@ -29,6 +29,10 @@ This is the backend for the CVSU Carmona Alumni Profile Management System with B
 4. Install dependencies:
    ```
    pip install -r requirements.txt
+   ```
+   For running tests:
+   ```
+   pip install -r requirements-dev.txt
    ```
 5. Configure the environment variables in `.env` file:
    ```

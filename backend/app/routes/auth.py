@@ -1041,16 +1041,17 @@ async def get_csrf_token(response: Response):
     # Set the token in a cookie
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
-        value=token.value,
-        httponly=True,
-        secure=True,
+        value=token,
+        # Double-submit cookie pattern: JS reads token and sends it back via header.
+        httponly=False,
+        secure=False,
         samesite="lax",
         max_age=86400,  # 24 hours
         path="/"
     )
     
     # Return the token value to be used in the header
-    return {"csrf_token": token.value}
+    return {"csrf_token": token}
 
 @router.post("/login/mfa-check")
 async def check_mfa_status(data: UserLogin, response: Response):

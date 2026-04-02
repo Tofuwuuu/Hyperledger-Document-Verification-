@@ -27,8 +27,8 @@ const SecuritySettingsPage = () => {
       return;
     }
     
-    if (passwordData.new_password.length < 8) {
-      setPasswordError('New password must be at least 8 characters long');
+    if (passwordData.new_password.length < 6) {
+      setPasswordError('New password must be at least 6 characters long');
       return;
     }
     
@@ -120,7 +120,7 @@ const SecuritySettingsPage = () => {
                     value={passwordData.new_password}
                     onChange={handleInputChange}
                     required
-                    minLength={8}
+                    minLength={6}
                   />
                 </div>
                 

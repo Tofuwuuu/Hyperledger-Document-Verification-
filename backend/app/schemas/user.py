@@ -18,7 +18,7 @@ class UserBase(BaseModel):
         return v.strip()
     
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=8, description="User's password")
+    password: str = Field(..., min_length=6, description="User's password")
     confirm_password: str = Field(..., description="Password confirmation")
     student_id: Optional[str] = Field(None, min_length=5, max_length=20, description="Student ID number")
     graduation_year: Optional[int] = Field(None, ge=1948, le=datetime.now().year, description="Year of graduation")
@@ -26,14 +26,8 @@ class UserCreate(UserBase):
     
     @field_validator('password')
     def validate_password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters')
         return v
     
     @field_validator('confirm_password')
@@ -68,7 +62,7 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = Field(None, description="User's email address")
     full_name: Optional[str] = Field(None, min_length=2, max_length=100, description="User's full name")
-    password: Optional[str] = Field(None, min_length=8, description="User's password")
+    password: Optional[str] = Field(None, min_length=6, description="User's password")
     confirm_password: Optional[str] = Field(None, description="Password confirmation")
     is_active: Optional[bool] = Field(None, description="Whether the user account is active")
     is_admin: Optional[bool] = Field(None, description="Whether the user has admin privileges")
@@ -90,14 +84,8 @@ class UserUpdate(BaseModel):
     def validate_password_strength(cls, v):
         if v is None:
             return v
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters')
         return v
     
     @field_validator('confirm_password')
@@ -124,19 +112,13 @@ class PasswordResetToken(BaseModel):
     
 class PasswordResetConfirm(BaseModel):
     token: str = Field(..., description="Password reset token")
-    password: str = Field(..., min_length=8, description="New password")
+    password: str = Field(..., min_length=6, description="New password")
     confirm_password: str = Field(..., description="Confirm new password")
     
     @field_validator('password')
     def validate_password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters')
         return v
     
     @field_validator('confirm_password')
@@ -147,19 +129,13 @@ class PasswordResetConfirm(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str = Field(..., description="Current password")
-    new_password: str = Field(..., min_length=8, description="New password")
+    new_password: str = Field(..., min_length=6, description="New password")
     confirm_password: str = Field(..., description="Confirm new password")
     
     @field_validator('new_password')
     def validate_password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters')
-        if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters')
         return v
     
     @field_validator('confirm_password')

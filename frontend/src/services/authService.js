@@ -104,16 +104,8 @@ export const logout = () => {
 
 export const getProfile = async () => {
   try {
-    // Get the token and check if it's an admin bypass token
-    const token = getToken();
-    const isAdminBypass = token && token.startsWith('admin_access_token_');
-    
-    // Set up headers with auth and admin bypass if needed
+    // Set up headers with auth
     const headers = getAuthHeader();
-    if (isAdminBypass) {
-      headers['X-Admin-Bypass'] = 'true';
-      console.log('Adding admin bypass header for profile request');
-    }
     
     const response = await axios.get(`${API_URL}/auth/me`, { headers });
     return response.data;
@@ -152,7 +144,6 @@ export const getUnverifiedUsers = async (signal) => {
     
     // Add admin-specific headers
     headers['X-Admin-Access'] = 'true';
-    headers['X-Admin-Bypass'] = 'true';
     
     // Use simplified approach with direct axios call instead of the service
     try {
@@ -318,16 +309,8 @@ export const verifyUser = async (userId, notes = '') => {
 
 export const getUserById = async (userId) => {
   try {
-    // Get the token and check if it's an admin bypass token
-    const token = getToken();
-    const isAdminBypass = token && token.startsWith('admin_access_token_');
-    
-    // Set up headers with auth and admin bypass if needed
+    // Set up headers with auth
     const headers = getAuthHeader();
-    if (isAdminBypass) {
-      headers['X-Admin-Bypass'] = 'true';
-      console.log('Adding admin bypass header for get user request');
-    }
     
     const response = await axios.get(`${API_URL}/auth/user/${userId}`, { headers });
     return response.data;

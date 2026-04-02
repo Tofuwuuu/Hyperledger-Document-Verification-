@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     
     # API settings
     API_PREFIX: str = "/api/v1"
+
+    # Environment / security toggles
+    ENV: str = os.getenv("ENV", "development")  # development | production
+    ENABLE_CSRF: bool = os.getenv("ENABLE_CSRF", "false").lower() == "true"
+    ENABLE_ADMIN_BYPASS: bool = os.getenv("ENABLE_ADMIN_BYPASS", "false").lower() == "true"
+    ADMIN_BYPASS_SECRET: str = os.getenv("ADMIN_BYPASS_SECRET", "")
     
     # JWT settings
     SECRET_KEY: str = os.getenv("SECRET_KEY", "development_secret_key")
@@ -55,6 +61,7 @@ class Settings(BaseSettings):
     
     # Blockchain settings
     BLOCKCHAIN_ENABLED: bool = os.getenv("BLOCKCHAIN_ENABLED", "false").lower() == "true"
+    FABRIC_GATEWAY_URL: str = os.getenv("FABRIC_GATEWAY_URL", "http://fabric-gateway:3001")
     
     # Email settings
     SMTP_TLS: bool = True
