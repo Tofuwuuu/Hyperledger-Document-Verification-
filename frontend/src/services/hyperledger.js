@@ -140,7 +140,7 @@ export const fabricService = {
     return fabricService.queryChaincode(
       'mychannel-network',       // Default network
       'mychannel',               // Default channel 
-      'document-verification',   // This would be the chaincode for document verification
+      'final-smart-contract',   // Final Smart Contract (document verification chaincode)
       'VerifyDocument',          // Function name
       [documentId, documentHash] // Args: document ID and hash to verify
     );
@@ -156,7 +156,7 @@ export const fabricService = {
     return fabricService.invokeChaincode(
       'mychannel-network',       // Default network
       'mychannel',               // Default channel
-      'document-verification',   // This would be the chaincode for document verification
+      'final-smart-contract',   // Final Smart Contract (document verification chaincode)
       'StoreDocument',           // Function name
       [documentId, documentHash, metadataStr] // Args: document ID, hash, and metadata
     );
@@ -167,7 +167,7 @@ export const fabricService = {
     return fabricService.queryChaincode(
       'mychannel-network',       // Default network
       'mychannel',               // Default channel
-      'document-verification',   // This would be the chaincode for document verification
+      'final-smart-contract',   // Final Smart Contract (document verification chaincode)
       'GetDocumentHistory',      // Function name
       [documentId]               // Args: document ID
     );

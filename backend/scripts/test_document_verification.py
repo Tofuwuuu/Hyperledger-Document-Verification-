@@ -39,7 +39,7 @@ async def test_store_document():
     # Network and channel information
     network_name = "mychannel-network"
     channel_name = "mychannel"
-    chaincode_name = "document-verification"
+    chaincode_name = "final-smart-contract"
     
     # Load connection profile
     connection_profile = load_connection_profile(network_name)

@@ -1,5 +1,5 @@
 /*
-  Minimal chaincode for document hash verification.
+  Final Smart Contract — minimal chaincode for document hash verification.
   - Key: doc:{documentId}
   - Value: JSON { documentId, hash, metadata, updatedAt }
 */
@@ -54,4 +54,3 @@ class DocumentVerificationContract extends Contract {
 }
 
 module.exports = DocumentVerificationContract;
-

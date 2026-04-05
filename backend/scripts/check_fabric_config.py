@@ -25,7 +25,7 @@ def check_environment_variables():
         "ORG_NAME": os.getenv("ORG_NAME", "Org1"),
         "ORG_USER": os.getenv("ORG_USER", "Admin"),
         "CHANNEL_NAME": os.getenv("CHANNEL_NAME", "mychannel"),
-        "CHAINCODE_NAME": os.getenv("CHAINCODE_NAME", "document-verification")
+        "CHAINCODE_NAME": os.getenv("CHAINCODE_NAME", "final-smart-contract")
     }
     
     missing_vars = []

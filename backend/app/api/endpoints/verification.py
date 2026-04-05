@@ -87,7 +87,7 @@ async def verify_document_blockchain(
         
         # Query chaincode
         result = client.query_chaincode(
-            "document-verification", 
+            "final-smart-contract", 
             "VerifyDocument", 
             [request.document_id, request.hash, verifier]
         )
@@ -168,7 +168,7 @@ async def store_document_blockchain(
         
         # Invoke chaincode
         result = client.invoke_chaincode(
-            "document-verification", 
+            "final-smart-contract", 
             "StoreDocument", 
             [request.document_id, request.hash, request.owner, request.document_type, metadata_str]
         )
@@ -236,7 +236,7 @@ async def get_document_history_blockchain(
         
         # Query chaincode
         result = client.query_chaincode(
-            "document-verification", 
+            "final-smart-contract", 
             "GetDocumentHistory", 
             [document_id]
         )
@@ -286,7 +286,7 @@ async def verify_document_by_file_blockchain(
         
         # Query chaincode
         result = client.query_chaincode(
-            "document-verification", 
+            "final-smart-contract", 
             "VerifyDocument", 
             [document_id, document_hash, current_user.get("username", "unknown")]
         )

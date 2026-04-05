@@ -27,7 +27,7 @@ NETWORK_CONFIG_PATH=backend/app/blockchain/network-config.yaml
 ORG_NAME=Org1
 ORG_USER=Admin
 CHANNEL_NAME=mychannel
-CHAINCODE_NAME=document-verification
+CHAINCODE_NAME=final-smart-contract
 CONTRACT_NAME=
 
 # Email Settings

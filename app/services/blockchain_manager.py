@@ -37,7 +37,7 @@ USE_REAL_BLOCKCHAIN = os.getenv("USE_REAL_BLOCKCHAIN", "false").lower() == "true
 NETWORK_CONFIG_PATH = os.getenv("NETWORK_CONFIG_PATH", "app/config/fabric/connection-profile.json")
 ORG_NAME = os.getenv("ORG_NAME", "Org1MSP")
 CHANNEL_NAME = os.getenv("CHANNEL_NAME", "alumni-channel")
-CHAINCODE_NAME = os.getenv("CHAINCODE_NAME", "document-verification")
+CHAINCODE_NAME = os.getenv("CHAINCODE_NAME", "final-smart-contract")
 
 # Initialize cache
 document_cache = {}

@@ -29,7 +29,7 @@ NETWORK_CONFIG_PATH = os.getenv("NETWORK_CONFIG_PATH")
 ORG_NAME = os.getenv("ORG_NAME", "Org1")
 ORG_USER = os.getenv("ORG_USER", "Admin")
 CHANNEL_NAME = os.getenv("CHANNEL_NAME", "mychannel")
-CHAINCODE_NAME = os.getenv("CHAINCODE_NAME", "document-verification")
+CHAINCODE_NAME = os.getenv("CHAINCODE_NAME", "final-smart-contract")
 CONTRACT_NAME = os.getenv("CONTRACT_NAME", "")
 
 # Mock storage for testing

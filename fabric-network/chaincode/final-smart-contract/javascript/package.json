@@ -1,5 +1,5 @@
 {
-  "name": "document-verification-chaincode",
+  "name": "final-smart-contract-chaincode",
   "version": "1.0.0",
   "private": true,
   "main": "chaincode.js",
@@ -11,4 +11,3 @@
     "fabric-shim": "^2.5.8"
   }
 }
-

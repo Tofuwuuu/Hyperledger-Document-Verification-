@@ -55,7 +55,7 @@ function newGateway() {
 }
 
 const channelName = mustEnv('CHANNEL_NAME', 'alumni-channel');
-const chaincodeName = mustEnv('CHAINCODE_NAME', 'document-verification');
+const chaincodeName = mustEnv('CHAINCODE_NAME', 'final-smart-contract');
 
 const gateway = newGateway();
 const network = gateway.getNetwork(channelName);

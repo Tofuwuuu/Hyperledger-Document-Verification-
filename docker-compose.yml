@@ -46,7 +46,7 @@ services:
       - PEER_TLS_ROOTCERT=/crypto/peer/tls/ca.crt
       - MSP_ID=Org1MSP
       - CHANNEL_NAME=alumni-channel
-      - CHAINCODE_NAME=document-verification
+      - CHAINCODE_NAME=final-smart-contract
       - CERT_PATH=/crypto/signcerts
       - KEY_DIR=/crypto/keystore
     volumes:
@@ -81,6 +81,7 @@ services:
     environment:
       - MONGODB_URL=mongodb://mongodb:27017/cvsu_alumni
       - BLOCKCHAIN_ENABLED=true
+      - CHAINCODE_NAME=final-smart-contract
       - FABRIC_GATEWAY_URL=http://fabric-gateway:3001
       - ENV=development
       - ENABLE_CSRF=false

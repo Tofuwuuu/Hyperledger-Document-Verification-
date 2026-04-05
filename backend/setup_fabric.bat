@@ -4,8 +4,8 @@ REM Setup script for Hyperledger Fabric on Windows
 REM Variables
 set FABRIC_DIR=%CD%\..\fabric-dev\fabric-samples
 set TEST_NET_DIR=%FABRIC_DIR%\test-network
-set CC_SRC_PATH=%FABRIC_DIR%\chaincode\document-verification\go
-set CC_NAME=document-verification
+set CC_SRC_PATH=%CD%\..\fabric-network\chaincode\final-smart-contract\javascript
+set CC_NAME=final-smart-contract
 set CHANNEL_NAME=alumni-channel
 
 echo Setting up Hyperledger Fabric test network...
@@ -23,7 +23,7 @@ call network.sh up createChannel -ca -c %CHANNEL_NAME%
 
 REM Install chaincode
 echo Installing and deploying chaincode...
-call network.sh deployCC -ccn %CC_NAME% -ccp %CC_SRC_PATH% -ccl go
+call network.sh deployCC -ccn %CC_NAME% -ccp %CC_SRC_PATH% -ccl node
 
 REM Generate connection profiles
 echo Generating connection profiles...
@@ -58,7 +58,7 @@ echo. >> %ENV_FILE%
 echo # Path to organization crypto material (relative paths inside the app) >> %ENV_FILE%
 echo CRYPTO_PATH=./app/blockchain/config/crypto-config >> %ENV_FILE%
 
-echo Setup complete. Fabric network is running with document-verification chaincode deployed.
+echo Setup complete. Fabric network is running with final-smart-contract chaincode deployed.
 echo Backend configuration has been updated.
 
 REM Return to the original directory

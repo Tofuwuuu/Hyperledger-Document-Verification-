@@ -6,8 +6,8 @@ set -e
 # Variables
 FABRIC_DIR="$(pwd)/../fabric-dev/fabric-samples"
 TEST_NET_DIR="$FABRIC_DIR/test-network"
-CC_SRC_PATH="$FABRIC_DIR/chaincode/document-verification/go"
-CC_NAME="document-verification"
+CC_SRC_PATH="$(pwd)/../fabric-network/chaincode/final-smart-contract/javascript"
+CC_NAME="final-smart-contract"
 CHANNEL_NAME="alumni-channel"
 
 echo "Setting up Hyperledger Fabric test network..."
@@ -25,7 +25,7 @@ echo "Starting the test network with Certificate Authorities..."
 
 # Install chaincode
 echo "Installing and deploying chaincode..."
-./network.sh deployCC -ccn $CC_NAME -ccp $CC_SRC_PATH -ccl go
+./network.sh deployCC -ccn $CC_NAME -ccp $CC_SRC_PATH -ccl node
 
 # Generate connection profiles
 echo "Generating connection profiles..."
@@ -62,5 +62,5 @@ CONTRACT_NAME=DocumentVerificationContract
 CRYPTO_PATH=./app/blockchain/config/crypto-config
 EOL
 
-echo "Setup complete. Fabric network is running with document-verification chaincode deployed."
+echo "Setup complete. Fabric network is running with final-smart-contract chaincode deployed."
 echo "Backend configuration has been updated." 

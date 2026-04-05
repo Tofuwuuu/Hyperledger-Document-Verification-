@@ -1,6 +1,6 @@
 Param(
   [string]$ChannelName = "alumni-channel",
-  [string]$ChaincodeName = "document-verification",
+  [string]$ChaincodeName = "final-smart-contract",
   [string]$ChaincodeVersion = "1.0",
   [int]$Sequence = 1
 )
@@ -13,7 +13,7 @@ $label = "${ChaincodeName}_${ChaincodeVersion}"
 $pkg = "${ChaincodeName}.tar.gz"
 
 Write-Host "Packaging chaincode..." -ForegroundColor Cyan
-docker compose -f docker-compose-fabric.yml run --rm cli sh -c "peer lifecycle chaincode package $pkg --path /workdir/chaincode/document-verification/javascript --lang node --label $label"
+docker compose -f docker-compose-fabric.yml run --rm cli sh -c "peer lifecycle chaincode package $pkg --path /workdir/chaincode/final-smart-contract/javascript --lang node --label $label"
 if ($LASTEXITCODE -ne 0) { throw "Package failed" }
 
 Write-Host "Installing chaincode..." -ForegroundColor Cyan

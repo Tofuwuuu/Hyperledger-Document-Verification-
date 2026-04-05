@@ -44,3 +44,23 @@ docker exec peer0.org1.example.com peer channel list
 
 - This deploys Fabric itself. Your backend currently uses a Python mock unless you also implement a Fabric client path (Python SDK is commented out). The most robust integration approach is adding a small **Node Fabric Gateway** service that your FastAPI backend calls over HTTP.
 
+## Chaincode: Final Smart Contract
+
+The committed chaincode name is **`final-smart-contract`** (display name: **Final Smart Contract**). Source: [`chaincode/final-smart-contract/javascript/`](chaincode/final-smart-contract/javascript/) (Node.js, `fabric-contract-api`).
+
+After the network is up, package and commit it:
+
+```powershell
+cd fabric-network
+.\deploy-chaincode.ps1
+```
+
+Defaults: channel `alumni-channel`, chaincode `final-smart-contract`, version `1.0`, **sequence `1`**.
+
+### Lifecycle sequence (upgrades)
+
+- First deploy on a channel: use `-Sequence 1` (default).
+- If you change the chaincode package and need a new definition on the **same** channel/name, increment **sequence** (e.g. `2`, `3`) and keep **version** in sync with your labeling strategy. Re-run approve + commit with the new package ID.
+
+Root [`docker-compose.yml`](../docker-compose.yml) must set `fabric-gateway` env `CHAINCODE_NAME=final-smart-contract` so the gateway invokes the same name.
+

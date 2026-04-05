@@ -47,7 +47,7 @@ chmod +x setup_fabric.sh
 This script will:
 1. Start the Fabric test network
 2. Create a channel named "alumni-channel"
-3. Deploy the document-verification chaincode
+3. Deploy the final-smart-contract chaincode (display name: Final Smart Contract)
 4. Copy the connection profiles and certificates to the backend
 5. Create a `.env` file with the appropriate configuration
 
@@ -105,9 +105,9 @@ The system uses a standard Hyperledger Fabric network with:
 - 1 peer (peer0.org1.example.com)
 - 1 certificate authority (ca.org1.example.com)
 - 1 channel (alumni-channel)
-- 1 chaincode (document-verification)
+- 1 chaincode (`final-smart-contract`, Final Smart Contract)
 
-The document-verification chaincode provides functions for storing and verifying document hashes, as well as tracking their history.
+The chaincode provides functions for storing and verifying document hashes, as well as tracking their history.
 
 ## Security Considerations
 
