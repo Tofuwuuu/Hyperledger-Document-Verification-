@@ -65,40 +65,17 @@ const authService = {
   
   async login(credentials) {
     try {
-      // First, check for MFA if needed
-      if (!credentials.mfa_code && !credentials.bypass_mfa) {
-        try {
-          console.log('Making MFA check request to:', `${API_URL}/auth/login/mfa-check`);
-          const mfaCheck = await axios.post(
-            `${API_URL}/auth/login/mfa-check`,
-            {
-              email: credentials.email,
-              password: credentials.password
-            },
-            {
-              withCredentials: false  // Don't send credentials for the MFA check
-            }
-          );
-          
-          // If MFA is required, return that info
-          if (mfaCheck.data && mfaCheck.data.mfa_required) {
-            return mfaCheck.data;
-          }
-        } catch (error) {
-          // Properly handle the error object to avoid React serialization issues
-          const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
-          console.error('MFA check error:', errorMessage);
-          
-          // If we get a 422 validation error, handle it properly
-          if (error.response?.status === 422) {
-            throw error; // Re-throw to be caught by the main login error handler
-          }
-          // Continue with normal login if MFA check fails with other errors
-        }
-      }
-      
-      // Proceed with normal login
-      const response = await axios.post(`${API_URL}/auth/login`, credentials);
+      // Simple login using OAuth2PasswordRequestForm (form-urlencoded)
+      const params = new URLSearchParams();
+      params.append('username', credentials.email);
+      params.append('password', credentials.password);
+      params.append('remember', (credentials.remember ?? false).toString());
+
+      const response = await axios.post(`${API_URL}/auth/login`, params, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
       return response.data;
     } catch (error) {
       // Properly handle the error object to avoid React serialization issues
@@ -136,15 +113,7 @@ const authService = {
     }
   },
 
-  async directLogin(credentials) {
-    try {
-      const response = await axios.post(`${API_URL}/auth/login`, credentials);
-      return response.data;
-    } catch (error) {
-      console.error('Direct login error:', error);
-      throw error;
-    }
-  }
+  // directLogin removed (no longer needed)
 };
 
 // Create the auth context
@@ -680,7 +649,6 @@ export const AuthProvider = ({ children }) => {
     hasRole,
     isAdmin: admin,
     authService,
-    directLogin: authService.directLogin,
     clearError: () => setError(null)
   };
 

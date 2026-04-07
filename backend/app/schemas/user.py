@@ -19,7 +19,6 @@ class UserBase(BaseModel):
     
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6, description="User's password")
-    confirm_password: str = Field(..., description="Password confirmation")
     student_id: Optional[str] = Field(None, min_length=5, max_length=20, description="Student ID number")
     graduation_year: Optional[int] = Field(None, ge=1948, le=datetime.now().year, description="Year of graduation")
     role_id: Optional[str] = Field(None, description="Role ID for the user")
@@ -28,12 +27,6 @@ class UserCreate(UserBase):
     def validate_password_strength(cls, v):
         if len(v) < 6:
             raise ValueError('Password must be at least 6 characters')
-        return v
-    
-    @field_validator('confirm_password')
-    def passwords_match(cls, v, info: ValidationInfo):
-        if 'password' in info.data and v != info.data['password']:
-            raise ValueError('Passwords do not match')
         return v
     
     @field_validator('student_id')

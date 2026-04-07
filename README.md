@@ -7,7 +7,7 @@ CVSU Carmona Alumni Profile with Blockchain Document Verification System
 
 The system is deployed on Render with the following services:
 
-- Backend API: [https://final-ecri.onrender.com](https://final-ecri.onrender.com)
+- Backend API (local dev): `http://localhost:8000`
 - Frontend: [https://alumni-frontend-4r7o.onrender.com](https://alumni-frontend-4r7o.onrender.com)
 
 ## Project Structure

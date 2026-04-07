@@ -13,6 +13,11 @@ import { prepareProfileData } from '../utils/profile-helpers';
 export const API_URL = CONFIG_API_URL;
 console.log('API URL configured as:', API_URL); // Debug API URL
 
+// Hard safety: never allow remote APIs in this localhost-only setup.
+if (!API_URL.startsWith('http://localhost:8000/')) {
+  throw new Error(`API_URL must be localhost-only. Got: ${API_URL}`);
+}
+
 // Flag to prevent multiple refresh token requests
 let isRefreshing = false;
 let failedQueue = [];
@@ -379,25 +384,8 @@ export const authService = {
       
       // Extract remember flag if present
       const { remember, ...loginCredentials } = credentials;
-      
-      // Now use the MFA check endpoint which may return direct login or MFA challenge
-      const mfaCheckUrl = `${API_URL}/auth/login/mfa-check`;
-      const response = await axios.post(mfaCheckUrl, loginCredentials, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      // If MFA is required, return the MFA challenge
-      if (response.data.mfa_required) {
-        // Pass along the remember flag for later use after MFA verification
-        return {
-          ...response.data,
-          remember
-        };
-      }
-      
-      // No MFA required, process regular login
+
+      // Simple login (OAuth2PasswordRequestForm)
       // Use URLSearchParams instead of FormData for OAuth2 compatibility
       const params = new URLSearchParams();
       params.append('username', credentials.email);
@@ -444,45 +432,6 @@ export const authService = {
       
       console.error('Login error:', enhancedError);
       throw enhancedError; // Throw the enhanced error to be caught by the LoginPage
-    }
-  },
-  
-  verifyMfa: async (email, code, remember = false) => {
-    try {
-      // Use URLSearchParams for MFA verification, more compatible with FastAPI
-      const params = new URLSearchParams();
-      params.append('email', email);
-      params.append('verification_code', code);
-      params.append('remember', remember);
-      
-      const response = await api.post('/auth/login/mfa-verify', params, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        }
-      });
-      
-      if (response.data.access_token) {
-        // Store tokens properly using our utility function
-        storeAuthTokens(
-          {
-            accessToken: response.data.access_token,
-            refreshToken: response.data.refresh_token
-          },
-          remember
-        );
-        
-        // Fetch user data
-        const userData = await authService.reloadUserWithFreshData();
-        
-        return {
-          ...response.data,
-          user: userData
-        };
-      } else {
-        throw new Error('No access token received after MFA verification');
-      }
-    } catch (error) {
-      return handleApiError(error, 'verifyMfa');
     }
   },
   
@@ -715,83 +664,6 @@ export const authService = {
       return response.data;
     } catch (error) {
       return handleApiError(error, 'verifySecurityQuestions');
-    }
-  },
-
-  // Simple direct login method as a last resort
-  directLogin: async (email, password, remember = false) => {
-    try {
-      console.log('Attempting direct login with minimal processing');
-      console.log('Login details:', { email, remember, password: '***HIDDEN***' });
-      
-      // Create URLSearchParams with EXACT field names expected by FastAPI OAuth2PasswordRequestForm
-      const params = new URLSearchParams();
-      // Must use 'username', not 'email' for OAuth2PasswordRequestForm
-      params.append('username', email);
-      params.append('password', password);
-      // Convert boolean to string because FastAPI Form() expects string values
-      params.append('remember', remember.toString());
-      
-      console.log('Login params:', params.toString().replace(/password=[^&]+/, 'password=***HIDDEN***'));
-      
-      // Fix: Use absolute URL to backend directly
-      const loginUrl = 'http://localhost:8000/api/v1/auth/login';
-      
-      console.log('Final login URL:', loginUrl);
-      
-      // Make the direct request with no extra headers or processing
-      const response = await axios.post(loginUrl, params, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        withCredentials: true
-      });
-      
-      console.log('Direct login response status:', response.status);
-      console.log('Direct login response data:', response.data);
-      
-      if (response.data.access_token) {
-        // Store tokens properly
-        storeAuthTokens(
-          {
-            accessToken: response.data.access_token,
-            refreshToken: response.data.refresh_token
-          },
-          remember
-        );
-        
-        // Store user data
-        if (response.data.user) {
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-        }
-        
-        return response.data;
-      } else {
-        throw new Error('No access token received');
-      }
-    } catch (error) {
-      console.error('Direct login error:', error);
-      
-      // Enhanced error logging
-      if (error.response) {
-        console.error('Error status:', error.response.status);
-        console.error('Error data:', error.response.data);
-        
-        // Log validation errors in detail
-        if (error.response.status === 422 && error.response.data?.detail) {
-          console.error('Validation error details:', JSON.stringify(error.response.data.detail));
-          
-          // Log each field with issues
-          if (Array.isArray(error.response.data.detail)) {
-            error.response.data.detail.forEach(err => {
-              console.error(`Field ${err.loc.join('.')}: ${err.msg}`);
-            });
-          }
-        }
-      }
-      
-      // Only return the raw error object for debugging
-      throw error;
     }
   },
 };

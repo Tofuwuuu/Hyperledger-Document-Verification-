@@ -16,22 +16,12 @@ const RegisterSchema = Yup.object().shape({
   email: Yup.string()
     .email('Invalid email address')
     .required('Email is required'),
-  student_id: Yup.string()
-    .required('Student ID is required')
-    .matches(/^[0-9-]+$/, 'Student ID must contain only numbers and hyphens'),
-  graduation_year: Yup.number()
-    .required('Graduation year is required')
-    .min(1970, 'Graduation year must be after 1970')
-    .max(new Date().getFullYear(), 'Graduation year cannot be in the future'),
   password: Yup.string()
     .required('Password is required')
     .min(6, 'Password must be at least 6 characters'),
   confirmPassword: Yup.string()
     .required('Please confirm your password')
     .oneOf([Yup.ref('password'), null], 'Passwords must match'),
-  terms: Yup.boolean()
-    .required('Terms must be accepted')
-    .oneOf([true], 'You must accept the terms and conditions'),
 });
 
 export default function RegisterPage() {
@@ -49,11 +39,7 @@ export default function RegisterPage() {
       email: values.email,
       full_name: values.full_name,
       password: values.password,
-      confirm_password: values.confirmPassword, // This name must match exactly what the backend expects
-      student_id: values.student_id,
-      graduation_year: parseInt(values.graduation_year),
-      is_active: true,
-      is_admin: false
+      confirm_password: values.confirmPassword
     };
     
     try {
@@ -90,13 +76,6 @@ export default function RegisterPage() {
       setSubmitting(false);
     }
   };
-
-  // Generate graduation year options
-  const currentYear = new Date().getFullYear();
-  const yearOptions = [];
-  for (let year = currentYear; year >= 1970; year--) {
-    yearOptions.push(year);
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -154,11 +133,8 @@ export default function RegisterPage() {
                 initialValues={{ 
                   full_name: '', 
                   email: '', 
-                  student_id: '', 
-                  graduation_year: currentYear, 
                   password: '', 
                   confirmPassword: '',
-                  terms: false
                 }}
                 validationSchema={RegisterSchema}
                 onSubmit={handleSubmit}
@@ -203,54 +179,6 @@ export default function RegisterPage() {
                         />
                         <ErrorMessage
                           name="email"
-                          component="p"
-                          className="mt-2 text-sm text-red-600"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="student_id" className="block text-sm font-medium text-gray-700">
-                        Student ID
-                      </label>
-                      <div className="mt-1">
-                        <Field
-                          id="student_id"
-                          name="student_id"
-                          type="text"
-                          className={`form-input ${
-                            errors.student_id && touched.student_id ? 'border-red-500' : ''
-                          }`}
-                        />
-                        <ErrorMessage
-                          name="student_id"
-                          component="p"
-                          className="mt-2 text-sm text-red-600"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="graduation_year" className="block text-sm font-medium text-gray-700">
-                        Graduation Year
-                      </label>
-                      <div className="mt-1">
-                        <Field
-                          id="graduation_year"
-                          name="graduation_year"
-                          as="select"
-                          className={`form-input ${
-                            errors.graduation_year && touched.graduation_year ? 'border-red-500' : ''
-                          }`}
-                        >
-                          {yearOptions.map(year => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </Field>
-                        <ErrorMessage
-                          name="graduation_year"
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
@@ -310,28 +238,6 @@ export default function RegisterPage() {
                         )}
                       </div>
                     </div>
-
-                    <div className="flex items-center">
-                      <Field
-                        id="terms"
-                        name="terms"
-                        type="checkbox"
-                        className={`h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded ${
-                          errors.terms && touched.terms ? 'border-red-500' : ''
-                        }`}
-                      />
-                      <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
-                        I agree to the{' '}
-                        <a href="#" className="font-medium text-cvsu-green hover:text-green-700">
-                          terms and conditions
-                        </a>
-                      </label>
-                    </div>
-                    <ErrorMessage
-                      name="terms"
-                      component="p"
-                      className="mt-2 text-sm text-red-600"
-                    />
 
                     <div>
                       <button

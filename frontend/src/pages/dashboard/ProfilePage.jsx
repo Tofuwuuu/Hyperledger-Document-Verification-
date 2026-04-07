@@ -505,7 +505,7 @@ export default function ProfilePage() {
         
         try {
           // Try using a proxy or direct connection as fallback
-          const directUrl = `${import.meta.env.VITE_API_URL || 'https://final-ecri.onrender.com'}/api/v1/alumni/health`;
+          const directUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/alumni/health`;
           console.log('Checking API health with direct URL:', directUrl);
           
           const healthCheck = await fetch(directUrl, { 

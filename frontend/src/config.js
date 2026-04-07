@@ -7,12 +7,10 @@ function normalizeApiOrigin(value) {
   return v;
 }
 
-export const API_ORIGIN =
-  normalizeApiOrigin(import.meta.env.VITE_API_URL) ||
-  normalizeApiOrigin(import.meta.env.VITE_API_ORIGIN) ||
-  'http://localhost:8000';
+// Localhost-only build: never call Render/Vercel/etc.
+export const API_ORIGIN = 'http://localhost:8000';
 
 export const API_PREFIX = '/api/v1';
 
-// In dev we prefer the Vite proxy. In prod we call the absolute URL.
-export const API_URL = import.meta.env.DEV ? API_PREFIX : `${API_ORIGIN}${API_PREFIX}`;
+// Always use an explicit origin so dev/prod behave the same.
+export const API_URL = `${API_ORIGIN}${API_PREFIX}`;

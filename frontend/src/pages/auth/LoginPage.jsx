@@ -3,10 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import MFAVerification from '../../components/MFAVerification';
-import axios from 'axios';
-import { API_URL } from '../../config';
-import { authService } from '../../services/api'; // Import authService from api.js, not authService.js
+import { authService } from '../../services/api';
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
@@ -31,8 +28,6 @@ export default function LoginPage() {
   const [redirectPath, setRedirectPath] = useState('/dashboard');
   const navigate = useNavigate();
   const location = useLocation();
-  const [mfaRequired, setMfaRequired] = useState(false);
-  const [mfaData, setMfaData] = useState(null);
 
   // Clear errors when component mounts or when location changes
   useEffect(() => {
@@ -81,24 +76,20 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      console.log('Form submitted with values:', { 
-        email: values.email, 
-        password: '***HIDDEN***', 
-        remember: values.remember 
+      await authService.login({
+        email: values.email,
+        password: values.password,
+        remember: values.remember
       });
-      
-      // Try the direct login method as a last resort
-      // This bypasses the MFA check and other complex processing
-      const result = await authService.directLogin(
-        values.email,
-        values.password,
-        values.remember
-      );
-      
-      console.log('Login successful, reloading page');
-      
-      // If login is successful, trigger a page reload to update auth state
-      window.location.reload();
+
+      // Successful login: go where the app intended.
+      const storedRedirect = sessionStorage.getItem('redirectAfterLogin');
+      if (storedRedirect) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        navigate(storedRedirect);
+      } else {
+        navigate(redirectPath || '/dashboard');
+      }
     } catch (error) {
       console.error('Login error:', error.message || 'Unknown error');
       
@@ -133,31 +124,6 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   };
-
-  const handleMfaVerified = (result) => {
-    // No need to do anything here, the auth context will handle it
-    // and the useEffect for isAuthenticated will redirect
-    setMfaRequired(false);
-    setMfaData(null);
-  };
-  
-  const handleMfaCancel = () => {
-    setMfaRequired(false);
-    setMfaData(null);
-  };
-
-  if (mfaRequired && mfaData) {
-    return (
-      <MFAVerification 
-        email={mfaData.email}
-        setup_id={mfaData.setup_id}
-        mfa_type={mfaData.mfa_type}
-        remember={mfaData.remember}
-        onVerified={handleMfaVerified}
-        onCancel={handleMfaCancel}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">

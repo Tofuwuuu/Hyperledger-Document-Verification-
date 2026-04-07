@@ -55,232 +55,69 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/register", response_model=UserOut)
-async def register(user_data: UserCreate):
-    db = get_database()
-    
-    # Validation errors container
-    field_errors = {}
-    
-    # Check if email already exists
-    existing_user = await db.users.find_one({"email": user_data.email})
-    if existing_user:
-        field_errors["email"] = "Email already registered"
-    
-    # Check if student ID already exists if provided
-    if user_data.student_id:
-        existing_student = await db.users.find_one({"student_id": user_data.student_id})
-        if existing_student:
-            field_errors["student_id"] = "Student ID already registered"
-    
-    # If validation errors were found, return them all at once
-    if field_errors:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=field_errors
-        )
-    
-    # Create new user
-    now = datetime.utcnow()
-    user_id = str(ObjectId())
-    new_user = {
-        "_id": user_id,
-        "email": user_data.email,
-        "full_name": user_data.full_name,
-        "hashed_password": get_password_hash(user_data.password),
-        "is_active": user_data.is_active,
-        "is_admin": user_data.is_admin,
-        "student_id": user_data.student_id,
-        "graduation_year": user_data.graduation_year,
-        "created_at": now,
-        "updated_at": now,
-        "is_verified": False,
-        "verification_pending": True
-    }
-    
-    # Create alumni profile placeholders based on user data
-    alumni_profile = {
-        "_id": str(ObjectId()),
-        "user_id": user_id,
-        "email": user_data.email,
-        "full_name": user_data.full_name,
-        "student_id": user_data.student_id,
-        "graduation_year": user_data.graduation_year,
-        "created_at": now,
-        "updated_at": now,
-        "profile_completed": False
-    }
-    
-    try:
-        # NEW: Insert documents individually instead of using a transaction
-        # This is more compatible with standalone MongoDB instances
-        
-        # Insert user to database
-        await db.users.insert_one(new_user)
-        
-        # Create alumni profile
-        await db.alumni.insert_one(alumni_profile)
-        
-        # Create initial notification for welcome
-        await db.notifications.insert_one({
-            "_id": str(ObjectId()),
-            "user_id": user_id,
-            "title": "Welcome to CVSU Alumni Portal",
-            "message": f"Welcome {user_data.full_name}! Please complete your profile to get verified.",
-            "is_read": False,
-            "type": "welcome",
-            "created_at": now
-        })
-        
-        # Return user without password
-        return {**new_user, "id": new_user["_id"]}
-    except Exception as e:
-        logging.error(f"Error during user registration: {str(e)}")
-        # Log the error but don't expose internal details to clients
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during registration. Please try again later."
-        )
-
 @router.post("/login", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), 
+    form_data: OAuth2PasswordRequestForm = Depends(),
     remember: bool = Form(False),
-    response: Response = None,
-    request: Request = None
 ):
-    # Add CORS headers directly
-    origin = request.headers.get("origin", "")
-    if origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    
-    try:
-        # Log login attempt (without password)
-        logging.info(f"Login attempt for user: {form_data.username}, remember: {remember}")
-        
-        # Try to reconnect to MongoDB first
-        from app.config.database import connect_to_mongo
-        await connect_to_mongo()
-        
-        # Get database connection
-        try:
-            from app.config.database import get_database
-            db = get_database()
-            logging.info(f"Database connection established for login attempt: {form_data.username}")
-        except ConnectionError as db_error:
-            logging.error(f"Database connection error during login: {str(db_error)}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Database connection error. Please check if MongoDB is running and try again later.",
-                headers={"X-Error-Type": "mongodb_connection_error"}
-            )
-        
-        # Find user by username (email)
-        user = await db.users.find_one({"email": form_data.username})
-        
-        # Check if user exists first
-        if not user:
-            logging.info(f"User does not exist: {form_data.username}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="The account with this email address doesn't exist. Please register first.",
-                headers={"WWW-Authenticate": "Bearer", "X-Error-Type": "account_not_found"},
-            )
-        
-        # Check if password is correct
-        if not verify_password(form_data.password, user["hashed_password"]):
-            logging.warning(f"Failed login attempt (wrong password) for user: {form_data.username}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect password. Please try again.",
-                headers={"WWW-Authenticate": "Bearer", "X-Error-Type": "wrong_password"},
-            )
-        
-        # Check if user is active
-        if not user.get("is_active", True):
-            logging.warning(f"Login attempt for inactive user: {form_data.username}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Your account has been deactivated. Please contact support for assistance."
-            )
-        
-        # Create access and refresh tokens
-        user_id = str(user["_id"])
-        
-        # Set expiration times based on remember flag
-        access_token_expires = timedelta(days=7 if remember else 1)
-        refresh_token_expires = timedelta(days=30 if remember else 7)
-        
-        access_token = create_access_token(
-            data={"sub": user_id},
-            expires_delta=access_token_expires
-        )
-        refresh_token = create_refresh_token(
-            data={"sub": user_id},
-            expires_delta=refresh_token_expires
-        )
-        
-        # Set tokens as HttpOnly cookies
-        response.set_cookie(
-            key="access_token",
-            value=f"Bearer {access_token}",
-            httponly=True,
-            secure=True,  # Only sent over HTTPS
-            samesite="lax",  # CSRF protection
-            max_age=int(access_token_expires.total_seconds()),
-            path="/"
-        )
-        
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="lax",
-            max_age=int(refresh_token_expires.total_seconds()),
-            path="/"
-        )
-        
-        logging.info(f"Successful login for user: {form_data.username}, remember: {remember}")
-        
-        # Still return tokens in response for backward compatibility
-        # In production, you might want to remove this later
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user_id,
-                "email": user["email"],
-                "is_admin": user.get("is_admin", False),
-                "is_verified": user.get("is_verified", False),
-                "full_name": user.get("full_name", "")
-            }
-        }
-    except ConnectionError as e:
-        logging.error(f"Database connection error during login: {str(e)}")
+    """
+    Simple login endpoint.
+    Verifies email/password against MongoDB and returns JWT tokens.
+    """
+    db = get_database()
+
+    email = form_data.username.strip().lower()
+    logging.info(f"Login attempt for user: {email}, remember: {remember}")
+
+    user = await db.users.find_one({"email": email})
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database connection error. Please check if MongoDB is running and try again later."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    except Exception as e:
-        logging.error(f"Unexpected error during login: {str(e)}")
-        # Log detailed error information to help debug
-        import traceback
-        logging.error(f"Error traceback: {traceback.format_exc()}")
-        
-        # Check if this is an HTTPException and return it properly
-        if isinstance(e, HTTPException):
-            raise e
-        
-        # Otherwise, raise a generic 500 error
+
+    if not verify_password(form_data.password, user.get("hashed_password", "")):
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred. Please try again later."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if not user.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your account has been deactivated. Please contact support.",
+        )
+
+    user_id = str(user["_id"])
+
+    access_token_expires = timedelta(days=7 if remember else 1)
+    refresh_token_expires = timedelta(days=30 if remember else 7)
+
+    access_token = create_access_token(
+        data={"sub": user_id},
+        expires_delta=access_token_expires,
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": user_id},
+        expires_delta=refresh_token_expires,
+    )
+
+    logging.info(f"Successful login for user: {email}")
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "email": user["email"],
+            "is_admin": user.get("is_admin", False),
+            "is_verified": user.get("is_verified", False),
+            "full_name": user.get("full_name", ""),
+        },
+    }
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(request: Request, response: Response):

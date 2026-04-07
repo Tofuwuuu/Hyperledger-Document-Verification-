@@ -29,19 +29,12 @@ class Settings(BaseSettings):
     
     # CORS settings
     CORS_ORIGINS: Union[List[str], str] = [
-        # Specific domains
+        # Local development origins
         "http://localhost:3000",
         "http://localhost:5173",  # Vite default port
         "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "https://cvsu-alumni.vercel.app",
-        "https://alumni-frontend-4r7o.onrender.com",  # New frontend URL
-        "http://alumni-frontend-4r7o.onrender.com",   # HTTP version of new frontend URL
-        "https://final-ecri.onrender.com",            # New backend URL
-        "https://alumni-api-i4gs.onrender.com",       # Old backend URL (for backwards compatibility)
-        "https://alumni-frontend-zzr2.onrender.com",  # Old frontend URL (for backwards compatibility)
-        "http://alumni-frontend-zzr2.onrender.com"    # HTTP version of old frontend URL
     ]
     
     CORS_ALLOW_CREDENTIALS: bool = True
