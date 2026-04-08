@@ -1,1 +1,0 @@
-"""Unit tests for CVSU Carmona Alumni Document Verification System.""" 

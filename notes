@@ -1,1 +1,8 @@
 docker compose up -d
+
+Setting up backend
+
+cd backend
+.\.venv\Scripts\Activate.ps1
+
+python run.py

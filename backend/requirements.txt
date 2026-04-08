@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+motor
+bcrypt
+python-dotenv
+pytest
+httpx
