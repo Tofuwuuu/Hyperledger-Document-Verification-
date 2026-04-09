@@ -394,7 +394,12 @@ export const authService = {
       
       const loginUrl = `${API_URL}/auth/login`;
       
-      console.log('Using login URL:', loginUrl);
+      console.log('[LOGIN] Using login URL:', loginUrl);
+      console.log('[LOGIN] Payload:', {
+        username: credentials.email,
+        password: '***REDACTED***',
+        remember: remember !== undefined ? remember : false
+      });
       
       // Make the login request with application/x-www-form-urlencoded format
       const loginResponse = await axios.post(loginUrl, params, {
@@ -402,6 +407,9 @@ export const authService = {
           'Content-Type': 'application/x-www-form-urlencoded',
         }
       });
+
+      console.log('[LOGIN] Response status:', loginResponse.status);
+      console.log('[LOGIN] Response data:', loginResponse.data);
       
       if (loginResponse.data.access_token) {
         // Store tokens properly using our utility function
@@ -430,7 +438,9 @@ export const authService = {
       enhancedError.status = error.response?.status;
       enhancedError.headers = error.response?.headers;
       
-      console.error('Login error:', enhancedError);
+      console.error('[LOGIN] Error message:', enhancedError.message);
+      console.error('[LOGIN] Error status:', enhancedError.status);
+      console.error('[LOGIN] Error response data:', error.response?.data);
       throw enhancedError; // Throw the enhanced error to be caught by the LoginPage
     }
   },
