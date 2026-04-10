@@ -10,19 +10,12 @@ const cvsuLogo = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEw
 
 // Validation schema
 const RegisterSchema = Yup.object().shape({
-  full_name: Yup.string()
+  fullName: Yup.string()
     .required('Full name is required')
-    .min(2, 'Name is too short'),
+    .min(2, 'Full name must be at least 2 characters'),
   email: Yup.string()
     .email('Invalid email address')
     .required('Email is required'),
-  student_id: Yup.string()
-    .required('Student ID is required')
-    .matches(/^[0-9-]+$/, 'Student ID must contain only numbers and hyphens'),
-  graduation_year: Yup.number()
-    .required('Graduation year is required')
-    .min(1948, 'Graduation year must be after 1948')
-    .max(new Date().getFullYear(), 'Graduation year cannot be in the future'),
   password: Yup.string()
     .required('Password is required')
     .min(6, 'Password must be at least 6 characters'),
@@ -43,10 +36,8 @@ export default function RegisterPage() {
     setIsLoading(true);
     
     const userData = {
+      full_name: values.fullName,
       email: values.email,
-      full_name: values.full_name,
-      student_id: values.student_id,
-      graduation_year: Number(values.graduation_year),
       password: values.password,
       confirm_password: values.confirmPassword
     };
@@ -139,11 +130,9 @@ export default function RegisterPage() {
               )}
               
               <Formik
-                initialValues={{ 
-                  full_name: '', 
+                initialValues={{
+                  fullName: '',
                   email: '', 
-                  student_id: '',
-                  graduation_year: new Date().getFullYear(),
                   password: '', 
                   confirmPassword: '',
                 }}
@@ -153,21 +142,21 @@ export default function RegisterPage() {
                 {({ isSubmitting, errors, touched }) => (
                   <Form className="space-y-6">
                     <div>
-                      <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
                         Full Name
                       </label>
                       <div className="mt-1">
                         <Field
-                          id="full_name"
-                          name="full_name"
+                          id="fullName"
+                          name="fullName"
                           type="text"
                           autoComplete="name"
                           className={`form-input ${
-                            errors.full_name && touched.full_name ? 'border-red-500' : ''
+                            errors.fullName && touched.fullName ? 'border-red-500' : ''
                           }`}
                         />
                         <ErrorMessage
-                          name="full_name"
+                          name="fullName"
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />
@@ -190,49 +179,6 @@ export default function RegisterPage() {
                         />
                         <ErrorMessage
                           name="email"
-                          component="p"
-                          className="mt-2 text-sm text-red-600"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="student_id" className="block text-sm font-medium text-gray-700">
-                        Student ID
-                      </label>
-                      <div className="mt-1">
-                        <Field
-                          id="student_id"
-                          name="student_id"
-                          type="text"
-                          className={`form-input ${
-                            errors.student_id && touched.student_id ? 'border-red-500' : ''
-                          }`}
-                        />
-                        <ErrorMessage
-                          name="student_id"
-                          component="p"
-                          className="mt-2 text-sm text-red-600"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="graduation_year" className="block text-sm font-medium text-gray-700">
-                        Graduation Year
-                      </label>
-                      <div className="mt-1">
-                        <Field
-                          id="graduation_year"
-                          name="graduation_year"
-                          type="number"
-                          inputMode="numeric"
-                          className={`form-input ${
-                            errors.graduation_year && touched.graduation_year ? 'border-red-500' : ''
-                          }`}
-                        />
-                        <ErrorMessage
-                          name="graduation_year"
                           component="p"
                           className="mt-2 text-sm text-red-600"
                         />

@@ -379,56 +379,41 @@ export const authService = {
   
   login: async (credentials) => {
     try {
-      // First get a CSRF token
-      await authService.getCsrfToken();
-      
       // Extract remember flag if present
-      const { remember, ...loginCredentials } = credentials;
-
-      // Simple login (OAuth2PasswordRequestForm)
-      // Use URLSearchParams instead of FormData for OAuth2 compatibility
-      const params = new URLSearchParams();
-      params.append('username', credentials.email);
-      params.append('password', credentials.password);
-      params.append('remember', remember !== undefined ? remember : false);
+      const { remember } = credentials;
+      const payload = {
+        email: credentials.email,
+        password: credentials.password,
+        remember: remember !== undefined ? remember : false
+      };
       
       const loginUrl = `${API_URL}/auth/login`;
       
       console.log('[LOGIN] Using login URL:', loginUrl);
       console.log('[LOGIN] Payload:', {
-        username: credentials.email,
+        email: credentials.email,
         password: '***REDACTED***',
         remember: remember !== undefined ? remember : false
       });
       
-      // Make the login request with application/x-www-form-urlencoded format
-      const loginResponse = await axios.post(loginUrl, params, {
+      // Make the login request with JSON payload for simple auth mode.
+      const loginResponse = await axios.post(loginUrl, payload, {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         }
       });
 
       console.log('[LOGIN] Response status:', loginResponse.status);
       console.log('[LOGIN] Response data:', loginResponse.data);
       
-      if (loginResponse.data.access_token) {
-        // Store tokens properly using our utility function
-        storeAuthTokens(
-          {
-            accessToken: loginResponse.data.access_token,
-            refreshToken: loginResponse.data.refresh_token
-          },
-          remember
-        );
-        
-        // Store user data in localStorage
-        if (loginResponse.data.user) {
-          localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
-        }
-        
+      if (loginResponse.data?.success && loginResponse.data?.user) {
+        // Simple local auth state (no JWT in this mode).
+        localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
+        localStorage.setItem('simple_auth', 'true');
+        localStorage.removeItem('token');
         return loginResponse.data;
       } else {
-        throw new Error('No access token received');
+        throw new Error('Login failed: invalid response payload');
       }
     } catch (error) {
       // Preserve the original error details, including headers and response data
@@ -1489,84 +1474,6 @@ export const adminDocumentService = {
         error: error.response?.data?.detail || error.message
       };
     }
-  }
-};
-
-// API Health Check
-export const apiHealthCheck = {
-  checkAPIConnection: async () => {
-    try {
-      const response = await axios.get(`${API_URL}/healthcheck/health`, {
-        headers: {
-          'Origin': window.location.origin
-        }
-      });
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error) {
-      console.error('API health check failed:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  },
-  
-  checkDBConnection: async () => {
-    try {
-      const response = await axios.get(`${API_URL}/healthcheck/health/db`, {
-        headers: {
-          'Origin': window.location.origin
-        }
-      });
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error) {
-      console.error('Database health check failed:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  },
-  
-  checkAlumniConnection: async () => {
-    try {
-      const response = await axios.get(`${API_URL}/healthcheck/health/alumni`, {
-        headers: {
-          'Origin': window.location.origin
-        }
-      });
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error) {
-      console.error('Alumni health check failed:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  },
-  
-  // Run all health checks and return a comprehensive report
-  runAllHealthChecks: async () => {
-    const apiCheck = await apiHealthCheck.checkAPIConnection();
-    const dbCheck = await apiHealthCheck.checkDBConnection();
-    const alumniCheck = await apiHealthCheck.checkAlumniConnection();
-    
-    return {
-      api: apiCheck,
-      database: dbCheck,
-      alumni: alumniCheck,
-      success: apiCheck.success && dbCheck.success && alumniCheck.success,
-      timestamp: new Date().toISOString()
-    };
   }
 };
 

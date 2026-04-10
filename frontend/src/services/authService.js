@@ -48,16 +48,11 @@ export const register = async (userData) => {
 
 export const login = async (credentials) => {
   try {
-    const formData = new FormData();
-    formData.append('username', credentials.email);
-    formData.append('password', credentials.password);
-    
-    // Add remember flag as form data
-    if (credentials.remember !== undefined) {
-      formData.append('remember', credentials.remember);
-    }
-    
-    const response = await api.post('/auth/login', formData);
+    const response = await api.post('/auth/login', {
+      email: credentials.email,
+      password: credentials.password,
+      remember: credentials.remember ?? false,
+    });
     
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token);

@@ -16,21 +16,23 @@ import app.api.register as register_module  # noqa: E402
 
 
 class FakeCollection:
-    def __init__(self, existing_email=None, existing_student_id=None) -> None:
-        self.existing_email = existing_email
-        self.existing_student_id = existing_student_id
+    def __init__(self, existing_normalized_email=None) -> None:
+        self.existing_normalized_email = existing_normalized_email
         self.inserted_doc = None
 
     async def find_one(self, query):
-        if "email" in query:
-            return self.existing_email
-        if "student_id" in query:
-            return self.existing_student_id
+        email = query.get("email")
+        if email is not None and email == self.existing_normalized_email:
+            return {"_id": "dup-id", "email": email}
         return None
 
     async def insert_one(self, doc):
         self.inserted_doc = doc
-        return {"inserted_id": "fake-id"}
+
+        class R:
+            inserted_id = "507f1f77bcf86cd799439011"
+
+        return R()
 
 
 class FakeDB:
@@ -51,6 +53,31 @@ class FakeClient:
         return self.db
 
 
+class FakeCollectionLogin:
+    """Returns a user row whose password_hash is not bcrypt (would crash checkpw)."""
+
+    async def find_one(self, query):
+        return {
+            "_id": "507f1f77bcf86cd799439011",
+            "email": "legacy@example.com",
+            "password_hash": "not-a-bcrypt-string",
+            "is_admin": False,
+            "is_verified": False,
+        }
+
+
+class FakeDBLogin:
+    def __getitem__(self, name: str):
+        if name != "users":
+            raise KeyError(name)
+        return FakeCollectionLogin()
+
+
+class FakeClientLogin:
+    def get_default_database(self):
+        return FakeDBLogin()
+
+
 def test_register_password_mismatch() -> None:
     async def run() -> None:
         transport = ASGITransport(app=app)
@@ -59,9 +86,6 @@ def test_register_password_mismatch() -> None:
                 "/api/v1/auth/register",
                 json={
                     "email": "test1@example.com",
-                    "full_name": "Test User",
-                    "student_id": "2026-0001",
-                    "graduation_year": 2026,
                     "password": "secret123",
                     "confirm_password": "different123",
                 },
@@ -73,7 +97,7 @@ def test_register_password_mismatch() -> None:
 
 
 def test_register_success_inserts_hashed_password(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_collection = FakeCollection(existing_email=None, existing_student_id=None)
+    fake_collection = FakeCollection(existing_normalized_email=None)
     fake_db = FakeDB(fake_collection)
     fake_client = FakeClient(fake_db)
 
@@ -85,17 +109,17 @@ def test_register_success_inserts_hashed_password(monkeypatch: pytest.MonkeyPatc
             resp = await client.post(
                 "/api/v1/auth/register",
                 json={
-                    "email": "test2@example.com",
-                    "full_name": "Test User 2",
-                    "student_id": "2026-0002",
-                    "graduation_year": 2026,
+                    "email": "Test2@Example.com",
                     "password": "secret123",
                     "confirm_password": "secret123",
                 },
             )
 
             assert resp.status_code == 200
-            assert resp.json() == {"success": True}
+            data = resp.json()
+            assert data["success"] is True
+            assert data["user"]["email"] == "test2@example.com"
+            assert data["user"]["id"] == "507f1f77bcf86cd799439011"
 
     asyncio.run(run())
 
@@ -103,8 +127,27 @@ def test_register_success_inserts_hashed_password(monkeypatch: pytest.MonkeyPatc
     inserted = fake_collection.inserted_doc
 
     assert inserted["email"] == "test2@example.com"
-    assert inserted["student_id"] == "2026-0002"
     assert inserted["password_hash"] != "secret123"
-    # bcrypt hashes start with $2a/$2b/$2y...
     assert inserted["password_hash"].startswith("$2")
+    assert "created_at" in inserted
 
+
+def test_login_invalid_stored_hash_returns_401_not_500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(register_module, "get_motor_client", lambda: FakeClientLogin())
+
+    async def run() -> None:
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/auth/login",
+                json={
+                    "email": "legacy@example.com",
+                    "password": "any-password",
+                },
+            )
+            assert resp.status_code == 401
+            assert resp.json()["detail"] == "Incorrect password."
+
+    asyncio.run(run())

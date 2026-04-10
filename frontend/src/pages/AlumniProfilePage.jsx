@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, BriefcaseIcon, AcademicCapIcon, DocumentIcon } from '@heroicons/react/24/outline';
-import { alumniService, documentService, authService } from '../services/api';
+import { alumniService, documentService, authService, api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
@@ -148,14 +148,11 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
           // Only create a new user if we don't already have a userId
           try {
             const userResponse = await authService.register({
-              full_name: formData.full_name,
               email: formData.email,
               password: formData.temp_password,
-              student_id: formData.student_id,
-              graduation_year: parseInt(formData.graduation_year, 10),
-              role: 'alumni'
+              confirm_password: formData.temp_password,
             });
-            userId = userResponse.data.user_id;
+            userId = userResponse?.user?.id;
           } catch (error) {
             console.error('Error creating user account:', error);
             let errorMessage = 'Failed to create user account: ';

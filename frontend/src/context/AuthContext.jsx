@@ -65,24 +65,27 @@ const authService = {
   
   async login(credentials) {
     try {
-      // Simple login using OAuth2PasswordRequestForm (form-urlencoded)
-      const params = new URLSearchParams();
-      params.append('username', credentials.email);
-      params.append('password', credentials.password);
-      params.append('remember', (credentials.remember ?? false).toString());
-
-      const response = await axios.post(`${API_URL}/auth/login`, params, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const response = await axios.post(
+        `${API_URL}/auth/login`,
+        {
+          email: credentials.email,
+          password: credentials.password,
+          remember: credentials.remember ?? false,
         },
-      });
+        { headers: { 'Content-Type': 'application/json' } },
+      );
       return response.data;
     } catch (error) {
-      // Properly handle the error object to avoid React serialization issues
       const errorResponse = error.response?.data || {};
       const errorMessage = errorResponse.detail || error.message || 'Unknown error';
       console.error('Login service error:', errorMessage);
-      throw error;
+      if (Array.isArray(errorResponse.detail)) {
+        console.error('Login validation details:', JSON.stringify(errorResponse.detail, null, 2));
+      }
+      const enhancedError = new Error(typeof errorMessage === 'string' ? errorMessage : 'Login validation failed');
+      enhancedError.response = error.response;
+      enhancedError.validationDetails = errorResponse.detail;
+      throw enhancedError;
     }
   },
   
@@ -198,8 +201,16 @@ export const AuthProvider = ({ children }) => {
   // Define loadUserData at component level with useCallback
   const loadUserData = useCallback(async () => {
     const { accessToken } = getAuthTokens();
+    const simpleAuth = localStorage.getItem('simple_auth') === 'true';
+    const localUser = JSON.parse(localStorage.getItem('user') || '{}');
     
     if (!accessToken) {
+      if (simpleAuth && localUser && (localUser.id || localUser.email)) {
+        setLoading(false);
+        setCurrentUser(localUser);
+        setIsAuthenticated(true);
+        return localUser;
+      }
       setLoading(false);
       setCurrentUser(null);
       setIsAuthenticated(false);
@@ -248,7 +259,7 @@ export const AuthProvider = ({ children }) => {
         if (lastRefreshTime && (currentTime - parseInt(lastRefreshTime)) < 5000) {
           console.log('Using cached user data (refreshed in last 5 seconds)');
           const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
-          if (cachedUser && cachedUser.email) {
+          if (cachedUser && (cachedUser.id || cachedUser.email)) {
             // Still need to update state
             setCurrentUser(cachedUser);
             setIsAuthenticated(true);
@@ -283,7 +294,7 @@ export const AuthProvider = ({ children }) => {
         
         // Fallback to localStorage if API fails
         const localUser = JSON.parse(localStorage.getItem('user') || '{}');
-        if (localUser && localUser.email) {
+        if (localUser && (localUser.id || localUser.email)) {
           console.log('User data loaded from localStorage fallback:', localUser);
           setCurrentUser(localUser);
           setIsAuthenticated(true);
@@ -321,6 +332,8 @@ export const AuthProvider = ({ children }) => {
     } finally {
       // Clear all auth data using utility function
       clearAuthTokens();
+      localStorage.removeItem('simple_auth');
+      localStorage.removeItem('user');
       
       setCurrentUser(null);
       setIsAuthenticated(false);
@@ -370,6 +383,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       const { accessToken } = getAuthTokens();
+      const simpleAuth = localStorage.getItem('simple_auth') === 'true';
+      const localUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+      if (!accessToken && simpleAuth && localUser && (localUser.id || localUser.email)) {
+        setCurrentUser(localUser);
+        setIsAuthenticated(true);
+        setLoading(false);
+        return;
+      }
       
       if (!accessToken) {
         setCurrentUser(null);
@@ -425,7 +447,7 @@ export const AuthProvider = ({ children }) => {
               // Try to get user data from localStorage
               try {
                 const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
-                if (cachedUser && cachedUser.email) {
+                if (cachedUser && (cachedUser.id || cachedUser.email)) {
                   console.log('Using cached user data:', cachedUser);
                   setCurrentUser(cachedUser);
                   setIsAuthenticated(true);
@@ -454,7 +476,7 @@ export const AuthProvider = ({ children }) => {
         // For any validation error, try to use cached data first
         try {
           const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
-          if (cachedUser && cachedUser.email) {
+          if (cachedUser && (cachedUser.id || cachedUser.email)) {
             console.log('Using cached user data due to validation error:', cachedUser);
             setCurrentUser(cachedUser);
             setIsAuthenticated(true);
@@ -495,6 +517,7 @@ export const AuthProvider = ({ children }) => {
       
       // Check if we have user data in the response
       if (response.user) {
+        localStorage.setItem('simple_auth', 'true');
         setCurrentUser(response.user);
         localStorage.setItem('user', JSON.stringify(response.user));
         setIsAuthenticated(true);
@@ -579,8 +602,6 @@ export const AuthProvider = ({ children }) => {
           // Try to extract field information from common error messages
           if (detail.includes('Email already registered')) {
             fieldErrors.email = 'Email already registered';
-          } else if (detail.includes('Student ID already registered')) {
-            fieldErrors.student_id = 'Student ID already registered';
           } else if (detail.includes('password')) {
             fieldErrors.password = detail;
           }

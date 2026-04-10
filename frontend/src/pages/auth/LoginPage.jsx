@@ -3,7 +3,6 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { authService } from '../../services/api';
 // import cvsuLogo from '../../assets/cvsu-logo.png';
 
 // Placeholder for the logo until the actual image is added
@@ -21,8 +20,7 @@ const LoginSchema = Yup.object().shape({
 });
 
 export default function LoginPage() {
-  // Get auth context for everything except login
-  const { isAuthenticated, error: authError, clearError } = useAuth();
+  const { isAuthenticated, error: authError, clearError, login } = useAuth();
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
@@ -76,7 +74,7 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      await authService.login({
+      await login({
         email: values.email,
         password: values.password,
         remember: values.remember
@@ -105,7 +103,9 @@ export default function LoginPage() {
             displayError = error.response.data.detail;
           } else if (Array.isArray(error.response.data.detail)) {
             // FastAPI validation errors
-            displayError = error.response.data.detail.map(err => err.msg).join(', ');
+            displayError = error.response.data.detail.map(err => err.msg || JSON.stringify(err)).join(', ');
+          } else {
+            displayError = JSON.stringify(error.response.data.detail);
           }
         }
       } else if (error.message) {
@@ -160,7 +160,9 @@ export default function LoginPage() {
                   </h3>
                   <div className="mt-2 text-sm text-red-700">
                     <p className="font-semibold">{generalError}</p>
-                    {generalError.includes('account does not exist') && (
+                    {(generalError.includes('No account found') ||
+                      generalError.includes('register first') ||
+                      generalError.includes('this email')) && (
                       <div className="mt-2">
                         <Link to="/register" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                           Register Now
@@ -184,8 +186,8 @@ export default function LoginPage() {
           
           <Formik
             initialValues={{
-              email: '', // Empty email field
-              password: '', // Empty password field
+              email: '',
+              password: '',
               remember: false
             }}
             validationSchema={LoginSchema}

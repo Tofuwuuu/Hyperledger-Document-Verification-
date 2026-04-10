@@ -12,8 +12,8 @@ import asyncio
 import json
 from datetime import datetime
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add backend directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'backend'))
 
 # Import our services
 from app.services.blockchain_manager import get_blockchain_manager
