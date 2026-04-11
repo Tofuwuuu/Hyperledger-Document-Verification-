@@ -5,7 +5,6 @@ Authentication utilities
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict
-import jwt
 from app.config import settings
 
 security = HTTPBearer()

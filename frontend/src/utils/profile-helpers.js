@@ -1,4 +1,5 @@
 import { authService } from '../services/api';
+import { buildAlumniProfileData } from './alumni-profile-schema';
 
 /**
  * Add current user ID to profile data if not present
@@ -39,13 +40,12 @@ export const ensureUserIdInProfile = async (profileData) => {
 export const prepareProfileData = async (profileData) => {
   const withUserId = await ensureUserIdInProfile(profileData);
   
-  // Ensure other required fields
-  return {
+  return buildAlumniProfileData({
     ...withUserId,
-    // Default values for required fields if missing
+    // Note: name and email are handled separately from the alumni profile schema
     full_name: withUserId.full_name || withUserId.name || '',
     email: withUserId.email || '',
     student_id: withUserId.student_id || withUserId.studentId || '',
     graduation_year: withUserId.graduation_year || new Date().getFullYear()
-  };
+  });
 }; 

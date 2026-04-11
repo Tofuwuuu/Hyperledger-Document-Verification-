@@ -1,18 +1,26 @@
 from typing import Any
 import logging
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.config import settings
+from app.api.endpoints.alumni import router as alumni_router
 from app.api.register import router as register_router
-from app.api.endpoints.verification import router as verification_router
+from app.config import settings
 
 
 app = FastAPI(title="CVSU Alumni Verification API", version="0.1.0")
+
+
+uploads_dir = Path(__file__).resolve().parents[0].parents[0] / "uploads"
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 
 if settings.enable_cors:
@@ -26,7 +34,7 @@ if settings.enable_cors:
 
 
 app.include_router(register_router, prefix="/api/v1")
-app.include_router(verification_router, prefix="/api/v1")
+app.include_router(alumni_router, prefix="/api/v1")
 
 logger = logging.getLogger("backend")
 

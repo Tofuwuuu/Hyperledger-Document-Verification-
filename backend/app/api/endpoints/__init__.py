@@ -1,0 +1,1 @@
+"""Alumni API endpoints package."""
