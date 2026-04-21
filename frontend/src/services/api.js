@@ -6,7 +6,7 @@ import {
   clearAuthTokens,
   isRememberedSession 
 } from '../utils/authUtils';
-import { API_URL as CONFIG_API_URL } from '../config';
+import { API_ORIGIN, API_URL as CONFIG_API_URL } from '../config';
 import { prepareProfileData } from '../utils/profile-helpers';
 
 // Single source of truth (see `src/config.js`)
@@ -14,8 +14,8 @@ export const API_URL = CONFIG_API_URL;
 console.log('API URL configured as:', API_URL); // Debug API URL
 
 // Hard safety: never allow remote APIs in this localhost-only setup.
-if (!API_URL.startsWith('http://localhost:8000/')) {
-  throw new Error(`API_URL must be localhost-only. Got: ${API_URL}`);
+if (!API_URL.startsWith(`${API_ORIGIN}/`)) {
+  throw new Error(`API_URL must stay on the local API origin. Got: ${API_URL}`);
 }
 
 // Flag to prevent multiple refresh token requests
@@ -1478,4 +1478,3 @@ export const adminDocumentService = {
 };
 
 export default api; 
-

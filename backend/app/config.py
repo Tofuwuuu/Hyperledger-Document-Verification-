@@ -1,4 +1,9 @@
-from pydantic_settings import BaseSettings
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Always resolve `.env` next to the `backend/` folder, even if the process cwd is the repo root.
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -7,7 +12,7 @@ class Settings(BaseSettings):
     mongodb_uri: str | None = None
 
     # CORS settings
-    cors_origins: str = "http://localhost:3000,http://localhost:5173"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
 
     # Used later for JWT/auth; included now so the service starts cleanly.
     secret_key: str = "change_me"
@@ -17,9 +22,11 @@ class Settings(BaseSettings):
     # Convenience setting (not strictly used in this scaffold)
     env: str = "development"
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=_BACKEND_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     @property
     def mongodb_ping_url(self) -> str:

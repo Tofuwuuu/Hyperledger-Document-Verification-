@@ -1,0 +1,13 @@
+ docker compose up -d  
+
+ Frontend
+
+ cd Frontend
+ npm run dev
+
+ cd backend
+.\.venv\Scripts\Activate.ps1
+python run.python
+
+accessing schema and api
+http://127.0.0.1:8000/docs

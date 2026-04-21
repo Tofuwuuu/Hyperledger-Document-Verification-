@@ -390,7 +390,7 @@ export default function DocumentsPage() {
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center">
             <Link
-              to="/admin/documents/upload"
+              to="/alumni/documents/upload"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cvsu-green hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
             >
               <ArrowUpTrayIcon className="-ml-1 mr-2 h-5 w-5" />
@@ -479,7 +479,7 @@ export default function DocumentsPage() {
             <p className="mt-1 text-sm text-gray-500">You haven't uploaded any documents yet.</p>
             <div className="mt-6">
               <Link
-                to="/admin/documents/upload"
+                to="/alumni/documents/upload"
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-cvsu-green hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
               >
                 <ArrowUpTrayIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />

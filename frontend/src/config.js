@@ -7,8 +7,8 @@ function normalizeApiOrigin(value) {
   return v;
 }
 
-// Localhost-only build: never call Render/Vercel/etc.
-export const API_ORIGIN = 'http://localhost:8000';
+// Local-only build: prefer IPv4 loopback to avoid Docker/WSL localhost (::1) collisions.
+export const API_ORIGIN = 'http://127.0.0.1:8000';
 
 export const API_PREFIX = '/api/v1';
 

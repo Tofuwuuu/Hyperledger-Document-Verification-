@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, BriefcaseIcon, AcademicCapIcon, DocumentIcon } from '@heroicons/react/24/outline';
 import { alumniService, documentService, authService, api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { buildAlumniProfileData } from '../utils/alumni-profile-schema';
 
 export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
   const { id, alumniId } = useParams();
@@ -19,25 +20,10 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
-  const [formData, setFormData] = useState({
-    full_name: '',
-    email: '',
-    phone: '',
-    student_id: '',
-    graduation_year: new Date().getFullYear(),
-    batch: '',
-    course: '',
-    department: '',
-    sex: '',
-    civil_status: '',
-    address: '',
-    birthday: '',
-    region_of_origin: '',
-    bio: '',
-    current_job: '',
-    current_employer: '',
+  const [formData, setFormData] = useState(() => ({
+    ...buildAlumniProfileData(),
     temp_password: '',
-  });
+  }));
   const [isSaving, setIsSaving] = useState(false);
   
   useEffect(() => {
@@ -62,7 +48,9 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         email: userData.email || '',
         student_id: userData.student_id || '',
         department: userData.department || '',
-        graduation_year: userData.graduation_year || userData.year_graduated || new Date().getFullYear(),
+        graduation_year: (userData.graduation_year || userData.year_graduated)
+          ? String(userData.graduation_year || userData.year_graduated)
+          : '',
         // Set user_id to link the alumni profile to this user
         user_id: userId
       }));
@@ -85,22 +73,11 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
       // Populate form data for editing
       if (isAdmin) {
         setFormData({
-          full_name: response.data.full_name || '',
-          email: response.data.email || '',
-          phone: response.data.phone || '',
-          student_id: response.data.student_id || '',
-          graduation_year: response.data.graduation_year || '',
-          course: response.data.course || '',
-          department: response.data.department || '',
-          sex: response.data.sex || '',
-          civil_status: response.data.civil_status || '',
-          address: response.data.address || '',
-          birthday: response.data.birthday ? new Date(response.data.birthday).toISOString().split('T')[0] : '',
-          region_of_origin: response.data.region_of_origin || '',
-          bio: response.data.bio || '',
-          current_job: response.data.current_job || '',
-          current_employer: response.data.current_employer || '',
-          batch: response.data.batch || '',
+          ...buildAlumniProfileData({
+            ...response.data,
+            graduation_year: response.data.graduation_year ? String(response.data.graduation_year) : '',
+            birthday: response.data.birthday ? new Date(response.data.birthday).toISOString().split('T')[0] : '',
+          }),
           temp_password: '',
         });
       }
@@ -197,11 +174,13 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         const profileData = {
           ...formData,
           user_id: userId || currentUser._id,
-          graduation_year: parseInt(formData.graduation_year, 10)
+          graduation_year: formData.graduation_year ? String(formData.graduation_year).trim() : ''
         };
         
         // Remove temp_password from profile data
         delete profileData.temp_password;
+        delete profileData.course_other;
+        delete profileData.department_other;
         
         // Format birthday correctly to prevent timezone issues
         if (profileData.birthday) {
@@ -213,7 +192,7 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         console.log('Creating new alumni profile with data:', profileData);
         try {
           // Try using the direct reliable endpoint first
-          const response = await api.post('/alumni/simple', profileData);
+          await api.post('/alumni/simple', profileData);
           console.log('Profile created successfully with reliable endpoint');
           navigate(`/admin/alumni`);
           return;
@@ -227,7 +206,7 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
           }
           
           // Fallback to the original createProfile method
-          const response = await alumniService.createProfile(profileData);
+          await alumniService.createProfile(profileData);
           navigate(`/admin/alumni`);
         }
       } else {
@@ -236,9 +215,10 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         const updateData = {
           ...formData,
           id: profileId, // Include the alumni ID in the update data
-          // Ensure graduation_year is a number
-          graduation_year: parseInt(formData.graduation_year, 10)
+          graduation_year: formData.graduation_year ? String(formData.graduation_year).trim() : ''
         };
+        delete updateData.course_other;
+        delete updateData.department_other;
         
         // Format birthday correctly to prevent timezone issues
         if (updateData.birthday) {
@@ -250,9 +230,8 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         console.log('Updating alumni profile with data:', updateData);
         try {
           // Try using the direct reliable endpoint first
-          const response = await api.put(`/alumni/${profileId}/simple`, updateData);
+          await api.put(`/alumni/${profileId}/simple`, updateData);
           console.log('Profile updated successfully with reliable endpoint');
-          setAlumni(response.data);
           navigate(`/admin/alumni`);
           return;
         } catch (updateError) {

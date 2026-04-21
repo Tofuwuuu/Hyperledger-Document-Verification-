@@ -1,5 +1,6 @@
 from typing import Any
 import logging
+from contextlib import asynccontextmanager
 
 from pathlib import Path
 
@@ -15,7 +16,26 @@ from app.api.register import router as register_router
 from app.config import settings
 
 
-app = FastAPI(title="CVSU Alumni Verification API", version="0.1.0")
+logger = logging.getLogger("backend")
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    try:
+        _app.openapi()
+        logger.info("OpenAPI schema ready (see /docs and /openapi.json)")
+    except Exception:
+        logger.exception(
+            "OpenAPI schema generation failed at startup; /docs and /openapi.json may still error until this is fixed"
+        )
+    yield
+
+
+app = FastAPI(
+    title="CVSU Alumni Verification API",
+    version="0.1.0",
+    lifespan=_lifespan,
+)
 
 
 uploads_dir = Path(__file__).resolve().parents[0].parents[0] / "uploads"
@@ -36,7 +56,11 @@ if settings.enable_cors:
 app.include_router(register_router, prefix="/api/v1")
 app.include_router(alumni_router, prefix="/api/v1")
 
-logger = logging.getLogger("backend")
+
+@app.get("/health")
+async def root_health() -> dict[str, str]:
+    """Lightweight health check (no DB); use to confirm the ASGI app is running."""
+    return {"status": "ok"}
 
 
 @app.exception_handler(RequestValidationError)
@@ -50,22 +74,33 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 def custom_openapi() -> dict[str, Any]:
     """Serve OpenAPI 3.0.2 so Swagger UI and older clients accept the document."""
     if app.openapi_schema is None:
-        app.openapi_schema = get_openapi(
-            title=app.title,
-            version=app.version,
-            openapi_version="3.0.2",
-            summary=app.summary,
-            description=app.description,
-            routes=app.routes,
-            webhooks=app.webhooks.routes,
-            tags=app.openapi_tags,
-            servers=app.servers,
-            terms_of_service=app.terms_of_service,
-            contact=app.contact,
-            license_info=app.license_info,
-            separate_input_output_schemas=app.separate_input_output_schemas,
-            external_docs=app.openapi_external_docs,
-        )
+        try:
+            app.openapi_schema = get_openapi(
+                title=app.title,
+                version=app.version,
+                openapi_version="3.0.2",
+                summary=app.summary,
+                description=app.description,
+                routes=app.routes,
+                webhooks=app.webhooks.routes,
+                tags=app.openapi_tags,
+                servers=app.servers,
+                terms_of_service=app.terms_of_service,
+                contact=app.contact,
+                license_info=app.license_info,
+                separate_input_output_schemas=app.separate_input_output_schemas,
+                external_docs=app.openapi_external_docs,
+            )
+        except Exception:
+            logger.exception(
+                "OpenAPI 3.0.2 generation failed; retrying with OpenAPI 3.1 defaults"
+            )
+            app.openapi_schema = get_openapi(
+                title=app.title,
+                version=app.version,
+                routes=app.routes,
+                webhooks=app.webhooks.routes,
+            )
     return app.openapi_schema
 
 

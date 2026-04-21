@@ -5,5 +5,6 @@ email-validator
 motor
 bcrypt
 python-dotenv
+python-multipart
 pytest
 httpx

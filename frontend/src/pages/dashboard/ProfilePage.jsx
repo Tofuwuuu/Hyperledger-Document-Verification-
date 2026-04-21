@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { alumniService, referenceService } from '../../services/api';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
+import { buildDashboardProfileData } from '../../utils/dashboard-profile-schema';
 
 // Utility function to get the correct image URL
 const getImageUrl = (imagePath) => {
@@ -138,73 +139,39 @@ const getImageFromLocalStorage = (userId) => {
   }
 };
 
+const getProfileStorageKey = (userId) => `alumni_profile_${userId}`;
+
+const storeProfileLocally = (userId, profileData) => {
+  if (!userId) return;
+
+  try {
+    localStorage.setItem(getProfileStorageKey(userId), JSON.stringify(profileData));
+  } catch (error) {
+    console.error('Error storing alumni profile in localStorage:', error);
+  }
+};
+
+const getStoredProfile = (userId) => {
+  if (!userId) return null;
+
+  try {
+    const profileData = localStorage.getItem(getProfileStorageKey(userId));
+    return profileData ? JSON.parse(profileData) : null;
+  } catch (error) {
+    console.error('Error reading alumni profile from localStorage:', error);
+    return null;
+  }
+};
+
 export default function ProfilePage() {
   const { currentUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [initialProfile, setInitialProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('personal');
-  const [profile, setProfile] = useState({
-    full_name: '',
-    student_id: '',
-    course: '',
-    graduation_year: '',
-    graduation_month: '',
-    email: '',
-    phone: '',
-    address: '',
-    bio: '',
-    department: '',
-    batch: '',
-    social_media: [],
-    honors_awards: '',
-    degree_reasons: [],
-    degree_reasons_other: '',
-    advanced_studies: { level: 'None', institution: '', field: '', motivation: '' },
-    csc_passer: false,
-    csc_year: '',
-    professional_exams: '',
-    certifications: '',
-    is_employed: '',
-    unemployment_reason: '',
-    employment_status: '',
-    occupation: '',
-    business_type: '',
-    company_name: '',
-    company_address: '',
-    company_sector: '',
-    business_line: '',
-    work_location: '',
-    is_first_job: false,
-    stay_reasons: [],
-    first_job_related: false,
-    first_job_reasons: [],
-    first_job_tenure: '',
-    first_job_acquisition: '',
-    time_to_first_job: '',
-    first_job_level: '',
-    current_job_level: '',
-    initial_salary: '',
-    curriculum_relevance_first: '',
-    curriculum_relevance_current: '',
-    profile_picture: '',
-    // University Acquired Skills/Abilities fields
-    competencies_from_college: [],
-    curriculum_improvement_suggestions: '',
-    data_privacy_consent: false,
-    // Additional fields
-    sex: '',
-    civil_status: '',
-    birthday: '',
-    region_of_origin: '',
-    skills: '',
-    achievements: '',
-    special_projects: '',
-    professional_organizations: '',
-    monthly_salary: '',
-    date_employed: ''
-  });
+  const [profile, setProfile] = useState(() => buildDashboardProfileData());
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
@@ -212,6 +179,8 @@ export default function ProfilePage() {
   const [validationErrors, setValidationErrors] = useState({});
   const [courses, setCourses] = useState([]);
   const [errors, setErrors] = useState({});
+  const [, setCompletionPercentage] = useState(0);
+  const [, setMissingFields] = useState(0);
   const [degreeReasons, setDegreeReasons] = useState([
     "High grades in the course or subject area(s) related to the course",
     "Good grades in high school",
@@ -419,6 +388,7 @@ export default function ProfilePage() {
 
   const fetchAlumniProfile = async () => {
     if (!currentUser) return;
+    setErrorMessage('');
     
     // Debug user info
     console.log('Current user object:', currentUser);
@@ -433,6 +403,7 @@ export default function ProfilePage() {
     try {
       // Use _id as fallback if id is not present
       const userId = currentUser.id || currentUser._id;
+      const localProfile = getStoredProfile(userId);
       console.log('Using user ID for profile fetch:', userId);
       
       // Check if user has a profile
@@ -440,6 +411,15 @@ export default function ProfilePage() {
       
       // Check if this is a 404 response (no profile exists)
       if (response.status === 404 || !response.data) {
+        if (localProfile) {
+          const normalizedLocalProfile = buildDashboardProfileData(localProfile);
+          setProfile(normalizedLocalProfile);
+          setInitialProfile(normalizedLocalProfile);
+          calculateCompletionPercentage(normalizedLocalProfile);
+          setLoading(false);
+          return;
+        }
+
         console.log('No alumni profile found - will create one when user submits form');
         createEmptyProfile(userId);
         return;
@@ -448,28 +428,18 @@ export default function ProfilePage() {
       const alumniData = response.data;
       
       // Update profile state with fetched data
-      setProfile({
+      setProfile(buildDashboardProfileData({
+        ...alumniData,
         id: alumniData._id,
-        user_id: alumniData.user_id,
-        full_name: alumniData.full_name || '',
-        student_id: alumniData.student_id || '',
-        course: alumniData.course || '',
-        graduation_year: alumniData.graduation_year || '',
-        graduation_month: alumniData.graduation_month || '',
-        // Other fields...
-        email: alumniData.email || '',
-        phone: alumniData.phone || '',
-        // ...rest of the fields
-      });
+        graduation_year: alumniData.graduation_year ? String(alumniData.graduation_year) : ''
+      }));
       
       // Also update initialProfile state
-      setInitialProfile({
-        // Same fields as above
+      setInitialProfile(buildDashboardProfileData({
+        ...alumniData,
         id: alumniData._id,
-        user_id: alumniData.user_id,
-        full_name: alumniData.full_name || '',
-        // ...rest of the fields
-      });
+        graduation_year: alumniData.graduation_year ? String(alumniData.graduation_year) : ''
+      }));
       
       // Handle profile picture
       if (alumniData.profile_picture) {
@@ -499,44 +469,20 @@ export default function ProfilePage() {
     } catch (error) {
       console.error('Error fetching alumni profile:', error);
       
-      // Check for CORS error
-      if (error.message && error.message.includes('CORS')) {
-        console.error('CORS error detected. Attempting direct API connection...');
-        
-        try {
-          // Try using a proxy or direct connection as fallback
-          const directUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/alumni/health`;
-          console.log('Checking API health with direct URL:', directUrl);
-          
-          const healthCheck = await fetch(directUrl, { 
-            method: 'GET',
-            mode: 'cors'
-          });
-          
-          if (healthCheck.ok) {
-            setErrorMessage('API is reachable but CORS is blocking access. Please contact the administrator.');
-          } else {
-            setErrorMessage('API is unreachable. Please check your internet connection or contact the administrator.');
-          }
-        } catch (healthError) {
-          console.error('Failed health check:', healthError);
-          setErrorMessage('Connection to the server failed. Please check your internet connection.');
-        }
-        
+      const userId = currentUser.id || currentUser._id;
+      const localProfile = getStoredProfile(userId);
+
+      if (localProfile) {
+        const normalizedLocalProfile = buildDashboardProfileData(localProfile);
+        setProfile(normalizedLocalProfile);
+        setInitialProfile(normalizedLocalProfile);
+        calculateCompletionPercentage(normalizedLocalProfile);
         setLoading(false);
         return;
       }
-      
-      // If profile doesn't exist, create empty profile form with user data
-      if (error.response?.status === 404) {
-        const userId = currentUser.id || currentUser._id;
-        console.log('Alumni profile not found. Creating new profile form with user_id:', userId);
-        createEmptyProfile(userId);
-      } else {
-        // For other errors, show error message
-        setErrorMessage('Failed to fetch profile information. Please try again later.');
-        setLoading(false);
-      }
+
+      console.log('Falling back to empty alumni profile form for user_id:', userId);
+      createEmptyProfile(userId);
     }
   };
   
@@ -549,22 +495,26 @@ export default function ProfilePage() {
           setLoading(false);
           return;
         }
+
+        const localProfile = getStoredProfile(userId);
+        if (localProfile) {
+          const normalizedLocalProfile = buildDashboardProfileData(localProfile);
+          setProfile(normalizedLocalProfile);
+          setInitialProfile(normalizedLocalProfile);
+          setIsEditing(true);
+          setLoading(false);
+          return;
+        }
         
         // Create a new profile with the current user data and empty fields
-    const newProfile = {
+    const newProfile = buildDashboardProfileData({
           user_id: userId, // Set the user_id explicitly
           full_name: currentUser.full_name || '',
           student_id: currentUser.student_id || '',
           email: currentUser.email || '',
-      course: '',
           department: '',
-      graduation_year: currentUser.graduation_year || new Date().getFullYear(),
-          batch: '',
-          sex: '',
-          civil_status: '',
-          birthday: '',
-      // Other fields with empty values
-    };
+      graduation_year: currentUser.graduation_year ? String(currentUser.graduation_year) : '',
+    });
     
     setProfile(newProfile);
     setInitialProfile(newProfile);
@@ -651,8 +601,8 @@ export default function ProfilePage() {
   };
 
   // Now update the uploadProfilePicture function to store in localStorage
-  const uploadProfilePicture = async () => {
-    if (!profilePicture || !profile.id) {
+  const uploadProfilePicture = async (alumniId = profile.id) => {
+    if (!profilePicture || !alumniId) {
       console.error('Cannot upload: missing profile picture or profile ID');
       return;
     }
@@ -678,7 +628,7 @@ export default function ProfilePage() {
       // Now try to also save it via the API if available
       try {
         console.log('Attempting to save image to backend API...');
-        const response = await alumniService.uploadProfilePicture(profile.id, profilePicture);
+        const response = await alumniService.uploadProfilePicture(alumniId, profilePicture);
         console.log('Profile picture also saved to backend API');
         
         // Update the profile state with the path from the API response
@@ -730,28 +680,21 @@ export default function ProfilePage() {
   };
 
   const saveProfile = async () => {
-      setLoading(true);
+    setLoading(true);
     
-    // Validate the form - focus on required fields
+    // Validate only fields that were actually filled in or changed.
     if (!validateForm()) {
-      // Show toast error message
-      toast.error('Please fill in all required fields');
-      
-      // Calculate how many required fields are missing
-      const missingFields = Object.keys(errors).length;
-      setInfoMessage(`${missingFields} required ${missingFields === 1 ? 'field is' : 'fields are'} missing or invalid.`);
-      
-        setLoading(false);
-        return;
-      }
+      toast.error('Please fix the invalid fields and try again.');
+      setLoading(false);
+      return;
+    }
       
     try {
       // Create a copy of profile data for the API call
       const profileData = { ...profile };
       
-      // Ensure graduation_year is a number
       if (profileData.graduation_year) {
-        profileData.graduation_year = parseInt(profileData.graduation_year, 10);
+        profileData.graduation_year = String(profileData.graduation_year).trim();
       }
       
       // Format birthday correctly to prevent timezone issues
@@ -766,6 +709,9 @@ export default function ProfilePage() {
           delete profileData[key];
         }
       });
+
+      const userId = profileData.user_id || currentUser?.id || currentUser?._id;
+      const isSimpleAuth = localStorage.getItem('simple_auth') === 'true';
       
       let response;
       
@@ -835,6 +781,22 @@ export default function ProfilePage() {
         } catch (error) {
           console.error('Error creating profile:', error);
           console.error('Error details:', error.response?.data);
+
+          if (error.response?.status === 401 && isSimpleAuth) {
+            const localProfile = buildDashboardProfileData({
+              ...initialProfile,
+              ...profileData,
+              user_id: userId
+            });
+            storeProfileLocally(userId, localProfile);
+            setProfile(localProfile);
+            setInitialProfile(localProfile);
+            calculateCompletionPercentage(localProfile);
+            setIsEditing(false);
+            toast.success('Profile saved on this device');
+            setLoading(false);
+            return;
+          }
           
           // Special handling for network errors
           if (error.message?.includes('Network Error')) {
@@ -863,6 +825,13 @@ export default function ProfilePage() {
           console.log('Profile updated with fallback method');
         }
       }
+
+      if (userId) {
+        storeProfileLocally(
+          userId,
+          buildDashboardProfileData(response?.data?.profile || response?.data || { ...profileData, id: response?.data?.id || profileData.id })
+        );
+      }
       
       // Update the local profile state with the response data
       if (response && response.data) {
@@ -870,21 +839,21 @@ export default function ProfilePage() {
         if (response.data.success && response.data.id && !response.data.full_name) {
           try {
             const fetchResponse = await alumniService.getProfile(response.data.id);
-            setProfile(fetchResponse.data);
-            setInitialProfile(fetchResponse.data);
+            setProfile(buildDashboardProfileData(fetchResponse.data));
+            setInitialProfile(buildDashboardProfileData(fetchResponse.data));
             
             // Calculate and update completion percentage
             calculateCompletionPercentage(fetchResponse.data);
           } catch (fetchError) {
             console.error('Error fetching updated profile:', fetchError);
             // Still update with what we have
-            setProfile({...profileData, id: response.data.id});
-            setInitialProfile({...profileData, id: response.data.id});
+            setProfile(buildDashboardProfileData({ ...profileData, id: response.data.id }));
+            setInitialProfile(buildDashboardProfileData({ ...profileData, id: response.data.id }));
           }
         } else {
           // We have the full profile data in the response
-      setProfile(response.data);
-          setInitialProfile(response.data);
+      setProfile(buildDashboardProfileData(response.data));
+          setInitialProfile(buildDashboardProfileData(response.data));
           
           // Calculate and update completion percentage
           calculateCompletionPercentage(response.data);
@@ -895,7 +864,7 @@ export default function ProfilePage() {
       toast.success(profileData.id ? 'Profile updated successfully' : 'Profile created successfully');
       
       // Upload profile picture if needed
-      if (selectedFile) {
+      if (profilePicture) {
         // Check if we have an alumni ID now
         const alumniId = response?.data?.id || response?.data?._id || profileData.id;
         if (alumniId) {
@@ -914,6 +883,22 @@ export default function ProfilePage() {
     } catch (error) {
       console.error('Error updating profile:', error);
       console.error('Error details:', error.response?.data);
+
+      if (error.response?.status === 401 && localStorage.getItem('simple_auth') === 'true') {
+        const userId = profile.user_id || currentUser?.id || currentUser?._id;
+        const localProfile = buildDashboardProfileData({
+          ...initialProfile,
+          ...profile,
+          user_id: userId
+        });
+        storeProfileLocally(userId, localProfile);
+        setProfile(localProfile);
+        setInitialProfile(localProfile);
+        calculateCompletionPercentage(localProfile);
+        setIsEditing(false);
+        toast.success('Profile saved on this device');
+        return;
+      }
       
       if (error.response?.data?.detail) {
         // Handle structured validation errors from backend
@@ -980,48 +965,27 @@ export default function ProfilePage() {
     }
   };
 
-  // Function to validate form fields
+  // Validate only the values currently present in the form.
   const validateForm = () => {
     const errors = {};
-    
-    // Define required fields - these 7 fields must be filled out
-    const requiredFields = [
-      { name: 'full_name', label: 'Full Name' },
-      { name: 'student_id', label: 'Student ID' },
-      { name: 'email', label: 'Email' },
-      { name: 'course', label: 'Course/Program' },
-      { name: 'department', label: 'Department' },
-      { name: 'graduation_year', label: 'Graduation Year' },
-      { name: 'batch', label: 'Batch/Class' }
-    ];
-    
-    // Check each required field
-    requiredFields.forEach(field => {
-      if (!profile[field.name] || profile[field.name].trim() === '') {
-        errors[field.name] = `${field.label} is required`;
-      }
-    });
-    
-    // Email format validation
+
     if (profile.email && !/\S+@\S+\.\S+/.test(profile.email)) {
-      errors.email = "Please enter a valid email address";
+      errors.email = 'Please enter a valid email address';
     }
-    
-    // Student ID format validation
+
     if (profile.student_id && !/^[A-Za-z0-9-]+$/.test(profile.student_id)) {
-      errors.student_id = "Student ID can only contain letters, numbers, and hyphens";
+      errors.student_id = 'Student ID can only contain letters, numbers, and hyphens';
     }
-    
-    // Graduation year validation
+
     if (profile.graduation_year) {
       const year = parseInt(profile.graduation_year);
       const currentYear = new Date().getFullYear();
       if (isNaN(year)) {
-        errors.graduation_year = "Graduation year must be a valid number";
+        errors.graduation_year = 'Graduation year must be a valid number';
       } else if (year < 1948) {
-        errors.graduation_year = "Graduation year cannot be before 1948";
+        errors.graduation_year = 'Graduation year cannot be before 1948';
       } else if (year > currentYear) {
-        errors.graduation_year = "Graduation year cannot be in the future";
+        errors.graduation_year = 'Graduation year cannot be in the future';
       }
     }
     
