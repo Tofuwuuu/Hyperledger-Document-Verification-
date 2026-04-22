@@ -18,6 +18,9 @@ export const getUpcomingEvents = async (limit = 5) => {
     const response = await axios.get(`${API_URL}/events/upcoming?limit=${limit}`);
     return response.data;
   } catch (error) {
+    if (error.response?.status === 404) {
+      return [];
+    }
     console.error('Error fetching upcoming events:', error);
     throw error;
   }

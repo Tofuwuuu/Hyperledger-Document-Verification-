@@ -7,7 +7,8 @@
 
  cd backend
 .\.venv\Scripts\Activate.ps1
-python run.python
+python run.py
+
 
 accessing schema and api
 http://127.0.0.1:8000/docs

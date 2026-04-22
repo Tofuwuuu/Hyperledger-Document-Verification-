@@ -85,6 +85,7 @@ def test_register_password_mismatch() -> None:
             resp = await client.post(
                 "/api/v1/auth/register",
                 json={
+                    "full_name": "Test User One",
                     "email": "test1@example.com",
                     "password": "secret123",
                     "confirm_password": "different123",
@@ -109,6 +110,7 @@ def test_register_success_inserts_hashed_password(monkeypatch: pytest.MonkeyPatc
             resp = await client.post(
                 "/api/v1/auth/register",
                 json={
+                    "full_name": "Test User Two",
                     "email": "Test2@Example.com",
                     "password": "secret123",
                     "confirm_password": "secret123",

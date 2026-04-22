@@ -10,7 +10,6 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import pollingService from '../../services/polling';
-import DiagnosticPanel from '../../components/DiagnosticPanel';
 
 export default function AdminDashboardPage() {
   const { currentUser, isAdmin } = useAuth();
@@ -27,18 +26,10 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  // Add these console logs for debugging
-  console.log("Admin Dashboard: API URL:", import.meta.env.VITE_API_URL);
-  console.log("Admin Polling Enabled:", true);
-  console.log("User Role:", localStorage.getItem('user_role'));
-
   useEffect(() => {
-    console.log("Starting polling from AdminDashboardPage");
-    
     // Check if we're using admin bypass
     const token = localStorage.getItem('token');
     if (token && token.startsWith('admin_access_token_')) {
-      console.log('Admin bypass token detected - not starting polling to avoid API calls');
       return; // Skip polling for admin bypass
     }
     
@@ -48,7 +39,6 @@ export default function AdminDashboardPage() {
     
     // Add listener for document request notifications specifically
     const unsubscribe = pollingService.on('document_requested', (data) => {
-      console.log("Admin received document_requested notification:", data);
       // Update UI or fetch latest data
       fetchDashboardData(); // Refresh dashboard data when new document request comes in
       
@@ -81,9 +71,7 @@ export default function AdminDashboardPage() {
     });
     
     // Add generic message listener too
-    const messageUnsubscribe = pollingService.on('message', (data) => {
-      console.log("Admin received general message:", data);
-    });
+    const messageUnsubscribe = pollingService.on('message', () => {});
     
     return () => {
       unsubscribe && unsubscribe();
@@ -99,13 +87,11 @@ export default function AdminDashboardPage() {
     
     // Setup auto-refresh interval - every 60 seconds
     const refreshInterval = setInterval(() => {
-      console.log('Auto-refreshing dashboard data...');
       fetchDashboardData();
     }, 60000); // 60 seconds
     
     // Clear interval on component unmount
     return () => {
-      console.log('Cleaning up dashboard auto-refresh interval');
       clearInterval(refreshInterval);
     };
   }, []);
@@ -123,8 +109,6 @@ export default function AdminDashboardPage() {
     
     // Check if coming from verification page with refresh flag
     if (location.state?.refreshActivity) {
-      console.log('Dashboard detected refreshActivity flag', location.state);
-      
       // Show toast notification for verification
       if (location.state?.verifiedUser) {
         toast.success(`User ${location.state.verifiedUser} verified successfully`);
@@ -136,7 +120,6 @@ export default function AdminDashboardPage() {
       }
       
       // Explicitly fetch the latest activity data
-      console.log('Triggering refreshRecentActivity because of navigation state');
       if (isAdminUser) {
         fetchRecentActivity();
       } else {
@@ -714,11 +697,6 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Diagnostics Panel - only for admins */}
-      {isAdminUser && (
-        <DiagnosticPanel />
-      )}
-      
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white overflow-hidden shadow rounded-lg">

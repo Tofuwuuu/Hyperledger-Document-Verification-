@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AlumniProfileBase(BaseModel):
@@ -25,8 +25,7 @@ class AlumniProfileBase(BaseModel):
     current_job: str = Field(default='')
     current_employer: str = Field(default='')
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class AlumniProfileCreate(AlumniProfileBase):
@@ -53,5 +52,4 @@ class AlumniProfileUpdate(BaseModel):
     current_job: Optional[str] = Field(default=None)
     current_employer: Optional[str] = Field(default=None)
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")

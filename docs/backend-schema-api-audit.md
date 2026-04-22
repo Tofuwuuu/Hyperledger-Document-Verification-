@@ -1,29 +1,133 @@
 # Backend Schema And API Audit
 
-## Snapshot
+## Purpose
 
-This document reflects the code currently mounted by the local FastAPI backend in `backend/app` and the local MongoDB database `cvsu_alumni` on April 21, 2026.
+This document has two jobs:
 
-The current backend is a small FastAPI service with:
+- describe the backend that is actually running today
+- define the cleaner target contract the project should move toward
 
-- one active MongoDB database: `cvsu_alumni`
-- one collection actively used by code paths: `users`
-- two active route modules:
-  - `app.api.register`
-  - `app.api.endpoints.alumni`
+It reflects the code in `backend/app` and the local MongoDB database `cvsu_alumni` as inspected and updated on April 22, 2026.
 
-Important caveat:
+## Implementation Checklist
 
-- the frontend still expects a much larger API surface than the backend currently implements
-- the database already contains legacy collections and mixed user document shapes from an older backend
+### Core Foundation
 
-## Runtime Route Map
+- [x] normalize legacy `users.email` values to lowercase
+- [x] standardize canonical password field to `password_hash`
+- [x] preserve legacy `hashed_password` compatibility during login
+- [x] create and use `alumni_profiles` collection
+- [x] migrate profile-shaped fields from `users` into `alumni_profiles`
+- [x] add Mongo indexes for `users` and `alumni_profiles`
 
-Registered routes in the current FastAPI app:
+### Auth
+
+- [x] `POST /api/v1/auth/register`
+- [x] `POST /api/v1/auth/login`
+- [x] `GET /api/v1/auth/me`
+- [x] `POST /api/v1/auth/refresh`
+- [x] `POST /api/v1/auth/logout`
+- [x] `GET /api/v1/auth/user/{user_id}`
+- [x] `GET /api/v1/auth/unverified-users`
+- [x] `POST /api/v1/auth/verify-user/{user_id}`
+- [x] `GET /api/v1/auth/csrf-token`
+- [x] password reset endpoints
+- [x] MFA endpoints
+
+### Alumni Profiles
+
+- [x] `GET /api/v1/alumni/health`
+- [x] `GET /api/v1/alumni/user/{user_id}`
+- [x] `GET /api/v1/alumni/{alumni_id}`
+- [x] `POST /api/v1/alumni`
+- [x] `PUT /api/v1/alumni/{alumni_id}`
+- [x] `POST /api/v1/alumni/simple`
+- [x] `PUT /api/v1/alumni/{alumni_id}/simple`
+- [x] `GET /api/v1/alumni`
+- [x] `GET /api/v1/alumni/list`
+- [x] `POST /api/v1/alumni/{alumni_id}/profile-picture`
+- [x] `GET /api/v1/alumni/me`
+
+### Admin
+
+- [x] `GET /api/v1/admin/users`
+- [x] `GET /api/v1/admin/users/{user_id}`
+- [x] `POST /api/v1/admin/users`
+- [x] `PUT /api/v1/admin/users/{user_id}`
+- [x] `DELETE /api/v1/admin/users/{user_id}`
+- [x] `PUT /api/v1/admin/users/{user_id}/role`
+- [x] `GET /api/v1/admin/roles`
+- [x] `GET /api/v1/admin/dashboard/stats`
+- [x] `GET /api/v1/admin/dashboard/recent-activity`
+- [x] admin verification review endpoints
+- [x] admin permissions endpoints
+
+### Documents And Requests
+
+- [x] `POST /api/v1/documents/upload`
+- [x] `GET /api/v1/documents/alumni/{alumni_id}`
+- [x] `GET /api/v1/documents/{document_id}`
+- [x] `DELETE /api/v1/documents/{document_id}`
+- [x] `GET /api/v1/documents/search`
+- [x] `GET /api/v1/documents/pending/all`
+- [x] `GET /api/v1/documents/activities`
+- [x] `POST /api/v1/document-requests/`
+- [x] `GET /api/v1/document-requests/`
+- [x] `GET /api/v1/document-requests/{request_id}`
+- [x] `GET /api/v1/document-requests/admin`
+- [x] `PUT /api/v1/document-requests/{request_id}/update`
+- [x] `POST /api/v1/document-requests/{request_id}/generate`
+- [x] `GET /api/v1/document-requests/{request_id}/download`
+- [x] blockchain verification endpoints
+
+### Events And Registrations
+
+- [x] events CRUD endpoints
+- [x] registrations endpoints
+- [x] upcoming events endpoint
+- [x] `GET /api/v1/registrations/event/{event_id}/attendees` returns event/statistics/attendees payload
+- [x] `POST /api/v1/registrations/check-in-qr`
+- [x] `POST /api/v1/registrations/quick-register/{event_id}/{token}`
+- [x] `POST /api/v1/registrations/quick-attend/{token}`
+
+### Reference Data
+
+- [x] `/api/v1/references/courses`
+
+## Current Backend Reality
+
+### Active FastAPI modules
+
+The local backend currently mounts:
+
+- `app.api.register`
+- `app.api.endpoints.alumni`
+- `app.api.endpoints.admin`
+- `app.api.endpoints.documents`
+- `app.api.endpoints.document_requests`
+- `app.api.endpoints.events`
+- `app.api.endpoints.registrations`
+
+Source files:
+
+- [backend/app/main.py](/e:/Projects/FINAL/backend/app/main.py)
+- [backend/app/api/register.py](/e:/Projects/FINAL/backend/app/api/register.py)
+- [backend/app/api/endpoints/alumni.py](/e:/Projects/FINAL/backend/app/api/endpoints/alumni.py)
+- [backend/app/api/endpoints/admin.py](/e:/Projects/FINAL/backend/app/api/endpoints/admin.py)
+- [backend/app/api/endpoints/events.py](/e:/Projects/FINAL/backend/app/api/endpoints/events.py)
+- [backend/app/api/endpoints/registrations.py](/e:/Projects/FINAL/backend/app/api/endpoints/registrations.py)
+
+### Registered routes today
 
 - `GET /health`
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/user/{user_id}`
+- `GET /api/v1/auth/unverified-users`
+- `POST /api/v1/auth/verify-user/{user_id}`
 - `GET /api/v1/alumni/health`
 - `GET /api/v1/alumni/user/{user_id}`
 - `GET /api/v1/alumni/{alumni_id}`
@@ -34,105 +138,51 @@ Registered routes in the current FastAPI app:
 - `GET /api/v1/alumni`
 - `GET /api/v1/alumni/list`
 - `POST /api/v1/alumni/{alumni_id}/profile-picture`
+- `GET /api/v1/admin/users`
+- `GET /api/v1/admin/users/{user_id}`
+- `POST /api/v1/admin/users`
+- `PUT /api/v1/admin/users/{user_id}`
+- `DELETE /api/v1/admin/users/{user_id}`
+- `PUT /api/v1/admin/users/{user_id}/role`
+- `GET /api/v1/admin/roles`
+- `GET /api/v1/admin/dashboard/stats`
+- `GET /api/v1/admin/dashboard/recent-activity`
+- `POST /api/v1/documents/upload`
+- `GET /api/v1/documents/alumni/{alumni_id}`
+- `GET /api/v1/documents/search`
+- `GET /api/v1/documents/{document_id}`
+- `DELETE /api/v1/documents/{document_id}`
+- `GET /api/v1/documents/pending/all`
+- `POST /api/v1/document-requests/`
+- `GET /api/v1/document-requests/`
+- `GET /api/v1/document-requests/{request_id}`
+- `GET /api/v1/document-requests/admin`
+- `PUT /api/v1/document-requests/{request_id}/update`
+- `POST /api/v1/document-requests/{request_id}/generate`
+- `GET /api/v1/document-requests/{request_id}/download`
+ - `GET /api/v1/events/upcoming`
+ - `GET /api/v1/events`
+ - `GET /api/v1/events/{event_id}`
+ - `POST /api/v1/events`
+ - `PUT /api/v1/events/{event_id}`
+ - `DELETE /api/v1/events/{event_id}`
+ - `GET /api/v1/events/{event_id}/qrcode`
+ - `GET /api/v1/events/{event_id}/attendance-qrcode`
+ - `POST /api/v1/registrations`
+ - `GET /api/v1/registrations/user`
+ - `GET /api/v1/registrations/event/{event_id}`
+ - `GET /api/v1/registrations/all`
+ - `POST /api/v1/registrations/{registration_id}/check-in`
+ - `DELETE /api/v1/registrations/{registration_id}`
+ - `PUT /api/v1/registrations/{registration_id}`
+ - `GET /api/v1/registrations/event/{event_id}/attendees`
 
-Route sources:
+## Current MongoDB Reality
 
-- [backend/app/main.py](/e:/Projects/FINAL/backend/app/main.py)
-- [backend/app/api/register.py](/e:/Projects/FINAL/backend/app/api/register.py)
-- [backend/app/api/endpoints/alumni.py](/e:/Projects/FINAL/backend/app/api/endpoints/alumni.py)
-
-## Current Data Model
-
-### Implemented Domain Model
-
-The current backend does not separate auth users and alumni profiles into different collections.
-
-Instead, it stores both in the same `users` document.
-
-Effective current model:
-
-```json
-{
-  "_id": "ObjectId",
-  "full_name": "string",
-  "email": "string",
-  "password_hash": "bcrypt hash",
-  "is_admin": false,
-  "is_verified": false,
-  "created_at": "datetime",
-  "updated_at": "datetime",
-
-  "student_id": "string",
-  "phone": "string",
-  "graduation_year": "string",
-  "batch": "string",
-  "course": "string",
-  "department": "string",
-  "sex": "string",
-  "civil_status": "string",
-  "birthday": "string",
-  "region_of_origin": "string",
-  "address": "string",
-  "bio": "string",
-  "profile_picture": "uploads/file.ext",
-  "current_job": "string",
-  "current_employer": "string"
-}
-```
-
-### Auth Fields Used In Code
-
-Used by `register.py`:
-
-- `full_name`
-- `email`
-- `password_hash`
-- `is_admin`
-- `is_verified`
-- `created_at`
-
-Returned to clients:
-
-- `id`
-- `email`
-- `full_name`
-- `student_id`
-- `graduation_year`
-- `is_admin`
-- `is_verified`
-
-### Alumni/Profile Fields Used In Code
-
-Declared in [backend/app/schemas/alumni_profile.py](/e:/Projects/FINAL/backend/app/schemas/alumni_profile.py):
-
-- `user_id`
-- `full_name`
-- `email`
-- `student_id`
-- `phone`
-- `graduation_year`
-- `batch`
-- `course`
-- `department`
-- `sex`
-- `civil_status`
-- `birthday`
-- `region_of_origin`
-- `address`
-- `bio`
-- `profile_picture`
-- `current_job`
-- `current_employer`
-
-Also important:
-
-- `extra = "allow"` means additional undeclared fields can still be accepted and written into the `users` document
-
-## MongoDB Collections
-
-Collections currently present in local `cvsu_alumni`:
+Collections present in local `cvsu_alumni`:
 
 - `alumni`
+- `alumni_profiles`
 - `applications`
 - `audit_logs`
 - `document_requests`
@@ -145,386 +195,362 @@ Collections currently present in local `cvsu_alumni`:
 - `users`
 - `verification_requests`
 
-Only `users` is actively used by the current backend code.
+The backend now actively uses:
 
-### Sample Collection Shapes
-
-Observed first-document keys in local MongoDB:
-
-- `alumni`
-  - `_id, created_at, email, full_name, graduation_year, profile_completed, student_id, updated_at, user_id`
 - `users`
-  - `_id, created_at, email, full_name, hashed_password, is_active, is_admin, is_verified, password_hash, updated_at, verification_pending`
+- `alumni_profiles`
 
-This is a strong sign that the database contains legacy records from an older application version.
+Other collections may exist but are still feature-dependent.
 
-## Schema Drift
+Observed legacy drift:
 
-### Mixed Password Fields
+- `users` contains both `password_hash` and `hashed_password` depending on document age
+- `users` may still contain old fields like `is_active` and `verification_pending`
+- `alumni` exists as a separate collection from an older version, but the current backend uses `alumni_profiles`
 
-The current code reads:
+## Current Data Model
 
-- `password_hash`
+Today the backend has been partially cleaned up:
 
-But local MongoDB already contains legacy user docs with:
+- auth and admin data live in `users`
+- alumni profile data lives in `alumni_profiles`
+- legacy `users` profile fields may still exist on older records, but startup migration copies them into `alumni_profiles`
 
-- `hashed_password`
-
-Some documents currently contain both fields.
-
-Impact:
-
-- users created by the old backend may not authenticate correctly in the new backend
-- users created by the new backend may look inconsistent in MongoDB Compass
-- code that assumes one password field will behave unpredictably against legacy records
-
-### Mixed User Shapes
-
-Legacy-style user fields seen in MongoDB:
-
-- `hashed_password`
-- `is_active`
-- `verification_pending`
-
-Current-code user fields:
-
-- `password_hash`
-- `is_verified`
-- no explicit `is_active`
-
-### Parallel Legacy Collections
-
-There is a separate `alumni` collection in MongoDB, but the current backend does not use it.
-
-Impact:
-
-- some older UI or scripts may still expect alumni profiles in `alumni`
-- current FastAPI code reads and writes alumni profile data into `users`
-
-## API Reference
-
-### Auth API
-
-#### `POST /api/v1/auth/register`
-
-Purpose:
-
-- create a new user in `users`
-
-Request body:
+Current canonical `users` shape:
 
 ```json
 {
+  "_id": "ObjectId",
+  "email": "string",
   "full_name": "string",
-  "email": "user@example.com",
-  "password": "string",
-  "confirm_password": "string"
+  "password_hash": "bcrypt hash",
+  "is_admin": false,
+  "is_verified": false,
+  "is_active": true,
+  "role_id": "string|null",
+  "last_login_at": "datetime|null",
+  "created_at": "datetime",
+  "updated_at": "datetime"
 }
 ```
 
-Behavior:
-
-- normalizes email to lowercase
-- validates password confirmation
-- hashes password with `bcrypt`
-- inserts into `users`
-
-Response shape:
+Current canonical `alumni_profiles` shape:
 
 ```json
 {
-  "success": true,
-  "user": {
-    "id": "string",
-    "email": "string",
-    "full_name": "string",
-    "student_id": null,
-    "graduation_year": null,
-    "is_admin": false,
-    "is_verified": false
-  }
+  "_id": "ObjectId",
+  "user_id": "ObjectId",
+  "email": "string",
+  "full_name": "string",
+  "student_id": "string|null",
+  "phone": "string|null",
+  "graduation_year": "string|number|null",
+  "batch": "string|null",
+  "course": "string|null",
+  "department": "string|null",
+  "sex": "string|null",
+  "civil_status": "string|null",
+  "birthday": "string|null",
+  "region_of_origin": "string|null",
+  "address": "string|null",
+  "bio": "string|null",
+  "profile_picture": "uploads/file.ext|null",
+  "current_job": "string|null",
+  "current_employer": "string|null",
+  "created_at": "datetime",
+  "updated_at": "datetime"
 }
 ```
 
-#### `POST /api/v1/auth/login`
+## Main Problem
 
-Purpose:
+The project still has three competing sources of truth:
 
-- authenticate by `email` and `password`
+1. the live FastAPI backend
+2. the legacy MongoDB collections
+3. the frontend service layer
 
-Request body:
+That mismatch is the reason some frontend routes still fail or rely on bypass behavior.
 
-```json
-{
-  "email": "user@example.com",
-  "password": "string",
-  "remember": false
-}
-```
+In practice:
 
-Behavior:
+- backend now implements auth, alumni profile CRUD, basic admin user management, dashboard stats/activity, and user verification
+- backend now also implements basic documents and document-request workflows
+- frontend still expects references, events, registrations, blockchain verification, and deeper admin APIs
+- MongoDB still contains collections from an older, broader backend
 
-- normalizes email
-- looks up user in `users`
-- validates `password_hash` via `bcrypt.checkpw`
-- returns simplified user payload
+## Recommended Canonical Design
 
-Response shape:
+The cleanest direction remains:
 
-```json
-{
-  "success": true,
-  "user": {
-    "id": "string",
-    "email": "string",
-    "full_name": "string",
-    "student_id": "string|null",
-    "graduation_year": "string|null",
-    "is_admin": false,
-    "is_verified": false
-  }
-}
-```
+- `users` for identity, auth, and admin flags
+- `alumni_profiles` for alumni data
+- separate feature collections for documents, requests, verification, events, registrations, and notifications
 
-Current limitations:
+Recommended canonical collections:
 
-- no JWT
-- no refresh token
-- no `/auth/me`
-- no logout endpoint
-- no password reset flow
+- `users`
+- `alumni_profiles`
+- `documents`
+- `document_requests`
+- `verification_requests`
+- `events`
+- `event_registrations`
+- `notifications`
+- `audit_logs`
 
-### Alumni API
+### Why this shape is cleaner
 
-#### `GET /api/v1/alumni/health`
+- `users` stays focused on identity, auth, and role checks
+- `alumni_profiles` holds profile and academic data without polluting auth records
+- document and event features can grow independently
+- admin dashboards become queryable without mixed document shapes
+- future migrations and validation become much simpler
 
-- simple health check for alumni routes
+## Canonical Relationship Map
 
-#### `GET /api/v1/alumni/user/{user_id}`
-
-- fetches a `users` document by `_id` or `user_id`
-- returns `200 null` if not found
-
-#### `GET /api/v1/alumni/{alumni_id}`
-
-- fetches a `users` document by `_id`
-- returns `404` if not found or if `alumni_id` is invalid
-
-#### `POST /api/v1/alumni`
-
-- updates an existing user document using `payload.user_id`
-- does not insert a separate alumni record
-- acts like "complete profile for an existing user"
-
-#### `PUT /api/v1/alumni/{alumni_id}`
-
-- partial update of an existing user document
-- strips sensitive fields like `password_hash`, `hashed_password`, and `is_admin`
-
-#### `POST /api/v1/alumni/simple`
-
-- wrapper around `POST /api/v1/alumni`
-- returns `{ success, id, profile }`
-
-#### `PUT /api/v1/alumni/{alumni_id}/simple`
-
-- wrapper around `PUT /api/v1/alumni/{alumni_id}`
-- returns `{ success, id, profile }`
-
-#### `GET /api/v1/alumni`
-
-- lists documents from `users`
-
-Query params:
-
-- `offset`
-- `limit`
-
-Response:
-
-```json
-{
-  "results": [],
-  "total": 0,
-  "offset": 0,
-  "limit": 25
-}
-```
-
-#### `GET /api/v1/alumni/list`
-
-- alias for `GET /api/v1/alumni`
-
-#### `POST /api/v1/alumni/{alumni_id}/profile-picture`
-
-- saves file into local `backend/uploads`
-- updates `profile_picture` in the matching `users` document
-
-## Frontend To Backend Mismatch
-
-The frontend still expects many endpoints that do not exist in the current backend.
-
-### Route Families Expected By Frontend
-
-Observed in frontend code:
-
-- `/auth/me`
-- `/auth/refresh`
-- `/auth/logout`
-- `/auth/csrf-token`
-- `/auth/reset-password`
-- `/auth/verify-reset-token`
-- `/auth/reset-password-confirm`
-- `/auth/mfa/status`
-- `/auth/mfa/setup`
-- `/auth/mfa/enable`
-- `/auth/mfa/disable`
-- `/auth/set-security-questions`
-- `/auth/verify-security-questions`
-- `/auth/unverified-users`
-- `/auth/verify-user/{userId}`
-- `/admin/users`
-- `/admin/roles`
-- `/admin/permissions`
-- `/admin/verifications`
-- `/admin/dashboard/*`
-- `/documents/*`
-- `/document-requests/*`
-- `/verification/blockchain/*`
-- `/references/courses`
-
-Relevant frontend files:
-
-- [frontend/src/context/AuthContext.jsx](/e:/Projects/FINAL/frontend/src/context/AuthContext.jsx)
-- [frontend/src/services/api.js](/e:/Projects/FINAL/frontend/src/services/api.js)
-- [frontend/src/services/authService.js](/e:/Projects/FINAL/frontend/src/services/authService.js)
-
-### What This Means
-
-The frontend was built against a larger platform backend, but the current FastAPI app only implements:
-
-- basic register/login
-- basic alumni profile CRUD
-- profile picture upload
-
-Everything else is currently either:
-
-- missing
-- stale
-- or only present as old database artifacts
-
-## ERD-Style Map
-
-Current implemented model:
-
-```text
-users
-  _id (ObjectId) PK
-  full_name
-  email
-  password_hash
-  is_admin
-  is_verified
-  created_at
-  updated_at
-  student_id
-  graduation_year
-  phone
-  batch
-  course
-  department
-  sex
-  civil_status
-  birthday
-  region_of_origin
-  address
-  bio
-  profile_picture
-  current_job
-  current_employer
-```
-
-Legacy / intended model suggested by database + frontend:
+Recommended relationship model:
 
 ```text
 users
   1 -> 1 alumni_profiles
-  1 -> many document_requests
   1 -> many documents
-  1 -> many notifications
+  1 -> many document_requests
+  1 -> many verification_requests
   1 -> many event_registrations
+  1 -> many notifications
+
+alumni_profiles
+  1 -> 1 users
+
+documents
+  many -> 1 users
+  many -> 1 alumni_profiles
+  1 -> many verification_requests
+
+document_requests
+  many -> 1 users
+  0..1 -> 1 documents
 
 events
   1 -> many event_registrations
 
-documents
-  1 -> many verification_requests
+event_registrations
+  many -> 1 events
+  many -> 1 users
 ```
 
-That larger model is not implemented in the current backend code yet.
+This is the clean "all connections" view the backend is moving toward.
 
-## Cleanup Recommendations
+## Recommended API Contract
 
-### Immediate
+The API should mirror the canonical collections instead of leaking legacy storage decisions.
 
-- choose one canonical password field:
-  - prefer `password_hash`
-- write a one-time migration to convert legacy `hashed_password` documents
-- choose one canonical place for alumni profile data:
-  - either keep it embedded in `users`
-  - or move it into `alumni`
-- make backend and frontend agree on the same auth contract
+### Auth
 
-### Recommended Short-Term Backend Shape
+Recommended stable endpoints:
 
-- `users`
-  - auth and role fields only
-- `alumni_profiles`
-  - profile and academic fields
-- `documents`
-- `document_requests`
-- `verification_requests`
-- `events`
-- `event_registrations`
-- `notifications`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/refresh`
+- `GET /api/v1/auth/user/{user_id}`
+- `GET /api/v1/auth/unverified-users`
+- `POST /api/v1/auth/verify-user/{user_id}`
 
-### Recommended API Stabilization Order
+Minimal response contract for authenticated user:
 
-1. finalize auth contract
-   - `register`
-   - `login`
-   - `me`
-   - `logout`
-2. finalize user/profile contract
-   - `users`
-   - `alumni_profiles`
-3. reintroduce admin and document endpoints only after schema is stable
+```json
+{
+  "id": "string",
+  "email": "user@example.com",
+  "role": "admin",
+  "is_admin": true,
+  "is_verified": true,
+  "profile_id": "string|null"
+}
+```
 
-## Current Truth Table
+### Alumni Profiles
 
-Implemented now:
+Recommended stable endpoints:
 
-- basic register
-- basic login
-- basic alumni profile CRUD
-- profile picture upload
+- `GET /api/v1/alumni/me`
+- `GET /api/v1/alumni/{profile_id}`
+- `POST /api/v1/alumni`
+- `PUT /api/v1/alumni/{profile_id}`
+- `GET /api/v1/alumni`
+- `POST /api/v1/alumni/{profile_id}/profile-picture`
 
-Present in MongoDB but not implemented by current backend:
+Important cleanup:
 
-- `alumni`
-- `documents`
-- `document_requests`
-- `events`
-- `event_registrations`
-- `notifications`
-- `verification_requests`
+- `POST /alumni` should create a profile record, not patch `users`
+- `GET /alumni/user/{user_id}` remains a compatibility helper
+- `/simple` wrappers can be removed later after the frontend is updated
 
-Expected by frontend but missing from current backend:
+### Admin
 
-- most `/auth/*` beyond login/register
-- all `/admin/*`
-- all `/documents/*`
-- all `/document-requests/*`
-- all `/verification/*`
+Recommended stable endpoints:
+
+- `GET /api/v1/admin/dashboard/stats`
+- `GET /api/v1/admin/dashboard/recent-activity`
+- `GET /api/v1/admin/users`
+- `POST /api/v1/admin/users`
+- `GET /api/v1/admin/users/{user_id}`
+- `PUT /api/v1/admin/users/{user_id}`
+- `DELETE /api/v1/admin/users/{user_id}`
+- `PUT /api/v1/admin/users/{user_id}/role`
+- `GET /api/v1/admin/roles`
+- `GET /api/v1/admin/verifications`
+- `POST /api/v1/admin/verifications/{request_id}/approve`
+- `POST /api/v1/admin/verifications/{request_id}/reject`
+
+### Documents
+
+Recommended stable endpoints:
+
+- `POST /api/v1/documents/upload`
+- `GET /api/v1/documents/alumni/{user_id}`
+- `GET /api/v1/documents/{document_id}`
+- `GET /api/v1/documents/search`
+- `DELETE /api/v1/documents/{document_id}`
+
+### Document Requests
+
+Recommended stable endpoints:
+
+- `POST /api/v1/document-requests`
+- `GET /api/v1/document-requests`
+- `GET /api/v1/document-requests/{request_id}`
+- `GET /api/v1/document-requests/admin`
+- `PUT /api/v1/document-requests/{request_id}/update`
+- `POST /api/v1/document-requests/{request_id}/generate`
+- `GET /api/v1/document-requests/{request_id}/download`
+
+### Events
+
+Recommended stable endpoints:
+
+- `GET /api/v1/events`
+- `GET /api/v1/events/upcoming`
+- `GET /api/v1/events/{event_id}`
+- `POST /api/v1/events`
+- `PUT /api/v1/events/{event_id}`
+- `DELETE /api/v1/events/{event_id}`
+
+### Event Registrations
+
+Recommended stable endpoints:
+
+- `POST /api/v1/registrations`
+- `GET /api/v1/registrations/user`
+- `GET /api/v1/registrations/event/{event_id}`
+- `GET /api/v1/registrations/all`
+- `POST /api/v1/registrations/{registration_id}/check-in`
+
+## Current-to-Target Mapping
+
+### Keep
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/unverified-users`
+- `POST /api/v1/auth/verify-user/{user_id}`
+- `GET /api/v1/alumni`
+- `GET /api/v1/alumni/{id}`
+- `PUT /api/v1/alumni/{id}`
+- `POST /api/v1/alumni/{id}/profile-picture`
+- `GET /api/v1/admin/users`
+- `GET /api/v1/admin/users/{user_id}`
+- `POST /api/v1/admin/users`
+- `PUT /api/v1/admin/users/{user_id}`
+- `DELETE /api/v1/admin/users/{user_id}`
+- `PUT /api/v1/admin/users/{user_id}/role`
+- `GET /api/v1/admin/roles`
+- `GET /api/v1/admin/dashboard/stats`
+- `GET /api/v1/admin/dashboard/recent-activity`
+- `POST /api/v1/documents/upload`
+- `GET /api/v1/documents/alumni/{alumni_id}`
+- `GET /api/v1/documents/{document_id}`
+- `DELETE /api/v1/documents/{document_id}`
+- `GET /api/v1/documents/search`
+- `GET /api/v1/documents/pending/all`
+- `POST /api/v1/document-requests/`
+- `GET /api/v1/document-requests/`
+- `GET /api/v1/document-requests/{request_id}`
+- `GET /api/v1/document-requests/admin`
+- `PUT /api/v1/document-requests/{request_id}/update`
+- `POST /api/v1/document-requests/{request_id}/generate`
+- `GET /api/v1/document-requests/{request_id}/download`
+
+### Change
+
+- legacy `users` mixed document
+  - split into `users` and `alumni_profiles`
+- current `POST /api/v1/alumni`
+  - keep it as profile create/update compatibility until frontend fully shifts
+- current `GET /api/v1/alumni/user/{user_id}`
+  - treat as convenience lookup, not canonical contract
+- current `password_hash` vs `hashed_password`
+  - standardize to `password_hash`
+
+### Remove Later
+
+- `/api/v1/alumni/simple`
+- `/api/v1/alumni/{id}/simple`
+
+Those wrappers add response-shape noise without solving a real modeling problem.
+
+## Frontend Mismatch Summary
+
+The frontend still expects more than the backend currently implements, including:
+
+- `/auth/csrf-token`
+- password reset endpoints
+- MFA endpoints
+- `/admin/verifications*`
+- `/admin/permissions`
+- `/documents/*`
+- `/document-requests/*`
+- `/verification/blockchain/*`
+- `/events/*`
+- `/registrations/*`
 - `/references/courses`
 
+This means the backend should not be expanded randomly endpoint by endpoint.
+
+Recommended build order now:
+
+1. stabilize auth contract
+   status: mostly done
+2. split `users` and `alumni_profiles`
+   status: done with startup migration and route usage
+3. add admin dashboard and verification flows
+   status: basic version done
+4. add documents and document requests
+   status: basic version done
+5. add events and registrations
+   status: pending
+6. add notifications and audit logging polish
+   status: pending
+
+## Bottom Line
+
+For a cleaner and more efficient backend:
+
+- use `users` for auth and role checks
+- use `alumni_profiles` for profile data
+- keep one canonical password field: `password_hash`
+- stop letting route contracts depend on legacy Mongo shapes
+- build the API around domain resources, not around convenience patches on `users`
+
+That gives the project one clear connection map:
+
+- auth lives in `users`
+- profile lives in `alumni_profiles`
+- feature modules reference `user_id`
+- admin and frontend both consume one stable API contract

@@ -11,9 +11,17 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.endpoints.admin import router as admin_router
 from app.api.endpoints.alumni import router as alumni_router
+from app.api.endpoints.document_requests import router as document_requests_router
+from app.api.endpoints.documents import router as documents_router
+from app.api.endpoints.events import router as events_router
+from app.api.endpoints.references import router as references_router
+from app.api.endpoints.registrations import router as registrations_router
+from app.api.endpoints.verification import router as verification_router
 from app.api.register import router as register_router
 from app.config import settings
+from app.db.bootstrap import initialize_database
 
 
 logger = logging.getLogger("backend")
@@ -21,6 +29,7 @@ logger = logging.getLogger("backend")
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    await initialize_database()
     try:
         _app.openapi()
         logger.info("OpenAPI schema ready (see /docs and /openapi.json)")
@@ -55,6 +64,13 @@ if settings.enable_cors:
 
 app.include_router(register_router, prefix="/api/v1")
 app.include_router(alumni_router, prefix="/api/v1")
+app.include_router(admin_router, prefix="/api/v1")
+app.include_router(documents_router, prefix="/api/v1")
+app.include_router(document_requests_router, prefix="/api/v1")
+app.include_router(events_router, prefix="/api/v1")
+app.include_router(registrations_router, prefix="/api/v1")
+app.include_router(references_router, prefix="/api/v1")
+app.include_router(verification_router, prefix="/api/v1")
 
 
 @app.get("/health")
@@ -105,4 +121,3 @@ def custom_openapi() -> dict[str, Any]:
 
 
 app.openapi = custom_openapi
-
