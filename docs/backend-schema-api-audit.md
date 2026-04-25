@@ -107,6 +107,8 @@ The local backend currently mounts:
 - `app.api.endpoints.document_requests`
 - `app.api.endpoints.events`
 - `app.api.endpoints.registrations`
+- `app.api.endpoints.references`
+- `app.api.endpoints.verification`
 
 Source files:
 
@@ -116,6 +118,8 @@ Source files:
 - [backend/app/api/endpoints/admin.py](/e:/Projects/FINAL/backend/app/api/endpoints/admin.py)
 - [backend/app/api/endpoints/events.py](/e:/Projects/FINAL/backend/app/api/endpoints/events.py)
 - [backend/app/api/endpoints/registrations.py](/e:/Projects/FINAL/backend/app/api/endpoints/registrations.py)
+- [backend/app/api/endpoints/references.py](/e:/Projects/FINAL/backend/app/api/endpoints/references.py)
+- [backend/app/api/endpoints/verification.py](/e:/Projects/FINAL/backend/app/api/endpoints/verification.py)
 
 ### Registered routes today
 
@@ -176,6 +180,37 @@ Source files:
  - `DELETE /api/v1/registrations/{registration_id}`
  - `PUT /api/v1/registrations/{registration_id}`
  - `GET /api/v1/registrations/event/{event_id}/attendees`
+ - `GET /api/v1/references/courses`
+ - `POST /api/v1/verification/blockchain/store`
+ - `POST /api/v1/verification/blockchain/verify`
+ - `POST /api/v1/verification/blockchain/verify-file`
+ - `GET /api/v1/verification/blockchain/history/{document_id}`
+
+## Canonical API Contract Conventions
+
+The backend now follows these contract conventions for consistency:
+
+- Resource list endpoints that are lightweight remain raw arrays.
+  - example: `GET /api/v1/registrations/user` -> `list[registration]`
+- Paginated/admin management endpoints use `{ items, meta }`.
+  - example: `GET /api/v1/admin/users`
+- Action endpoints return `{ success, ... }` with explicit status metadata.
+  - example: approve/reject verification endpoints and delete/cancel actions
+- Error responses use FastAPI `HTTPException` with canonical `detail` text.
+
+Compatibility aliases retained for frontend stability:
+
+- registration payloads expose both `email` and `user_email` where needed.
+- registration timestamps expose `registration_date` alongside existing fields.
+
+## Canonical State Semantics
+
+- `documents.verification_status` is the canonical verification lifecycle field.
+  - values in active use: `pending`, `approved`, `rejected`, `verified`
+- `documents.status` is retained as a compatibility mirror during transition.
+- `event_registrations.status` lifecycle:
+  - `registered` -> `attended` or `cancelled`
+  - cancelled registrations can be restored to `registered`
 
 ## Current MongoDB Reality
 
@@ -507,7 +542,7 @@ Those wrappers add response-shape noise without solving a real modeling problem.
 
 ## Frontend Mismatch Summary
 
-The frontend still expects more than the backend currently implements, including:
+Current frontend-expected backend families are now implemented for:
 
 - `/auth/csrf-token`
 - password reset endpoints
@@ -521,7 +556,11 @@ The frontend still expects more than the backend currently implements, including
 - `/registrations/*`
 - `/references/courses`
 
-This means the backend should not be expanded randomly endpoint by endpoint.
+Known frontend/backend compatibility caveats still to watch:
+
+- mixed response envelope styles remain by endpoint family (intentional compatibility during transition)
+- legacy convenience wrappers (`/alumni/simple`, `/alumni/{id}/simple`) still exist
+- several frontend pages rely on fallback parsing for older response keys
 
 Recommended build order now:
 
@@ -534,7 +573,7 @@ Recommended build order now:
 4. add documents and document requests
    status: basic version done
 5. add events and registrations
-   status: pending
+   status: done
 6. add notifications and audit logging polish
    status: pending
 
@@ -554,3 +593,27 @@ That gives the project one clear connection map:
 - profile lives in `alumni_profiles`
 - feature modules reference `user_id`
 - admin and frontend both consume one stable API contract
+
+## Cleanliness Verified (Current Pass)
+
+Verification completed with backend tests in `backend/tests`:
+
+- `test_register.py` (auth core)
+- `test_api_cleanliness.py` (contract, authz matrix, token lifecycle, and feature flows)
+
+Covered route groups in automated tests:
+
+- references: `/references/courses`
+- alumni: `/alumni/me`
+- admin permissions and verifications
+- registrations attendees + check-in QR + transition validation
+- blockchain verification store/verify/history
+- auth reset-password, verify-reset-token, reset-password-confirm
+- MFA setup/enable/status/disable
+- security-question recovery flow
+
+Current residual risks:
+
+- production-hardening for custom token implementation still recommended
+- broader pagination/edge-case tests can be expanded for large datasets
+- response-shape unification can be tightened further after frontend cleanup removes compatibility aliases

@@ -20,6 +20,11 @@ from app.api.endpoints.references import router as references_router
 from app.api.endpoints.registrations import router as registrations_router
 from app.api.endpoints.verification import router as verification_router
 from app.api.register import router as register_router
+from app.api.endpoints.stubs import router as stubs_router
+from app.api.endpoints.admin_roles import router as admin_roles_router
+from app.api.endpoints.notifications import router as notifications_router
+from app.api.endpoints.meetings import router as meetings_router
+from app.api.endpoints.auth_password import router as auth_password_router
 from app.config import settings
 from app.db.bootstrap import initialize_database
 
@@ -60,6 +65,7 @@ if settings.enable_cors:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    logger.info("CORS enabled. Allowed origins: %s", settings.cors_origins_list)
 
 
 app.include_router(register_router, prefix="/api/v1")
@@ -71,6 +77,11 @@ app.include_router(events_router, prefix="/api/v1")
 app.include_router(registrations_router, prefix="/api/v1")
 app.include_router(references_router, prefix="/api/v1")
 app.include_router(verification_router, prefix="/api/v1")
+app.include_router(stubs_router, prefix="/api/v1")
+app.include_router(admin_roles_router, prefix="/api/v1")
+app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(meetings_router, prefix="/api/v1")
+app.include_router(auth_password_router, prefix="/api/v1")
 
 
 @app.get("/health")

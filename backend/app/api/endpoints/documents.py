@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pymongo.errors import PyMongoError
 
-from app.db.collections import alumni_profiles_collection, documents_collection, users_collection
+from app.db.collections import alumni_profiles_collection, documents_collection, users_collection, get_default_db
 from app.db.session import get_motor_client
 from app.utils.auth import get_current_user
 
@@ -226,4 +226,47 @@ async def get_document_activities(current_user: dict = Depends(_require_auth)) -
             }
         )
     return activities
+
+
+@router.post("/documents/{document_id}/reject")
+async def reject_document(document_id: str, payload: dict, current_user: dict = Depends(_require_auth)) -> dict:
+    # Admin-only: mark a document as rejected with an optional reason and write an audit log
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    object_id = _object_id(document_id)
+    if object_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    client = get_motor_client()
+    collection = documents_collection(client)
+    doc = await collection.find_one({"_id": object_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    reason = None
+    try:
+        reason = payload.get("reason") if isinstance(payload, dict) else None
+    except Exception:
+        reason = None
+
+    now = datetime.now(timezone.utc)
+    update = {"verification_status": "rejected", "rejection_reason": reason, "updated_at": now}
+    await collection.update_one({"_id": object_id}, {"$set": update})
+
+    # write audit log
+    db = get_default_db(client)
+    try:
+        await db["audit_logs"].insert_one({
+            "action": "document_rejected",
+            "document_id": str(object_id),
+            "rejected_by": str(current_user.get("sub")),
+            "reason": reason,
+            "timestamp": now,
+        })
+    except Exception:
+        # if audit write fails, do not block the main action
+        pass
+
+    return {"success": True, "document_id": str(object_id), "status": "rejected"}
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +20,7 @@ class RegistrationCreate(BaseModel):
 
 
 class RegistrationStatusUpdate(BaseModel):
-    status: str
+    status: Literal["registered", "attended", "cancelled"]
 
 
 class QrCheckInPayload(BaseModel):
@@ -209,6 +209,18 @@ async def update_registration_status(registration_id: str, payload: Registration
         raise HTTPException(status_code=404, detail="Registration not found")
     if not current_user.get("is_admin") and str(reg.get("user_id")) != str(current_user.get("sub")):
         raise HTTPException(status_code=403, detail="Not allowed to update this registration")
+    current_status = str(reg.get("status") or "registered")
+    allowed_transitions = {
+        "registered": {"attended", "cancelled", "registered"},
+        "attended": {"attended"},
+        "cancelled": {"registered", "cancelled"},
+    }
+    if payload.status not in allowed_transitions.get(current_status, {payload.status}):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status transition from {current_status} to {payload.status}",
+        )
+
     update_data = {"status": payload.status, "updated_at": datetime.now(timezone.utc)}
     if payload.status == "attended":
         update_data["check_in_time"] = datetime.now(timezone.utc)

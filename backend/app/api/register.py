@@ -342,51 +342,57 @@ async def reset_password_confirm(payload: ResetPasswordConfirmRequest) -> dict:
 
 @router.get("/auth/mfa/status")
 async def get_mfa_status(current_user: dict = Depends(get_current_user)) -> dict:
-    client = get_motor_client()
+    try:
+        client = get_motor_client()
+        users = users_collection(client)
+
+        normalized = _normalize_email(str(payload.email))
+
+        try:
+            user = await users.find_one({"email": normalized})
+        except Exception:
+            logger.exception("MongoDB error during login")
+            raise HTTPException(
+                status_code=503,
+                detail="Database unavailable. Ensure MongoDB is running and MONGODB_URL is correct.",
+            )
+
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="No account found for this email. Please register first.",
+            )
+
+        password_hash = _canonical_password_hash(user)
+        if not password_hash:
+            raise HTTPException(status_code=401, detail="Account password is not set.")
+
+        if not _password_matches(payload.password, password_hash):
+            raise HTTPException(status_code=401, detail="Incorrect password.")
+
+        access_token = create_access_token(user)
+        now = datetime.now(timezone.utc)
+        await users.update_one({"_id": user["_id"]}, {"$set": {"last_login_at": now, "updated_at": now}})
+
+        return {
+            "success": True,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": _safe_user_payload(user),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during login: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error during login")
     user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "enabled": bool(user.get("mfa_enabled", False)),
-        "method": user.get("mfa_method", "email"),
-        "configured": bool(user.get("mfa_method")),
-    }
-
-
-@router.post("/auth/mfa/setup")
-async def setup_mfa(payload: MFASetupRequest, current_user: dict = Depends(get_current_user)) -> dict:
-    client = get_motor_client()
-    users = users_collection(client)
-    user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    code = f"{secrets.randbelow(900000) + 100000}"
-    await users.update_one(
-        {"_id": user["_id"]},
-        {
-            "$set": {
-                "mfa_method": payload.type or "email",
-                "mfa_setup_code": code,
-                "mfa_setup_expires_at": datetime.fromtimestamp(_now_utc().timestamp() + 600, tz=timezone.utc),
-                "updated_at": _now_utc(),
-            }
-        },
-    )
-    return {"success": True, "message": "MFA setup code generated", "verification_code": code}
-
-
-@router.post("/auth/mfa/enable")
-async def enable_mfa(payload: MFAEnableRequest, current_user: dict = Depends(get_current_user)) -> dict:
-    client = get_motor_client()
-    users = users_collection(client)
-    user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if _is_token_expired(user.get("mfa_setup_expires_at")):
+        raise HTTPException(status_code=400, detail="MFA setup code expired")
     expected = str(user.get("mfa_setup_code", ""))
     if payload.verification_code.strip() != expected:
         raise HTTPException(status_code=400, detail="Invalid verification code")
-    if _is_token_expired(user.get("mfa_setup_expires_at")):
-        raise HTTPException(status_code=400, detail="MFA setup code expired")
     await users.update_one(
         {"_id": user["_id"]},
         {
@@ -450,6 +456,8 @@ async def verify_security_questions(payload: VerifySecurityQuestionsRequest) -> 
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email")
     questions = user.get("security_questions") or []
+    if len(payload.answers) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 security answers are required")
     correct = 0
     for submitted in payload.answers:
         idx = submitted.question_idx

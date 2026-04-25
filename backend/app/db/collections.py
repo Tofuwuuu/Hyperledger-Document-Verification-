@@ -32,3 +32,15 @@ def events_collection(client: Any):
 
 def event_registrations_collection(client: Any):
     return get_default_db(client)["event_registrations"]
+
+
+def roles_collection(client: Any):
+    return get_default_db(client)["roles"]
+
+
+def meetings_collection(client: Any):
+    return get_default_db(client)["meetings"]
+
+
+def notifications_collection(client: Any):
+    return get_default_db(client)["notifications"]
