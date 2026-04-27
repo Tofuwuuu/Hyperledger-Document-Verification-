@@ -465,6 +465,8 @@ export default function ProfilePage() {
       
       // Update completion percentage
       calculateCompletionPercentage(alumniData);
+      // Ensure loading state is cleared after successful fetch
+      setLoading(false);
       
     } catch (error) {
       console.error('Error fetching alumni profile:', error);

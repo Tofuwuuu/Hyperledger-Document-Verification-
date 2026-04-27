@@ -184,7 +184,7 @@ export default function NotificationsPage() {
       </div>
 
       <div className="mt-8">
-        {notifications.length === 0 ? (
+        {(notifications?.length ?? 0) === 0 ? (
           <div className="text-center py-12 bg-white shadow rounded-lg">
             <svg
               className="mx-auto h-12 w-12 text-gray-400"

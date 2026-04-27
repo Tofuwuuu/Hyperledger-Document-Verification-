@@ -272,8 +272,8 @@ export default function DashboardLayout() {
         }
         
         const data = await response.json();
-        setNotifications(data.notifications);
-        setUnreadCount(data.unread_count);
+        setNotifications((data && data.notifications) || []);
+        setUnreadCount(data?.unread_count ?? 0);
       } catch (err) {
         console.error('Error fetching notifications:', err);
       }
@@ -286,8 +286,8 @@ export default function DashboardLayout() {
     // Listen for new notifications
     const unsubscribe = pollingService.on('message', (data) => {
       console.log("Dashboard received notification:", data);
-      setUnreadCount(prev => prev + 1);
-      setNotifications(prev => [data, ...prev].slice(0, 5));  // Keep last 5 notifications
+      setUnreadCount(prev => (prev || 0) + 1);
+      setNotifications(prev => [data, ...(prev || [])].slice(0, 5));  // Keep last 5 notifications
     });
     
     // Initial fetch of existing notifications
@@ -309,7 +309,7 @@ export default function DashboardLayout() {
         // Just update local state
         setUnreadCount(prev => Math.max(0, prev - 1));
         setNotifications(prev => 
-          prev.map(n => n.notification_id === notificationId ? {...n, is_read: true} : n)
+          (prev || []).map(n => n.notification_id === notificationId ? {...n, is_read: true} : n)
         );
         return;
       }
@@ -670,13 +670,13 @@ export default function DashboardLayout() {
                         )}
                       </div>
                       
-                      {notifications.length === 0 ? (
+                      {(notifications?.length ?? 0) === 0 ? (
                         <p className="py-4 px-4 text-sm text-gray-500 text-center">
                           No notifications yet
                         </p>
                       ) : (
                         <>
-                          {notifications.map((notification, index) => (
+                          {(notifications || []).map((notification, index) => (
                             <Menu.Item key={notification.notification_id || index}>
                               {({ active }) => (
                                 <div
