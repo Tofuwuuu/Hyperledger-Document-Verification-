@@ -1,6 +1,6 @@
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from bson import ObjectId
@@ -143,6 +143,19 @@ def _is_token_expired(expires_at: datetime | None) -> bool:
         return True
     normalized = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
     return normalized < _now_utc()
+
+
+def _mfa_status_payload(user: dict) -> dict:
+    expires_at = user.get("mfa_setup_expires_at")
+    has_pending_setup = bool(user.get("mfa_setup_code")) and not _is_token_expired(expires_at)
+    return {
+        "success": True,
+        "is_enabled": bool(user.get("mfa_enabled", False)),
+        "mfa_type": user.get("mfa_type", "email"),
+        "email": user.get("email"),
+        "has_pending_setup": has_pending_setup,
+        "expires_at": expires_at.isoformat() if isinstance(expires_at, datetime) else None,
+    }
 
 
 @router.post("/auth/register")
@@ -342,65 +355,79 @@ async def reset_password_confirm(payload: ResetPasswordConfirmRequest) -> dict:
 
 @router.get("/auth/mfa/status")
 async def get_mfa_status(current_user: dict = Depends(get_current_user)) -> dict:
-    try:
-        client = get_motor_client()
-        users = users_collection(client)
+    client = get_motor_client()
+    user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _mfa_status_payload(user)
 
-        normalized = _normalize_email(str(payload.email))
 
-        try:
-            user = await users.find_one({"email": normalized})
-        except Exception:
-            logger.exception("MongoDB error during login")
-            raise HTTPException(
-                status_code=503,
-                detail="Database unavailable. Ensure MongoDB is running and MONGODB_URL is correct.",
-            )
+@router.post("/auth/mfa/setup")
+async def setup_mfa(payload: MFASetupRequest, current_user: dict = Depends(get_current_user)) -> dict:
+    client = get_motor_client()
+    users = users_collection(client)
+    user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="No account found for this email. Please register first.",
-            )
+    mfa_type = payload.type.strip().lower() or "email"
+    if mfa_type != "email":
+        raise HTTPException(status_code=400, detail="Only email MFA is supported right now")
 
-        password_hash = _canonical_password_hash(user)
-        if not password_hash:
-            raise HTTPException(status_code=401, detail="Account password is not set.")
+    verification_code = f"{secrets.randbelow(1000000):06d}"
+    expires_at = _now_utc() + timedelta(minutes=10)
+    await users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "mfa_type": mfa_type,
+                "mfa_setup_code": verification_code,
+                "mfa_setup_expires_at": expires_at,
+                "updated_at": _now_utc(),
+            }
+        },
+    )
 
-        if not _password_matches(payload.password, password_hash):
-            raise HTTPException(status_code=401, detail="Incorrect password.")
-
-        access_token = create_access_token(user)
-        now = datetime.now(timezone.utc)
-        await users.update_one({"_id": user["_id"]}, {"$set": {"last_login_at": now, "updated_at": now}})
-
-        return {
-            "success": True,
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": _safe_user_payload(user),
+    updated = await users.find_one({"_id": user["_id"]})
+    response = _mfa_status_payload(updated or user)
+    response.update(
+        {
+            "message": "MFA setup initiated",
+            "verification_code": verification_code,
         }
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Unexpected error during login: %s", exc)
-        raise HTTPException(status_code=500, detail="Internal server error during login")
+    )
+    return response
+
+
+@router.post("/auth/mfa/enable")
+async def enable_mfa(payload: MFAEnableRequest, current_user: dict = Depends(get_current_user)) -> dict:
+    client = get_motor_client()
+    users = users_collection(client)
     user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if _is_token_expired(user.get("mfa_setup_expires_at")):
         raise HTTPException(status_code=400, detail="MFA setup code expired")
-    expected = str(user.get("mfa_setup_code", ""))
+
+    expected = str(user.get("mfa_setup_code", "")).strip()
     if payload.verification_code.strip() != expected:
         raise HTTPException(status_code=400, detail="Invalid verification code")
+
     await users.update_one(
         {"_id": user["_id"]},
         {
-            "$set": {"mfa_enabled": True, "updated_at": _now_utc()},
+            "$set": {
+                "mfa_enabled": True,
+                "updated_at": _now_utc(),
+            },
             "$unset": {"mfa_setup_code": "", "mfa_setup_expires_at": ""},
         },
     )
-    return {"success": True, "message": "MFA enabled"}
+
+    updated = await users.find_one({"_id": user["_id"]})
+    response = _mfa_status_payload(updated or user)
+    response["message"] = "MFA enabled"
+    return response
 
 
 @router.post("/auth/mfa/disable")
@@ -410,8 +437,17 @@ async def disable_mfa(current_user: dict = Depends(get_current_user)) -> dict:
     user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    await users.update_one({"_id": user["_id"]}, {"$set": {"mfa_enabled": False, "updated_at": _now_utc()}})
-    return {"success": True, "message": "MFA disabled"}
+    await users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {"mfa_enabled": False, "updated_at": _now_utc()},
+            "$unset": {"mfa_setup_code": "", "mfa_setup_expires_at": ""},
+        },
+    )
+    updated = await users.find_one({"_id": user["_id"]})
+    response = _mfa_status_payload(updated or user)
+    response["message"] = "MFA disabled"
+    return response
 
 
 @router.post("/auth/set-security-questions")

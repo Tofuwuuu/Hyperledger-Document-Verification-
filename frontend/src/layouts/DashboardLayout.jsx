@@ -32,6 +32,10 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
+function isUnavailableEndpointStatus(status) {
+  return status === 404 || status === 405;
+}
+
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentUser, logout, isAdmin, loadUserData, forceRefreshUserData } = useAuth();
@@ -268,14 +272,26 @@ export default function DashboardLayout() {
         });
         
         if (!response.ok) {
+          if (isUnavailableEndpointStatus(response.status)) {
+            pollingService.disableEndpoint();
+            setNotifications([]);
+            setUnreadCount(0);
+            return;
+          }
           throw new Error('Failed to fetch notifications');
         }
         
         const data = await response.json();
-        setNotifications((data && data.notifications) || []);
-        setUnreadCount(data?.unread_count ?? 0);
+        const items = Array.isArray(data) ? data : ((data && data.notifications) || []);
+        setNotifications(items);
+        setUnreadCount(
+          Array.isArray(data)
+            ? items.filter((notification) => !(notification.is_read ?? notification.read)).length
+            : (data?.unread_count ?? 0)
+        );
       } catch (err) {
-        console.error('Error fetching notifications:', err);
+        setNotifications([]);
+        setUnreadCount(0);
       }
     };
 
@@ -317,20 +333,31 @@ export default function DashboardLayout() {
       // Get base API URL
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       
-      await fetch(`${baseUrl}/api/v1/notifications/${notificationId}/read`, {
+      const response = await fetch(`${baseUrl}/api/v1/notifications/${notificationId}/read`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
+
+      if (!response.ok && !isUnavailableEndpointStatus(response.status)) {
+        throw new Error('Failed to mark notification as read');
+      }
       
       // Update local state
       setUnreadCount(prev => Math.max(0, prev - 1));
       setNotifications(prev => 
-        prev.map(n => n.notification_id === notificationId ? {...n, is_read: true} : n)
+        prev.map(n => (n.notification_id === notificationId || n._id === notificationId || n.id === notificationId)
+          ? {...n, is_read: true, read: true}
+          : n)
       );
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      setNotifications(prev =>
+        prev.map(n => (n.notification_id === notificationId || n._id === notificationId || n.id === notificationId)
+          ? {...n, is_read: true, read: true}
+          : n)
+      );
     }
   };
 
@@ -350,18 +377,23 @@ export default function DashboardLayout() {
       // Get base API URL
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       
-      await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
+      const response = await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
+
+      if (!response.ok && !isUnavailableEndpointStatus(response.status)) {
+        throw new Error('Failed to mark all notifications as read');
+      }
       
       // Update local state
       setUnreadCount(0);
-      setNotifications(prev => prev.map(n => ({...n, is_read: true})));
+      setNotifications(prev => prev.map(n => ({...n, is_read: true, read: true})));
     } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({...n, is_read: true, read: true})));
     }
   };
 

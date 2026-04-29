@@ -27,6 +27,24 @@ def _get_object_id(value: str) -> ObjectId | None:
         return None
 
 
+def _sanitize_profile_write_data(data: dict[str, Any]) -> dict[str, Any]:
+    data.pop("_id", None)
+    data.pop("id", None)
+    data.pop("user_id", None)
+    data.pop("password_hash", None)
+    data.pop("hashed_password", None)
+    data.pop("is_admin", None)
+    return data
+
+
+def _is_missing_profile_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    return False
+
+
 def _merge_profile_with_user(profile: dict[str, Any] | None, user: dict[str, Any] | None) -> dict[str, Any]:
     if not profile and not user:
         return {}
@@ -35,10 +53,31 @@ def _merge_profile_with_user(profile: dict[str, Any] | None, user: dict[str, Any
     if profile:
         result.update(profile)
     if user:
+        fallback_fields = (
+            "full_name",
+            "email",
+            "student_id",
+            "graduation_year",
+            "phone",
+            "batch",
+            "course",
+            "department",
+            "sex",
+            "civil_status",
+            "birthday",
+            "region_of_origin",
+            "address",
+            "bio",
+            "profile_picture",
+            "current_job",
+            "current_employer",
+        )
+        for field_name in fallback_fields:
+            if _is_missing_profile_value(result.get(field_name)) and not _is_missing_profile_value(user.get(field_name)):
+                result[field_name] = user.get(field_name)
+
         result.update(
             {
-                "email": result.get("email") or user.get("email"),
-                "full_name": result.get("full_name") or user.get("full_name"),
                 "is_admin": bool(user.get("is_admin", False)),
                 "is_verified": bool(user.get("is_verified", False)),
                 "user_id": str(user.get("_id")),
@@ -158,8 +197,7 @@ async def create_alumni_profile(payload: AlumniProfileCreate) -> dict[str, Any]:
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    document = payload.dict(exclude_unset=True)
-    document.pop("user_id", None)
+    document = _sanitize_profile_write_data(payload.model_dump(exclude_unset=True))
     if document.get("email"):
         document["email"] = str(document["email"]).strip().lower()
     if not document.get("full_name"):
@@ -200,11 +238,7 @@ async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) ->
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
-    update_data = payload.dict(exclude_unset=True)
-    update_data.pop("user_id", None)
-    update_data.pop("password_hash", None)
-    update_data.pop("hashed_password", None)
-    update_data.pop("is_admin", None)
+    update_data = _sanitize_profile_write_data(payload.model_dump(exclude_unset=True))
     if "email" in update_data and update_data["email"] is not None:
         update_data["email"] = str(update_data["email"]).strip().lower()
     update_data["updated_at"] = datetime.now(timezone.utc)

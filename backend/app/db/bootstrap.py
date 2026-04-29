@@ -9,6 +9,7 @@ from app.db.collections import (
     alumni_profiles_collection,
     event_registrations_collection,
     events_collection,
+    roles_collection,
     users_collection,
 )
 from app.db.session import get_motor_client
@@ -52,6 +53,7 @@ async def initialize_database() -> None:
     profiles = alumni_profiles_collection(client)
     events = events_collection(client)
     registrations = event_registrations_collection(client)
+    roles = roles_collection(client)
     now = datetime.now(timezone.utc)
     async def _ensure_index(coll, keys, name: str, unique: bool = False) -> None:
         try:
@@ -80,11 +82,34 @@ async def initialize_database() -> None:
     await _ensure_index(events, [("is_active", ASCENDING)], "idx_events_is_active")
     await _ensure_index(registrations, [("event_id", ASCENDING)], "idx_event_reg_event_id")
     await _ensure_index(registrations, [("user_id", ASCENDING)], "idx_event_reg_user_id")
+    await _ensure_index(roles, [("name", ASCENDING)], "idx_roles_name", unique=True)
 
     migrated_count = 0
     normalized_count = 0
 
     try:
+        await roles.update_one(
+            {"name": "Administrator"},
+            {
+                "$set": {
+                    "description": "Full admin access",
+                    "permissions": [
+                        "manage_users",
+                        "manage_roles",
+                        "manage_permissions",
+                        "review_verifications",
+                        "view_admin_dashboard",
+                    ],
+                    "is_active": True,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {
+                    "created_at": now,
+                },
+            },
+            upsert=True,
+        )
+
         async for user in users.find({}):
             update_data: dict = {}
 

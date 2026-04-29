@@ -1050,6 +1050,44 @@ export const adminUserService = {
       throw new Error(error.response?.data?.message || 'Failed to fetch admin users');
     }
   },
+
+  getPendingVerificationUsers: async (signal) => {
+    try {
+      return await api.get('/admin/users/pending-verification', {
+        timeout: 30000,
+        signal
+      });
+    } catch (error) {
+      if (error.name === 'CanceledError' || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return { data: [] };
+      }
+
+      console.error('Error fetching pending verification users:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to fetch pending verification users');
+    }
+  },
+
+  verifyPendingUser: async (userId, adminNotes = '') => {
+    try {
+      return await api.post(`/admin/users/${userId}/verify`, {
+        admin_notes: adminNotes || null
+      }, { timeout: 10000 });
+    } catch (error) {
+      console.error(`Error verifying user ${userId}:`, error);
+      throw new Error(error.response?.data?.detail || 'Failed to verify user');
+    }
+  },
+
+  rejectPendingUser: async (userId, adminNotes = '') => {
+    try {
+      return await api.post(`/admin/users/${userId}/reject`, {
+        admin_notes: adminNotes || null
+      }, { timeout: 10000 });
+    } catch (error) {
+      console.error(`Error rejecting user ${userId}:`, error);
+      throw new Error(error.response?.data?.detail || 'Failed to reject user');
+    }
+  },
   
   getAdminUser: async (userId) => {
     try {
@@ -1216,7 +1254,7 @@ export const roleService = {
       });
     } catch (error) {
       // Don't throw error if request was aborted
-      if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+      if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED' || error.code === 'ECONNABORTED') {
         console.log('Request was aborted or timed out');
         return { data: [] };
       }

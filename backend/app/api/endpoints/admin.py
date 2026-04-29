@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import bcrypt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 
-from app.db.collections import alumni_profiles_collection, documents_collection, get_default_db, users_collection
+from app.db.collections import alumni_profiles_collection, documents_collection, get_default_db, roles_collection, users_collection
 from app.db.session import get_motor_client
 from app.utils.auth import get_current_user
 
@@ -36,6 +37,17 @@ class AdminUserUpdateRequest(BaseModel):
     is_admin: bool | None = None
 
 
+class AdminProfileUpdateRequest(BaseModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=255)
+    email: EmailStr | None = None
+    employee_id: str | None = None
+    department: str | None = None
+    position: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    bio: str | None = None
+
+
 class VerificationActionPayload(BaseModel):
     admin_notes: str | None = None
 
@@ -54,8 +66,16 @@ def _object_id_or_404(value: str) -> ObjectId:
 def _serialize_admin_user(user_doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(user_doc.get("_id", "")),
+        "_id": str(user_doc.get("_id", "")),
         "full_name": user_doc.get("full_name"),
         "email": user_doc.get("email"),
+        "employee_id": user_doc.get("employee_id"),
+        "department": user_doc.get("department"),
+        "position": user_doc.get("position"),
+        "phone": user_doc.get("phone"),
+        "address": user_doc.get("address"),
+        "bio": user_doc.get("bio"),
+        "profile_picture": user_doc.get("profile_picture"),
         "is_active": bool(user_doc.get("is_active", True)),
         "is_admin": bool(user_doc.get("is_admin", False)),
         "is_verified": bool(user_doc.get("is_verified", False)),
@@ -66,10 +86,123 @@ def _serialize_admin_user(user_doc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _load_profile_for_user_id(profiles, user_id: ObjectId) -> dict[str, Any] | None:
+    projection = {"full_name": 1, "email": 1, "student_id": 1, "graduation_year": 1}
+    profile = await profiles.find_one({"user_id": user_id}, projection)
+    if profile is None:
+        profile = await profiles.find_one({"user_id": str(user_id)}, projection)
+    return profile
+
+
+def _serialize_pending_verification_user(
+    user_doc: dict[str, Any],
+    profile_doc: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    profile = profile_doc or {}
+    graduation_year = profile.get("graduation_year") or user_doc.get("graduation_year")
+
+    return {
+        "id": str(user_doc.get("_id", "")),
+        "_id": str(user_doc.get("_id", "")),
+        "full_name": profile.get("full_name") or user_doc.get("full_name"),
+        "email": user_doc.get("email") or profile.get("email"),
+        "student_id": profile.get("student_id") or user_doc.get("student_id"),
+        "graduation_year": str(graduation_year) if graduation_year is not None else None,
+        "is_active": bool(user_doc.get("is_active", True)),
+        "is_verified": bool(user_doc.get("is_verified", False)),
+        "created_at": user_doc.get("created_at"),
+        "updated_at": user_doc.get("updated_at"),
+    }
+
+
+def _serialize_role(role_doc: dict[str, Any]) -> dict[str, Any]:
+    role_id = str(role_doc.get("_id", ""))
+    permissions = role_doc.get("permissions", []) or []
+    normalized_permissions = [
+        item.get("id") if isinstance(item, dict) else item
+        for item in permissions
+    ]
+    normalized_permissions = [item for item in normalized_permissions if item]
+
+    return {
+        "id": role_id,
+        "_id": role_id,
+        "name": role_doc.get("name"),
+        "description": role_doc.get("description"),
+        "permissions": normalized_permissions,
+        "is_active": bool(role_doc.get("is_active", True)),
+        "created_at": role_doc.get("created_at"),
+        "updated_at": role_doc.get("updated_at"),
+    }
+
+
 async def _require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+
+def _uploads_dir() -> Path:
+    uploads_dir = Path(__file__).resolve().parents[3] / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    return uploads_dir
+
+
+async def _load_current_admin(current_user: dict[str, Any]) -> dict[str, Any]:
+    user_id = str(current_user.get("sub", ""))
+    object_id = _object_id_or_404(user_id)
+    user = await users_collection(get_motor_client()).find_one({"_id": object_id, "is_admin": True})
+    if not user:
+        raise HTTPException(status_code=404, detail="Admin profile not found")
+    return user
+
+
+@router.get("/admin/profile")
+async def get_admin_profile(current_user: dict = Depends(_require_admin)) -> dict:
+    user = await _load_current_admin(current_user)
+    return _serialize_admin_user(user)
+
+
+@router.put("/admin/profile")
+async def update_admin_profile(payload: AdminProfileUpdateRequest, current_user: dict = Depends(_require_admin)) -> dict:
+    user = await _load_current_admin(current_user)
+    users = users_collection(get_motor_client())
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if "email" in update_data and update_data["email"] is not None:
+        normalized_email = _normalize_email(str(update_data["email"]))
+        existing = await users.find_one({"email": normalized_email})
+        if existing and existing.get("_id") != user.get("_id"):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        update_data["email"] = normalized_email
+
+    update_data["updated_at"] = datetime.now(timezone.utc)
+    await users.update_one({"_id": user["_id"]}, {"$set": update_data})
+    updated = await users.find_one({"_id": user["_id"]})
+    return _serialize_admin_user(updated)
+
+
+@router.post("/admin/profile/upload-picture")
+async def upload_admin_profile_picture(
+    profile_picture: UploadFile = File(...),
+    current_user: dict = Depends(_require_admin),
+) -> dict:
+    user = await _load_current_admin(current_user)
+    filename = f"admin_{user['_id']}_{Path(profile_picture.filename).name}".replace(" ", "_")
+    saved_path = _uploads_dir() / filename
+
+    try:
+        contents = await profile_picture.read()
+        saved_path.write_bytes(contents)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Could not save profile picture") from exc
+
+    relative_path = f"uploads/{filename}"
+    await users_collection(get_motor_client()).update_one(
+        {"_id": user["_id"]},
+        {"$set": {"profile_picture": relative_path, "updated_at": datetime.now(timezone.utc)}},
+    )
+    return {"success": True, "path": relative_path}
 
 
 @router.get("/admin/users")
@@ -97,6 +230,20 @@ async def list_admin_users(
             "totalPages": math.ceil(total / limit) if total else 0,
         },
     }
+
+
+@router.get("/admin/users/pending-verification")
+async def list_pending_verification_users(_: dict = Depends(_require_admin)) -> list[dict]:
+    client = get_motor_client()
+    users = users_collection(client)
+    profiles = alumni_profiles_collection(client)
+
+    cursor = users.find({"is_verified": False, "is_active": True}).sort("created_at", -1)
+    items: list[dict[str, Any]] = []
+    async for user_doc in cursor:
+        profile = await _load_profile_for_user_id(profiles, user_doc["_id"])
+        items.append(_serialize_pending_verification_user(user_doc, profile))
+    return items
 
 
 @router.get("/admin/users/{user_id}")
@@ -165,6 +312,84 @@ async def update_admin_user(user_id: str, payload: AdminUserUpdateRequest, _: di
     return _serialize_admin_user(updated)
 
 
+@router.post("/admin/users/{user_id}/verify")
+async def verify_pending_user(
+    user_id: str,
+    payload: VerificationActionPayload,
+    current_user: dict = Depends(_require_admin),
+) -> dict:
+    object_id = _object_id_or_404(user_id)
+    client = get_motor_client()
+    users = users_collection(client)
+    profiles = alumni_profiles_collection(client)
+
+    user = await users.find_one({"_id": object_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = datetime.now(timezone.utc)
+    await users.update_one(
+        {"_id": object_id},
+        {
+            "$set": {
+                "is_verified": True,
+                "verification_pending": False,
+                "verification_notes": payload.admin_notes,
+                "verified_by": current_user.get("sub"),
+                "verified_at": now,
+                "updated_at": now,
+            }
+        },
+    )
+    updated = await users.find_one({"_id": object_id})
+    profile = await _load_profile_for_user_id(profiles, object_id)
+    return {
+        "success": True,
+        "message": f"User {(updated or {}).get('email') or user_id} verified successfully",
+        "user": _serialize_pending_verification_user(updated or user, profile),
+    }
+
+
+@router.post("/admin/users/{user_id}/reject")
+async def reject_pending_user(
+    user_id: str,
+    payload: VerificationActionPayload,
+    current_user: dict = Depends(_require_admin),
+) -> dict:
+    object_id = _object_id_or_404(user_id)
+    client = get_motor_client()
+    users = users_collection(client)
+    profiles = alumni_profiles_collection(client)
+
+    user = await users.find_one({"_id": object_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = datetime.now(timezone.utc)
+    await users.update_one(
+        {"_id": object_id},
+        {
+            "$set": {
+                "is_active": False,
+                "is_verified": False,
+                "verification_pending": False,
+                "verification_status": "rejected",
+                "verification_notes": payload.admin_notes or "User verification rejected.",
+                "rejected_by": current_user.get("sub"),
+                "rejected_at": now,
+                "updated_at": now,
+            }
+        },
+    )
+    updated = await users.find_one({"_id": object_id})
+    profile = await _load_profile_for_user_id(profiles, object_id)
+    return {
+        "success": True,
+        "message": f"User {(updated or {}).get('email') or user_id} rejected successfully",
+        "user": _serialize_pending_verification_user(updated or user, profile),
+    }
+
+
 @router.delete("/admin/users/{user_id}")
 async def delete_admin_user(user_id: str, _: dict = Depends(_require_admin)) -> dict:
     object_id = _object_id_or_404(user_id)
@@ -194,21 +419,22 @@ async def list_roles(
     limit: int = 10,
     _: dict = Depends(_require_admin),
 ) -> dict:
-    items = [
-        {
-            "id": "admin",
-            "name": "Administrator",
-            "description": "Full admin access",
-            "permissions": ["manage_users", "manage_roles", "view_admin_dashboard"],
-        }
-    ]
+    client = get_motor_client()
+    roles = roles_collection(client)
+    page = max(page, 1)
+    limit = max(min(limit, 100), 1)
+
+    total = await roles.count_documents({})
+    cursor = roles.find({}).skip((page - 1) * limit).limit(limit).sort("created_at", 1)
+    items = [_serialize_role(doc) async for doc in cursor]
+
     return {
         "items": items,
         "meta": {
             "page": page,
             "limit": limit,
-            "total": len(items),
-            "totalPages": 1,
+            "total": total,
+            "totalPages": math.ceil(total / limit) if total else 0,
         },
     }
 

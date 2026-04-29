@@ -89,7 +89,7 @@ export default function AdminRoleManagementPage() {
       }
     } catch (err) {
       // Only set error if it's not an abort error
-      if (err.name !== 'AbortError') {
+      if (err.name !== 'AbortError' && err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
         console.error('Error fetching roles:', err);
         
         // Improved error message with more detail
@@ -131,7 +131,7 @@ export default function AdminRoleManagementPage() {
       setPermissions(response.data);
     } catch (err) {
       // Only log error if it's not an abort error
-      if (err.name !== 'AbortError') {
+      if (err.name !== 'AbortError' && err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
         console.warn('Error fetching permissions:', err);
         // Set empty permissions array to prevent UI errors
         setPermissions([]);
@@ -257,7 +257,9 @@ export default function AdminRoleManagementPage() {
       
       // First, get current role's permissions
       const roleDetail = await roleService.getRole(currentRole.id);
-      const currentPermissions = roleDetail.data.permissions.map(p => p.id);
+      const currentPermissions = (roleDetail.data.permissions || []).map((permission) =>
+        typeof permission === 'string' ? permission : permission.id
+      );
       
       // Permissions to add
       const permissionsToAdd = selectedPermissions.filter(p => !currentPermissions.includes(p));
@@ -303,9 +305,14 @@ export default function AdminRoleManagementPage() {
   const openPermissionModal = async (role) => {
     setCurrentRole(role);
     try {
-      const roleDetail = await roleService.getRole(role.id);
+      const roleObjectId = role._id || role.id;
+      const roleDetail = await roleService.getRole(roleObjectId);
       // Set selected permissions based on the role's current permissions
-      setSelectedPermissions(roleDetail.data.permissions.map(p => p.id));
+      setSelectedPermissions(
+        (roleDetail.data.permissions || []).map((permission) =>
+          typeof permission === 'string' ? permission : permission.id
+        )
+      );
       setIsPermissionModalOpen(true);
     } catch (err) {
       console.error('Error fetching role details:', err);

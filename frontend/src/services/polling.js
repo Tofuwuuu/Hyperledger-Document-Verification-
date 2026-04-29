@@ -33,20 +33,21 @@ class PollingService {
 
     // Start polling
     this.pollingInterval = setInterval(() => {
-      // If endpoint is disabled, use stub implementation
       if (this.endpointDisabled) {
-        this.stubNotifications();
-      } else {
-        this.fetchNotifications();
+        return;
       }
+      this.fetchNotifications();
     }, this.pollFrequency);
 
     // Initial fetch
-    if (this.endpointDisabled) {
-      this.stubNotifications();
-    } else {
+    if (!this.endpointDisabled) {
       this.fetchNotifications();
     }
+  }
+
+  disableEndpoint() {
+    this.endpointDisabled = true;
+    this.stopPolling();
   }
 
   // Stub implementation to avoid 405 errors
@@ -116,10 +117,9 @@ class PollingService {
       });
 
       if (!response.ok) {
-        // If 405 Method Not Allowed, disable the endpoint to prevent further requests
-        if (response.status === 405) {
-          this.endpointDisabled = true;
-          this.stubNotifications();
+        // Disable polling entirely when the endpoint does not exist on the live backend.
+        if (response.status === 404 || response.status === 405) {
+          this.disableEndpoint();
           return;
         }
         
@@ -131,28 +131,29 @@ class PollingService {
       }
 
       const data = await response.json();
+      const notifications = Array.isArray(data) ? data : (data.notifications || []);
       
       // Process new notifications
-      if (data.notifications && data.notifications.length > 0) {
+      if (notifications.length > 0) {
         // Sort notifications by creation date (newest first)
-        const sortedNotifications = [...data.notifications].sort((a, b) => {
+        const sortedNotifications = [...notifications].sort((a, b) => {
           return new Date(b.created_at) - new Date(a.created_at);
         });
         
         // Update last notification ID for next poll
-        if (sortedNotifications[0] && sortedNotifications[0]._id) {
-          this.lastNotificationId = sortedNotifications[0]._id;
+        if (sortedNotifications[0]) {
+          this.lastNotificationId = sortedNotifications[0]._id || sortedNotifications[0].id;
         }
         
         // Process each notification and emit events
         sortedNotifications.forEach(notification => {
           // Convert to format similar to WebSocket messages
           const eventData = {
-            type: notification.type,
-            message: notification.message,
-            notification_id: notification._id,
+            type: notification.type || 'notification',
+            message: notification.message || notification.body || notification.title || 'New notification',
+            notification_id: notification._id || notification.id,
             timestamp: notification.created_at,
-            is_read: notification.is_read,
+            is_read: Boolean(notification.is_read ?? notification.read),
             data: notification.data || {}
           };
           

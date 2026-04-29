@@ -11,6 +11,10 @@ import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import pollingService from '../../services/polling';
 
+function isUnavailableEndpointStatus(status) {
+  return status === 404 || status === 405;
+}
+
 export default function AdminDashboardPage() {
   const { currentUser, isAdmin } = useAuth();
   const isAdminUser = isAdmin();
@@ -262,6 +266,10 @@ export default function AdminDashboardPage() {
       });
       
       if (!activityResponse.ok) {
+        if (isUnavailableEndpointStatus(activityResponse.status)) {
+          setRecentActivity([]);
+          return;
+        }
         throw new Error(`Failed to fetch recent activity: ${activityResponse.status}`);
       }
       
@@ -325,18 +333,20 @@ export default function AdminDashboardPage() {
       } else {
         const errorText = await statsResponse.text();
         console.error(`Failed to fetch stats: ${statsResponse.status}`, errorText);
-        setError(`Failed to load dashboard data: ${statsResponse.status} - ${errorText}`);
         
-        // We don't want to use mock data anymore, just set empty values
         setStats({
           totalAlumni: 0,
           pendingVerifications: 0,
           verifiedDocuments: 0,
           newRegistrations: 0
         });
-        
-        // Show error toast
-        toast.error(`Failed to load dashboard statistics. Please try refreshing the page.`);
+
+        if (isUnavailableEndpointStatus(statsResponse.status)) {
+          setError(null);
+        } else {
+          setError(`Failed to load dashboard data: ${statsResponse.status} - ${errorText}`);
+          toast.error(`Failed to load dashboard statistics. Please try refreshing the page.`);
+        }
       }
       
       // Fetch activity data
@@ -363,11 +373,11 @@ export default function AdminDashboardPage() {
         const errorText = await activityResponse.text();
         console.error(`Failed to fetch activity: ${activityResponse.status}`, errorText);
         
-        // Set empty activity array instead of mock data
         setRecentActivity([]);
-        
-        // Show error toast
-        toast.error(`Failed to load recent activities. Please try refreshing the page.`);
+
+        if (!isUnavailableEndpointStatus(activityResponse.status)) {
+          toast.error(`Failed to load recent activities. Please try refreshing the page.`);
+        }
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
