@@ -251,6 +251,8 @@ export default function DashboardLayout() {
       setUnreadCount(0);
       return;
     }
+
+    let isMounted = true;
     
     const fetchNotifications = async () => {
       try {
@@ -274,30 +276,34 @@ export default function DashboardLayout() {
         if (!response.ok) {
           if (isUnavailableEndpointStatus(response.status)) {
             pollingService.disableEndpoint();
-            setNotifications([]);
-            setUnreadCount(0);
-            return;
+            if (isMounted) {
+              setNotifications([]);
+              setUnreadCount(0);
+            }
+            return false;
           }
           throw new Error('Failed to fetch notifications');
         }
         
         const data = await response.json();
         const items = Array.isArray(data) ? data : ((data && data.notifications) || []);
-        setNotifications(items);
-        setUnreadCount(
-          Array.isArray(data)
-            ? items.filter((notification) => !(notification.is_read ?? notification.read)).length
-            : (data?.unread_count ?? 0)
-        );
+        if (isMounted) {
+          setNotifications(items);
+          setUnreadCount(
+            Array.isArray(data)
+              ? items.filter((notification) => !(notification.is_read ?? notification.read)).length
+              : (data?.unread_count ?? 0)
+          );
+        }
+        return true;
       } catch (err) {
-        setNotifications([]);
-        setUnreadCount(0);
+        if (isMounted) {
+          setNotifications([]);
+          setUnreadCount(0);
+        }
+        return false;
       }
     };
-
-    // Start polling for notifications
-    console.log("Starting notification polling in DashboardLayout");
-    pollingService.startPolling();
     
     // Listen for new notifications
     const unsubscribe = pollingService.on('message', (data) => {
@@ -305,11 +311,19 @@ export default function DashboardLayout() {
       setUnreadCount(prev => (prev || 0) + 1);
       setNotifications(prev => [data, ...(prev || [])].slice(0, 5));  // Keep last 5 notifications
     });
-    
-    // Initial fetch of existing notifications
-    fetchNotifications();
+
+    const initializeNotifications = async () => {
+      const endpointAvailable = await fetchNotifications();
+      if (endpointAvailable && isMounted && !pollingService.endpointDisabled) {
+        console.log("Starting notification polling in DashboardLayout");
+        pollingService.startPolling();
+      }
+    };
+
+    initializeNotifications();
     
     return () => {
+      isMounted = false;
       unsubscribe();
       pollingService.stopPolling();
     };

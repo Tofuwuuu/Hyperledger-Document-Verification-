@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,10 @@ def _uploads_dir() -> Path:
     uploads_dir = Path(__file__).resolve().parents[3] / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     return uploads_dir
+
+
+def _hex_digest(raw: bytes) -> str:
+    return sha256(raw).hexdigest()
 
 
 async def _require_auth(current_user: dict = Depends(get_current_user)) -> dict:
@@ -89,11 +94,13 @@ async def upload_document(
 
     content = await file.read()
     saved_path.write_bytes(content)
+    file_hash = _hex_digest(content)
 
     now = datetime.now(timezone.utc)
     doc = {
         "user_id": profile.get("user_id"),
         "alumni_profile_id": profile.get("_id"),
+        "student_id": profile.get("student_id"),
         "document_type": document_type,
         "title": title,
         "description": description,
@@ -101,6 +108,7 @@ async def upload_document(
         "file_name": Path(file.filename).name,
         "mime_type": file.content_type,
         "file_size": len(content),
+        "file_hash": file_hash,
         "status": "pending",
         "verification_status": "pending",
         "uploaded_at": now,
@@ -269,4 +277,3 @@ async def reject_document(document_id: str, payload: dict, current_user: dict = 
         pass
 
     return {"success": True, "document_id": str(object_id), "status": "rejected"}
-

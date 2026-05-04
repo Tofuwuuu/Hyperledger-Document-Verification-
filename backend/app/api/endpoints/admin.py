@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 import bcrypt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 
 from app.db.collections import alumni_profiles_collection, documents_collection, get_default_db, roles_collection, users_collection
 from app.db.session import get_motor_client
+from app.services.blockchain_manager import get_blockchain_manager
 from app.utils.auth import get_current_user
 
 router = APIRouter()
@@ -148,6 +150,22 @@ def _uploads_dir() -> Path:
     return uploads_dir
 
 
+def _document_file_hash(document: dict[str, Any]) -> str | None:
+    existing_hash = document.get("file_hash")
+    if isinstance(existing_hash, str) and existing_hash:
+        return existing_hash
+
+    file_path = document.get("file_path")
+    if not isinstance(file_path, str) or not file_path:
+        return None
+
+    full_path = Path(__file__).resolve().parents[3] / file_path
+    if not full_path.exists():
+        return None
+
+    return sha256(full_path.read_bytes()).hexdigest()
+
+
 async def _load_current_admin(current_user: dict[str, Any]) -> dict[str, Any]:
     user_id = str(current_user.get("sub", ""))
     object_id = _object_id_or_404(user_id)
@@ -233,14 +251,27 @@ async def list_admin_users(
 
 
 @router.get("/admin/users/pending-verification")
-async def list_pending_verification_users(_: dict = Depends(_require_admin)) -> list[dict]:
+async def list_pending_verification_users(
+    status: str = Query(default="pending"),
+    _: dict = Depends(_require_admin),
+) -> list[dict]:
     client = get_motor_client()
     users = users_collection(client)
     profiles = alumni_profiles_collection(client)
 
-    cursor = users.find({"is_verified": False, "is_active": True}).sort("created_at", -1)
+    normalized_status = status.strip().lower()
+    if normalized_status == "pending":
+        query = {"is_verified": False}
+    elif normalized_status == "verified":
+        query = {"is_verified": True}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid verification status filter")
+
+    cursor = users.find(query).sort("created_at", -1)
     items: list[dict[str, Any]] = []
     async for user_doc in cursor:
+        if user_doc.get("is_active") is False:
+            continue
         profile = await _load_profile_for_user_id(profiles, user_doc["_id"])
         items.append(_serialize_pending_verification_user(user_doc, profile))
     return items
@@ -478,19 +509,71 @@ async def approve_verification(
     current_user: dict = Depends(_require_admin),
 ) -> dict:
     object_id = _object_id_or_404(document_id)
+    client = get_motor_client()
+    docs = documents_collection(client)
+    document = await docs.find_one({"_id": object_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Verification request not found")
+
+    file_hash = _document_file_hash(document)
+    if not file_hash:
+        raise HTTPException(status_code=400, detail="Document file hash could not be determined")
+
+    profiles = alumni_profiles_collection(client)
+    users = users_collection(client)
+    profile = await profiles.find_one({"_id": document.get("alumni_profile_id")})
+    if not profile and document.get("user_id") is not None:
+        profile = await profiles.find_one({"user_id": document.get("user_id")})
+    user = await users.find_one({"_id": document.get("user_id")}) if document.get("user_id") is not None else None
+
     now = datetime.now(timezone.utc)
+    metadata = {
+        "student_id": (profile or {}).get("student_id"),
+        "document_type": document.get("document_type"),
+        "document_title": document.get("title"),
+        "timestamp": (document.get("uploaded_at") or document.get("created_at") or now).isoformat()
+        if isinstance(document.get("uploaded_at") or document.get("created_at") or now, datetime)
+        else str(document.get("uploaded_at") or document.get("created_at") or now),
+        "full_name": (profile or {}).get("full_name") or (user or {}).get("full_name"),
+        "email": (profile or {}).get("email") or (user or {}).get("email"),
+    }
+    blockchain_result = await get_blockchain_manager().store_document(document_id, file_hash, metadata)
+    if not blockchain_result.get("success"):
+        raise HTTPException(status_code=502, detail=blockchain_result.get("message", "Blockchain storage failed"))
+
     update_data = {
-        "verification_status": "approved",
+        "verification_status": "verified",
         "status": "approved",
         "admin_notes": payload.admin_notes or "Verified and approved.",
         "verified_by": current_user.get("sub"),
         "verified_at": now,
+        "file_hash": file_hash,
+        "blockchain_hash": file_hash,
+        "blockchain_tx_id": blockchain_result.get("transaction_id"),
+        "blockchain_recorded_at": blockchain_result.get("timestamp") or now.isoformat(),
         "updated_at": now,
     }
-    result = await documents_collection(get_motor_client()).update_one({"_id": object_id}, {"$set": update_data})
+    result = await docs.update_one({"_id": object_id}, {"$set": update_data})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Verification request not found")
-    return {"success": True, "document_id": document_id, "status": "approved"}
+
+    await get_default_db(client)["verification_requests"].insert_one(
+        {
+            "document_id": document_id,
+            "hash": file_hash,
+            "metadata": metadata,
+            "transaction_id": blockchain_result.get("transaction_id"),
+            "stored_by": str(current_user.get("sub")),
+            "stored_at": now,
+        }
+    )
+    return {
+        "success": True,
+        "document_id": document_id,
+        "status": "approved",
+        "verification_status": "verified",
+        "transaction_id": blockchain_result.get("transaction_id"),
+    }
 
 
 @router.post("/admin/verifications/{document_id}/reject")

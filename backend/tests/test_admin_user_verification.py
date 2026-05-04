@@ -109,6 +109,7 @@ def test_pending_user_verification_list_filters_active_unverified_users(monkeypa
     admin_id = ObjectId("69e8443a162525f0ec57f0cb")
     first_user_id = ObjectId("69e8443a162525f0ec57f0cc")
     second_user_id = ObjectId("69e8443a162525f0ec57f0cd")
+    third_user_id = ObjectId("69e8443a162525f0ec57f0d2")
     now = datetime.now(timezone.utc)
 
     fake_users = FakeUsersCollection(
@@ -130,6 +131,13 @@ def test_pending_user_verification_list_filters_active_unverified_users(monkeypa
                 "created_at": now,
             },
             {
+                "_id": third_user_id,
+                "full_name": "Legacy Pending User",
+                "email": "legacy.pending@example.com",
+                "is_verified": False,
+                "created_at": now,
+            },
+            {
                 "_id": ObjectId("69e8443a162525f0ec57f0ce"),
                 "full_name": "Verified User",
                 "email": "verified@example.com",
@@ -146,6 +154,12 @@ def test_pending_user_verification_list_filters_active_unverified_users(monkeypa
                 "user_id": first_user_id,
                 "student_id": "2024-0001",
                 "graduation_year": "2024",
+            },
+            {
+                "_id": ObjectId("69e8443a162525f0ec57f0d3"),
+                "user_id": third_user_id,
+                "student_id": "2023-0042",
+                "graduation_year": "2023",
             }
         ]
     )
@@ -163,10 +177,72 @@ def test_pending_user_verification_list_filters_active_unverified_users(monkeypa
 
         assert response.status_code == 200
         payload = response.json()
+        emails = {item["email"] for item in payload}
+        assert emails == {"pending@example.com", "legacy.pending@example.com"}
+
+        payload_by_email = {item["email"]: item for item in payload}
+        assert payload_by_email["pending@example.com"]["student_id"] == "2024-0001"
+        assert payload_by_email["pending@example.com"]["graduation_year"] == "2024"
+        assert payload_by_email["legacy.pending@example.com"]["student_id"] == "2023-0042"
+        assert payload_by_email["legacy.pending@example.com"]["graduation_year"] == "2023"
+
+    try:
+        asyncio.run(run())
+    finally:
+        app.dependency_overrides.pop(admin._require_admin, None)
+
+
+def test_verified_user_verification_list_returns_active_verified_users(monkeypatch):
+    admin_id = ObjectId("69e8443a162525f0ec57f0cb")
+    verified_user_id = ObjectId("69e8443a162525f0ec57f0d4")
+    now = datetime.now(timezone.utc)
+
+    fake_users = FakeUsersCollection(
+        [
+            {
+                "_id": verified_user_id,
+                "full_name": "Verified User",
+                "email": "verified@example.com",
+                "is_verified": True,
+                "is_active": True,
+                "created_at": now,
+            },
+            {
+                "_id": ObjectId("69e8443a162525f0ec57f0d5"),
+                "full_name": "Inactive Verified User",
+                "email": "inactive.verified@example.com",
+                "is_verified": True,
+                "is_active": False,
+                "created_at": now,
+            },
+            {
+                "_id": ObjectId("69e8443a162525f0ec57f0d6"),
+                "full_name": "Pending User",
+                "email": "pending@example.com",
+                "is_verified": False,
+                "is_active": True,
+                "created_at": now,
+            },
+        ]
+    )
+    fake_profiles = FakeProfilesCollection([])
+    fake_client = FakeClient(FakeDB(fake_users, fake_profiles))
+
+    import app.api.endpoints.admin as admin
+
+    monkeypatch.setattr(admin, "get_motor_client", lambda: fake_client)
+    app.dependency_overrides[admin._require_admin] = lambda: {"sub": str(admin_id), "is_admin": True}
+
+    async def run():
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/v1/admin/users/pending-verification?status=verified")
+
+        assert response.status_code == 200
+        payload = response.json()
         assert len(payload) == 1
-        assert payload[0]["email"] == "pending@example.com"
-        assert payload[0]["student_id"] == "2024-0001"
-        assert payload[0]["graduation_year"] == "2024"
+        assert payload[0]["email"] == "verified@example.com"
+        assert payload[0]["is_verified"] is True
 
     try:
         asyncio.run(run())

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowUpTrayIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
-import documentVerificationService, { calculateDocumentHash } from '../services/document';
+import documentVerificationService from '../services/document';
 
 export default function VerifyPage() {
   const [file, setFile] = useState(null);
@@ -29,8 +29,8 @@ export default function VerifyPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file || !documentId) {
-      setError('Please provide both a document ID and upload a file');
+    if (!file) {
+      setError('Please upload a file to verify');
       return;
     }
 
@@ -38,17 +38,12 @@ export default function VerifyPage() {
     setError('');
     
     try {
-      // Use the updated document verification service
-      // First calculate the hash of the uploaded file
-      const hash = await calculateDocumentHash(file);
+      const result = await documentVerificationService.verifyUploadedFile(file, documentId);
       
-      // Then verify against the blockchain
-      const result = await documentVerificationService.verifyDocumentOnBlockchain(documentId, hash);
-      
-      if (result.data && result.data.success) {
-        setVerificationStatus(result.data.verified ? 'success' : 'error');
+      if (result.success) {
+        setVerificationStatus(result.verified ? 'success' : 'error');
       } else {
-        setError(result.data?.message || 'Verification failed');
+        setError(result.message || 'Verification failed');
         setVerificationStatus('error');
       }
     } catch (error) {
@@ -100,10 +95,12 @@ export default function VerifyPage() {
                       value={documentId}
                       onChange={handleDocumentIdChange}
                       className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-cvsu-green sm:text-sm sm:leading-6"
-                      placeholder="Enter the document ID"
-                      required
+                      placeholder="Optional: enter the document ID"
                     />
                   </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Leave this blank to verify the uploaded file by its blockchain hash only.
+                  </p>
                 </div>
                 
                 <div className="col-span-full">
@@ -155,9 +152,9 @@ export default function VerifyPage() {
               <div className="mt-8 flex">
                 <button
                   type="submit"
-                  disabled={!file || !documentId || loading}
+                  disabled={!file || loading}
                   className={`w-full rounded-md px-5 py-3 text-base font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cvsu-green ${
-                    !file || !documentId || loading 
+                    !file || loading 
                       ? 'bg-gray-400 cursor-not-allowed' 
                       : 'bg-cvsu-green hover:bg-cvsu-green/90'
                   }`}

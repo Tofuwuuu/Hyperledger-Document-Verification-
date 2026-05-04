@@ -7,18 +7,18 @@ Hyperledger Fabric integration based on configuration.
 """
 
 import os
-import json
 import hashlib
 import logging
 import asyncio
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 # Local blockchain settings
 from app.blockchain.fabric import (
     initialize_fabric_client, 
     store_document_hash, 
     verify_document_hash,
+    verify_hash_value,
     get_document_history
 )
 
@@ -87,6 +87,8 @@ class BlockchainManager:
                             channel_name=CHANNEL_NAME
                         )
                         connected = self.client.connect()
+                        if asyncio.iscoroutine(connected):
+                            connected = await connected
                         if not connected:
                             logger.error("Failed to connect to Fabric network. Falling back to mock implementation.")
                             self.use_real_blockchain = False
@@ -115,9 +117,6 @@ class BlockchainManager:
             Dictionary with result information
         """
         try:
-            # Convert metadata to string
-            metadata_str = json.dumps(metadata)
-            
             if self.use_real_blockchain:
                 # Initialize real client if needed
                 client_ready = await self._get_real_client()
@@ -125,12 +124,7 @@ class BlockchainManager:
                 if client_ready and self.client:
                     # Use real client
                     logger.info(f"Storing document {document_id} on real blockchain")
-                    
-                    result = await self.client.invoke_chaincode(
-                        CHAINCODE_NAME,
-                        "StoreDocument",
-                        [document_id, document_hash, metadata_str]
-                    )
+                    result = await self.client.store_document(document_id, document_hash, metadata)
                     
                     if result.get("success"):
                         tx_id = result.get("transaction_id", "unknown")
@@ -204,20 +198,16 @@ class BlockchainManager:
                 if client_ready and self.client:
                     # Use real client
                     logger.info(f"Verifying document {document_id} on real blockchain")
-                    
-                    result = await self.client.query_chaincode(
-                        CHAINCODE_NAME,
-                        "VerifyDocument",
-                        [document_id, document_hash]
-                    )
+                    result = await self.client.verify_document(document_id, document_hash)
                     
                     if result.get("success"):
-                        verified = result.get("data", "false").lower() == "true"
+                        verified = bool(result.get("verified", False))
                         return {
                             "success": True,
                             "verified": verified,
                             "document_id": document_id,
-                            "hash": document_hash
+                            "hash": document_hash,
+                            "record": result.get("record"),
                         }
                     else:
                         logger.error(f"Failed to verify document on blockchain: {result.get('message')}")
@@ -240,7 +230,8 @@ class BlockchainManager:
                     "success": True,
                     "verified": verified,
                     "document_id": document_id,
-                    "hash": document_hash
+                    "hash": document_hash,
+                    "record": result.get("record"),
                 }
             else:
                 return {
@@ -254,6 +245,51 @@ class BlockchainManager:
                 "success": False,
                 "message": str(e),
                 "document_id": document_id
+            }
+
+    async def verify_hash(self, document_hash: str) -> Dict[str, Any]:
+        """Verify a document hash against the blockchain without a document ID."""
+        try:
+            if self.use_real_blockchain:
+                client_ready = await self._get_real_client()
+
+                if client_ready and self.client:
+                    logger.info("Verifying raw hash on real blockchain")
+                    result = await self.client.verify_hash(document_hash)
+                    if result.get("success"):
+                        return {
+                            "success": True,
+                            "verified": bool(result.get("verified", False)),
+                            "hash": document_hash,
+                            "record": result.get("record"),
+                        }
+                    return {
+                        "success": False,
+                        "message": result.get("message", "Unknown error"),
+                        "hash": document_hash,
+                    }
+
+                logger.warning("Real blockchain client not available. Using mock implementation.")
+
+            result = await verify_hash_value(document_hash)
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "verified": bool(result.get("verified", False)),
+                    "hash": document_hash,
+                    "record": result.get("record"),
+                }
+            return {
+                "success": False,
+                "message": result.get("message", "Unknown error"),
+                "hash": document_hash,
+            }
+        except Exception as e:
+            logger.error(f"Error verifying hash on blockchain: {str(e)}")
+            return {
+                "success": False,
+                "message": str(e),
+                "hash": document_hash,
             }
     
     async def get_document_history(self, document_id: str) -> Dict[str, Any]:
@@ -274,22 +310,10 @@ class BlockchainManager:
                 if client_ready and self.client:
                     # Use real client
                     logger.info(f"Getting history for document {document_id} from real blockchain")
-                    
-                    result = await self.client.query_chaincode(
-                        CHAINCODE_NAME,
-                        "GetDocumentHistory",
-                        [document_id]
-                    )
+                    result = await self.client.get_history(document_id)
                     
                     if result.get("success"):
-                        history = result.get("data", "[]")
-                        
-                        # Parse history if it's a string
-                        if isinstance(history, str):
-                            try:
-                                history = json.loads(history)
-                            except json.JSONDecodeError:
-                                history = []
+                        history = result.get("history", [])
                         
                         return {
                             "success": True,

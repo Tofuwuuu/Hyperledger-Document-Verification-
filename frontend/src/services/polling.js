@@ -6,13 +6,14 @@ class PollingService {
     this.pollingInterval = null;
     this.lastNotificationId = null;
     this.isPolling = false;
+    this.isFetching = false;
     this.pollFrequency = parseInt(import.meta.env.VITE_POLLING_INTERVAL || '5000', 10); // Default to 5 seconds
     this.role = null;
     this.endpointDisabled = false;
   }
 
   startPolling(role = null) {
-    if (this.isPolling) {
+    if (this.isPolling || this.endpointDisabled) {
       return;
     }
 
@@ -64,6 +65,11 @@ class PollingService {
   }
 
   async fetchNotifications() {
+    if (this.isFetching || this.endpointDisabled) {
+      return;
+    }
+
+    this.isFetching = true;
     try {
       const { accessToken } = getAuthTokens();
       if (!accessToken) {
@@ -166,6 +172,8 @@ class PollingService {
       }
     } catch (error) {
       // Silent error handling
+    } finally {
+      this.isFetching = false;
     }
   }
 

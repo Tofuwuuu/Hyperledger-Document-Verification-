@@ -1,9 +1,9 @@
-"""
-Fabric Client for Hyperledger Fabric integration
-"""
+"""Fabric Client for Hyperledger Fabric integration."""
+
+from __future__ import annotations
 
 import logging
-from typing import Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,74 +14,54 @@ class FabricClient:
     This is a placeholder implementation.
     """
 
-    def __init__(self, config_path: str = None):
-        """
-        Initialize Fabric client.
-        """
-        self.config_path = config_path or "app/config/fabric/connection-profile.json"
+    def __init__(self, connection_profile_path: str | None = None, channel_name: str | None = None):
+        """Initialize Fabric client."""
+        self.config_path = connection_profile_path or "app/config/fabric/connection-profile.json"
+        self.channel_name = channel_name or "alumni-channel"
+        self.connected = False
         logger.info(f"Initializing FabricClient with config: {self.config_path}")
-        # TODO: Implement actual Fabric client initialization
 
-    async def connect(self):
-        """
-        Connect to Fabric network.
-        """
+    async def connect(self) -> bool:
+        """Connect to Fabric network."""
         logger.info("Connecting to Fabric network (placeholder)")
-        # TODO: Implement actual connection
-        pass
+        self.connected = True
+        return True
 
-    async def disconnect(self):
-        """
-        Disconnect from Fabric network.
-        """
+    async def disconnect(self) -> None:
+        """Disconnect from Fabric network."""
         logger.info("Disconnecting from Fabric network (placeholder)")
-        # TODO: Implement actual disconnection
-        pass
+        self.connected = False
 
-    async def store_document(self, document_id: str, hash_value: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Store document hash on blockchain.
-        """
-        logger.info(f"Storing document {document_id} (placeholder)")
-        return {
-            "success": True,
-            "transaction_id": f"tx_{document_id}_{hash_value[:8]}",
-            "message": "Document stored successfully (mock)"
-        }
+    async def store_document(self, document_id: str, hash_value: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Store document hash on blockchain."""
+        logger.info("Storing document %s via placeholder FabricClient", document_id)
+        from app.blockchain.fabric import store_document_hash
 
-    async def verify_document(self, document_id: str, hash_value: str) -> Dict[str, Any]:
-        """
-        Verify document hash against blockchain.
-        """
-        logger.info(f"Verifying document {document_id} (placeholder)")
-        return {
-            "success": True,
-            "verified": True,
-            "message": "Document verified successfully (mock)"
-        }
+        return await store_document_hash(document_id, hash_value, metadata)
 
-    async def get_history(self, document_id: str) -> Dict[str, Any]:
-        """
-        Get document history from blockchain.
-        """
-        logger.info(f"Getting history for {document_id} (placeholder)")
-        return {
-            "success": True,
-            "history": [
-                {
-                    "transaction_id": f"tx_{document_id}_1",
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "action": "stored",
-                    "user": "test_user",
-                    "metadata": {"hash": "mock_hash"}
-                }
-            ],
-            "message": "History retrieved successfully (mock)"
-        }
+    async def verify_document(self, document_id: str, hash_value: str) -> dict[str, Any]:
+        """Verify document hash against blockchain."""
+        logger.info("Verifying document %s via placeholder FabricClient", document_id)
+        from app.blockchain.fabric import verify_document_hash
+
+        return await verify_document_hash(document_id, hash_value)
+
+    async def verify_hash(self, hash_value: str) -> dict[str, Any]:
+        """Verify a document hash without a document ID."""
+        logger.info("Verifying raw hash via placeholder FabricClient")
+        from app.blockchain.fabric import verify_hash_value
+
+        return await verify_hash_value(hash_value)
+
+    async def get_history(self, document_id: str) -> dict[str, Any]:
+        """Get document history from blockchain."""
+        logger.info("Getting history for %s via placeholder FabricClient", document_id)
+        from app.blockchain.fabric import get_document_history
+
+        return await get_document_history(document_id)
 
     def calculate_document_hash(self, content: bytes) -> str:
-        """
-        Calculate document hash.
-        """
+        """Calculate document hash."""
         import hashlib
+
         return hashlib.sha256(content).hexdigest()

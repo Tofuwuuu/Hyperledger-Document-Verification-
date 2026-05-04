@@ -1,5 +1,4 @@
 import api from './api';
-import hyperledgerService from './hyperledger';
 import { verificationService } from './api';
 import { sha256 } from 'js-sha256';
 
@@ -86,30 +85,14 @@ const documentVerificationService = {
       
       const documentId = uploadResponse.data.document_id;
       const file = data.get('file');
-      
-      // 2. Calculate document hash
       const hash = await calculateDocumentHash(file);
       
-      // 3. Store hash on blockchain
-      const metadata = {
-        title: data.get('title'),
-        document_type: data.get('document_type'),
-        alumni_id: data.get('alumni_id'),
-        description: data.get('description') || ''
-      };
-      
-      const blockchainResponse = await documentVerificationService.storeDocumentOnBlockchain(
-        documentId,
-        hash,
-        metadata
-      );
-      
-      // 4. Return combined result
+      // Document uploads stay pending until an admin approves them.
       return {
         success: true,
         document_id: documentId,
         hash: hash,
-        blockchain_tx_id: blockchainResponse.data?.transaction_id || null,
+        blockchain_tx_id: null,
         ...uploadResponse.data
       };
     } catch (error) {
@@ -124,26 +107,41 @@ const documentVerificationService = {
   // Verify document with blockchain
   verifyDocument: async (documentId, file) => {
     try {
-      // Calculate hash from file
-      const hash = await calculateDocumentHash(file);
-      
-      // Verify against blockchain
-      const verificationResponse = await documentVerificationService.verifyDocumentOnBlockchain(
-        documentId,
-        hash
-      );
+      const verificationResponse = await verificationService.verifyByFile(documentId, file);
       
       return {
         success: true,
         verified: verificationResponse.data?.verified || false,
-        document_id: documentId,
-        hash: hash
+        status: verificationResponse.data?.status || 'FAKE',
+        document_id: documentId || verificationResponse.data?.metadata?.blockchain_record?.document_id || null,
+        hash: verificationResponse.data?.metadata?.uploaded_hash || null,
+        metadata: verificationResponse.data?.metadata || {}
       };
     } catch (error) {
       console.error('Error verifying document:', error);
       return {
         success: false,
         verified: false,
+        message: error.message || 'Failed to verify document'
+      };
+    }
+  },
+
+  verifyUploadedFile: async (file, documentId = '') => {
+    try {
+      const verificationResponse = await verificationService.verifyByFile(documentId, file);
+      return {
+        success: true,
+        verified: verificationResponse.data?.verified || false,
+        status: verificationResponse.data?.status || 'FAKE',
+        metadata: verificationResponse.data?.metadata || {}
+      };
+    } catch (error) {
+      console.error('Error verifying uploaded file:', error);
+      return {
+        success: false,
+        verified: false,
+        status: 'FAKE',
         message: error.message || 'Failed to verify document'
       };
     }

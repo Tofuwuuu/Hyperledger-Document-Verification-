@@ -757,15 +757,6 @@ export default function DocumentsPage() {
                     </div>
                   </dl>
                   
-                  {selectedDocument.verification_status !== 'verified' && selectedDocument.file_hash && (
-                    <button
-                      onClick={() => verifyDocumentOnBlockchain(selectedDocument)}
-                      disabled={verifyingDocument}
-                      className="mt-4 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-blue-300"
-                    >
-                      {verifyingDocument ? 'Verifying...' : 'Verify on Blockchain'}
-                    </button>
-                  )}
                 </div>
               </div>
               

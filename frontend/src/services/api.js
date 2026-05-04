@@ -1019,7 +1019,9 @@ export const verificationService = {
   
   verifyByFile: async (documentId, file) => {
     const formData = new FormData();
-    formData.append('document_id', documentId);
+    if (documentId) {
+      formData.append('document_id', documentId);
+    }
     formData.append('file', file);
     
     return api.post('/verification/blockchain/verify-file', formData, {
@@ -1051,9 +1053,10 @@ export const adminUserService = {
     }
   },
 
-  getPendingVerificationUsers: async (signal) => {
+  getPendingVerificationUsers: async (signal, status = 'pending') => {
     try {
       return await api.get('/admin/users/pending-verification', {
+        params: { status },
         timeout: 30000,
         signal
       });

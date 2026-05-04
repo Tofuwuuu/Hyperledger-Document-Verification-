@@ -41,20 +41,37 @@ export default function DocumentUploadPage() {
   }, [currentUser]);
   
   const fetchAlumniProfile = async () => {
-    if (!currentUser || !currentUser._id) return;
+    if (!currentUser) {
+      setError('User information is not loaded. Please try logging in again.');
+      return;
+    }
+
+    const userId = currentUser.id || currentUser._id;
+    if (!userId) {
+      setError('User ID is missing. Please try logging out and back in.');
+      return;
+    }
     
     setLoading(true);
+    setError('');
     try {
-      const response = await alumniService.getAlumniByUserId(currentUser._id);
-      setAlumniProfile(response.data);
+      const response = await alumniService.getAlumniByUserId(userId);
+      const profile = response?.data || null;
+
+      if (!profile || !profile._id) {
+        setAlumniProfile(null);
+        setError('You need to complete your alumni profile before uploading documents.');
+        return;
+      }
+
+      setAlumniProfile(profile);
       
       // Fetch documents
-      if (response.data && response.data._id) {
-        fetchDocuments(response.data._id);
-      }
+      fetchDocuments(profile._id);
     } catch (error) {
       console.error('Error fetching alumni profile:', error);
-      setError('You need to create an alumni profile before uploading documents.');
+      setAlumniProfile(null);
+      setError('You need to complete your alumni profile before uploading documents.');
     } finally {
       setLoading(false);
     }
@@ -187,7 +204,7 @@ export default function DocumentUploadPage() {
         file
       });
       
-      setSuccess('Document uploaded successfully! It will be verified by an administrator.');
+      setSuccess('Document uploaded successfully. It is now pending admin approval and will be recorded on the blockchain once approved.');
       
       // Reset form
       setTitle('');
@@ -270,8 +287,17 @@ export default function DocumentUploadPage() {
             <div className="flex">
               <div className="ml-3">
                 <p className="text-sm font-medium text-yellow-800">
-                  You need to create an alumni profile before uploading documents.
+                  {error || 'You need to complete your alumni profile before uploading documents.'}
                 </p>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/alumni/profile')}
+                    className="inline-flex items-center rounded-md bg-cvsu-green px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-cvsu-green/90"
+                  >
+                    Complete Profile
+                  </button>
+                </div>
               </div>
             </div>
           </div>

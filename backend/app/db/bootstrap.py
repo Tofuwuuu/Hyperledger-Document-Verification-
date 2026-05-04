@@ -122,6 +122,9 @@ async def initialize_database() -> None:
             if not user.get("password_hash") and user.get("hashed_password"):
                 update_data["password_hash"] = user["hashed_password"]
 
+            if "is_active" not in user:
+                update_data["is_active"] = True
+
             if update_data:
                 update_data["updated_at"] = now
                 await users.update_one({"_id": user["_id"]}, {"$set": update_data})
