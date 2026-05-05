@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminDocumentRequestService } from '../../services/api';
+import { getDocumentTypeLabel } from '../../constants/documentTypes';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -161,7 +162,7 @@ const AdminDocumentRequests = () => {
   };
 
   const formatDocumentType = (type) => {
-    return type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
+    return getDocumentTypeLabel(type);
   };
 
   return (
@@ -425,7 +426,7 @@ const AdminDocumentRequests = () => {
                     disabled={isGenerating}
                   >
                     <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-                    {isGenerating ? 'Generating...' : 'Generate Document'}
+                    {isGenerating ? 'Verifying...' : 'Verify & Release Document'}
                   </button>
                 )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { documentRequestService } from '../services/api';
+import { getDocumentTypeLabel } from '../constants/documentTypes';
 import { toast as toastify } from 'react-toastify';
 import { formatDistanceToNow, format, addHours } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -54,8 +55,7 @@ const DocumentRequestList = forwardRef((props, ref) => {
 
   const handleDownload = async (requestId, documentType) => {
     try {
-      const filename = `${documentType.replace('_', '-')}.pdf`;
-      const response = await documentRequestService.downloadGeneratedDocument(requestId, filename);
+      const response = await documentRequestService.downloadGeneratedDocument(requestId);
       
       if (!response.success) {
         toastify.error(response.error || 'Failed to download document');
@@ -97,7 +97,7 @@ const DocumentRequestList = forwardRef((props, ref) => {
   };
 
   const formatDocumentType = (type) => {
-    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return getDocumentTypeLabel(type);
   };
 
   // Convert UTC date to Philippine time (GMT+8)

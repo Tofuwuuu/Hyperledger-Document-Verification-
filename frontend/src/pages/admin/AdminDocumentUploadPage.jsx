@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_URL } from '../../config';
 import axios from 'axios';
 import { XCircleIcon } from '@heroicons/react/24/outline';
+import { DOCUMENT_TYPE_OPTIONS } from '../../constants/documentTypes';
 
 export default function AdminDocumentUploadPage() {
   const [alumni, setAlumni] = useState([]);
@@ -13,7 +14,7 @@ export default function AdminDocumentUploadPage() {
   const [selectedAlumni, setSelectedAlumni] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [documentType, setDocumentType] = useState('diploma');
+  const [documentType, setDocumentType] = useState('');
   const [file, setFile] = useState(null);
   
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function AdminDocumentUploadPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!selectedAlumni || !title || !file) {
+    if (!selectedAlumni || !title || !documentType || !file) {
       setError('Please fill out all required fields');
       return;
     }
@@ -77,7 +78,7 @@ export default function AdminDocumentUploadPage() {
       setSelectedAlumni('');
       setTitle('');
       setDescription('');
-      setDocumentType('diploma');
+      setDocumentType('');
       setFile(null);
       
       // Reset file input
@@ -173,11 +174,12 @@ export default function AdminDocumentUploadPage() {
             required
             className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-cvsu-green focus:border-cvsu-green sm:text-sm"
           >
-            <option value="diploma">Diploma</option>
-            <option value="transcript">Transcript of Records</option>
-            <option value="certification">Certification</option>
-            <option value="award">Award or Recognition</option>
-            <option value="other">Other</option>
+            <option value="">Select a document type</option>
+            {DOCUMENT_TYPE_OPTIONS.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.label}
+              </option>
+            ))}
           </select>
         </div>
         

@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { documentService, alumniService, verificationService } from '../../services/api';
 import documentVerificationService from '../../services/document';
+import { getDocumentTypeLabel, normalizeDocumentType } from '../../constants/documentTypes';
 import { Link } from 'react-router-dom';
 import { calculateDocumentHash } from '../../services/document';
 import { sha256 } from 'js-sha256';
@@ -158,14 +159,7 @@ export default function DocumentsPage() {
   
   // Function to get the title from document type
   const getDocumentTypeTitle = (type) => {
-    const types = {
-      'diploma': 'Diploma',
-      'transcript': 'Transcript of Records',
-      'certificate': 'Certificate',
-      'id': 'ID Card',
-      'other': 'Other Document'
-    };
-    return types[type] || type;
+    return getDocumentTypeLabel(type);
   };
   
   const formatDate = (dateString) => {
@@ -515,11 +509,11 @@ export default function DocumentsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded flex items-center justify-center">
-                          {document.document_type === 'diploma' ? (
+                          {normalizeDocumentType(document.document_type) === 'diploma' ? (
                             <AcademicCapIcon className="h-6 w-6 text-gray-500" />
-                          ) : document.document_type === 'transcript' ? (
+                          ) : normalizeDocumentType(document.document_type) === 'transcript_of_records' ? (
                             <DocumentTextIcon className="h-6 w-6 text-gray-500" />
-                          ) : document.document_type === 'certificate' ? (
+                          ) : normalizeDocumentType(document.document_type) === 'certificate' ? (
                             <DocumentIcon className="h-6 w-6 text-gray-500" />
                           ) : (
                             <PaperClipIcon className="h-6 w-6 text-gray-500" />

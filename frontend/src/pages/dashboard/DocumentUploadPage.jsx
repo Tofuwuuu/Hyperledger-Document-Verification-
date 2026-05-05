@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PaperClipIcon, ArrowUpTrayIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { documentService, alumniService } from '../../services/api';
+import { DOCUMENT_TYPE_OPTIONS, getDocumentTypeLabel } from '../../constants/documentTypes';
 import { useNavigate } from 'react-router-dom';
 
 export default function DocumentUploadPage() {
@@ -261,14 +262,6 @@ export default function DocumentUploadPage() {
     }).format(date);
   };
   
-  const documentTypes = [
-    { id: 'diploma', name: 'Diploma' },
-    { id: 'transcript', name: 'Transcript of Records' },
-    { id: 'certificate', name: 'Certificate' },
-    { id: 'id', name: 'ID Card' },
-    { id: 'other', name: 'Other' }
-  ];
-  
   if (loading && !alumniProfile) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -362,9 +355,9 @@ export default function DocumentUploadPage() {
                       required
                     >
                       <option value="">Select a type</option>
-                      {documentTypes.map((type) => (
+                      {DOCUMENT_TYPE_OPTIONS.map((type) => (
                         <option key={type.id} value={type.id}>
-                          {type.name}
+                          {type.label}
                         </option>
                       ))}
                     </select>
@@ -543,7 +536,7 @@ export default function DocumentUploadPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {document.document_type}
+                            {getDocumentTypeLabel(document.document_type)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(document.verification_status)}`}>

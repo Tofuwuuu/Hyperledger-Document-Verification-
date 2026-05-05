@@ -1391,24 +1391,41 @@ export const documentRequestService = {
       const response = await api.get(`/document-requests/${requestId}/download`, {
         responseType: 'blob'
       });
-      
+
+      const contentDisposition = response.headers['content-disposition'] || '';
+      const headerFilenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+      const resolvedFilename = headerFilenameMatch
+        ? decodeURIComponent(headerFilenameMatch[1].replace(/"/g, '').trim())
+        : (filename || 'document');
+
       // Create a download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', filename || 'document.pdf');
+      link.setAttribute('download', resolvedFilename);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
       
       return {
         success: true
       };
     } catch (error) {
+      let errorMessage = error.response?.data?.detail || error.message;
+      if (error.response?.data instanceof Blob) {
+        try {
+          const rawText = await error.response.data.text();
+          const parsed = JSON.parse(rawText);
+          errorMessage = parsed.detail || parsed.message || rawText || errorMessage;
+        } catch (_blobParseError) {
+          // Keep the original message when the blob payload is not JSON.
+        }
+      }
       console.error(`Error downloading document for request ${requestId}:`, error);
       return {
         success: false,
-        error: error.response?.data?.detail || error.message
+        error: errorMessage
       };
     }
   }

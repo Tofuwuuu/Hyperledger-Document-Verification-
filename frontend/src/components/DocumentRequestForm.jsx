@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { documentRequestService } from '../services/api';
+import { DOCUMENT_TYPE_OPTIONS } from '../constants/documentTypes';
 import { toast as toastify } from 'react-toastify';
 
 const DocumentRequestForm = ({ onRequestCreated }) => {
-  const [documentType, setDocumentType] = useState('good_moral');
+  const [documentType, setDocumentType] = useState('');
   const [purpose, setPurpose] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -18,7 +19,7 @@ const DocumentRequestForm = ({ onRequestCreated }) => {
         toastify.success('Your document request has been submitted successfully');
         
         // Reset form
-        setDocumentType('good_moral');
+        setDocumentType('');
         setPurpose('');
         
         // Notify parent component and trigger refresh
@@ -53,9 +54,12 @@ const DocumentRequestForm = ({ onRequestCreated }) => {
               className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
               required
             >
-              <option value="good_moral">Good Moral Certificate</option>
-              <option value="certification">General Certification</option>
-              <option value="enrollment">Enrollment Certificate</option>
+              <option value="">Select a document type</option>
+              {DOCUMENT_TYPE_OPTIONS.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.label}
+                </option>
+              ))}
             </select>
           </div>
           

@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { API_URL } from '../../config';
 import { adminVerificationService, api, adminDocumentService } from '../../services/api';
+import { getDocumentTypeLabel } from '../../constants/documentTypes';
 
 export default function AdminDocumentsPage() {
   const [documents, setDocuments] = useState([]);
@@ -232,7 +233,7 @@ export default function AdminDocumentsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{document.document_type}</div>
+                          <div className="text-sm text-gray-900">{getDocumentTypeLabel(document.document_type)}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {getStatusBadge(document.verification_status)}
@@ -278,7 +279,7 @@ export default function AdminDocumentsPage() {
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Type</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedDocument.document_type}</p>
+                        <p className="text-sm font-medium text-gray-900">{getDocumentTypeLabel(selectedDocument.document_type)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Status</p>

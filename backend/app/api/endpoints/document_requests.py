@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from app.constants.document_types import (
+    document_type_label,
+    equivalent_document_types,
+    is_supported_document_type,
+    normalize_document_type,
+)
 from app.db.collections import alumni_profiles_collection, document_requests_collection, documents_collection, users_collection
 from app.db.session import get_motor_client
+from app.services.blockchain_manager import get_blockchain_manager
 from app.utils.auth import get_current_user
 
 router = APIRouter()
@@ -43,7 +51,7 @@ def _serialize_request(request: dict[str, Any]) -> dict[str, Any]:
     if "_id" in result:
         result["_id"] = str(result["_id"])
         result["id"] = result["_id"]
-    for key in ("user_id", "document_id", "generated_document_id"):
+    for key in ("user_id", "document_id", "generated_document_id", "source_document_id"):
         if key in result and result[key] is not None and not isinstance(result[key], str):
             result[key] = str(result[key])
     return result
@@ -61,30 +69,65 @@ async def _enrich_request(client, request: dict[str, Any]) -> dict[str, Any]:
     result["student_id"] = (profile or {}).get("student_id")
     result["course"] = (profile or {}).get("course")
     result["graduation_year"] = (profile or {}).get("graduation_year")
+    result["document_type_label"] = document_type_label(request.get("document_type"))
     return result
 
 
-def _simple_pdf_bytes(lines: list[str]) -> bytes:
-    escaped = "\\n".join(line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") for line in lines)
-    content = f"BT /F1 12 Tf 50 780 Td ({escaped}) Tj ET"
-    objects = [
-        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
-        f"4 0 obj << /Length {len(content)} >> stream\n{content}\nendstream endobj".encode("ascii", errors="ignore"),
-        b"5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
-    ]
-    pdf = b"%PDF-1.4\n"
-    offsets = []
-    for obj in objects:
-        offsets.append(len(pdf))
-        pdf += obj + b"\n"
-    xref_offset = len(pdf)
-    pdf += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii")
-    for offset in offsets:
-        pdf += f"{offset:010d} 00000 n \n".encode("ascii")
-    pdf += f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF".encode("ascii")
-    return pdf
+def _document_file_path(document: dict[str, Any]) -> Path:
+    file_path = document.get("file_path")
+    if not isinstance(file_path, str) or not file_path:
+        raise HTTPException(status_code=404, detail="Document file path is missing")
+    full_path = Path(__file__).resolve().parents[3] / file_path
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="Document file not found in server storage")
+    return full_path
+
+
+def _document_hash(raw: bytes) -> str:
+    return sha256(raw).hexdigest()
+
+
+async def _resolve_uploaded_document(client, request: dict[str, Any]) -> dict[str, Any]:
+    docs = documents_collection(client)
+    matching_types = list(equivalent_document_types(str(request.get("document_type", ""))))
+    if not matching_types:
+        raise HTTPException(status_code=400, detail="Request document type is invalid")
+
+    document = await docs.find_one(
+        {
+            "user_id": request.get("user_id"),
+            "document_type": {"$in": matching_types},
+            "status": "approved",
+            "verification_status": "verified",
+        },
+        sort=[("verified_at", -1), ("updated_at", -1), ("created_at", -1)],
+    )
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="No approved blockchain-verified uploaded document is available for this request type",
+        )
+    return document
+
+
+async def _verify_document_release_integrity(document: dict[str, Any]) -> tuple[str, Path]:
+    full_path = _document_file_path(document)
+    content = full_path.read_bytes()
+    computed_hash = _document_hash(content)
+
+    verification = await get_blockchain_manager().verify_document(str(document["_id"]), computed_hash)
+    if not verification.get("success"):
+        raise HTTPException(
+            status_code=502,
+            detail=verification.get("message", "Blockchain verification failed during document release"),
+        )
+    if not verification.get("verified"):
+        raise HTTPException(
+            status_code=409,
+            detail="Document integrity verification failed. The stored file no longer matches the blockchain record.",
+        )
+
+    return computed_hash, full_path
 
 
 @router.post("/document-requests/")
@@ -95,15 +138,20 @@ async def create_document_request(payload: DocumentRequestCreate, current_user: 
     if not profile:
         raise HTTPException(status_code=400, detail="Complete alumni profile first before requesting documents")
 
+    normalized_document_type = normalize_document_type(payload.document_type)
+    if not is_supported_document_type(normalized_document_type):
+        raise HTTPException(status_code=400, detail="Unsupported document type")
+
     now = datetime.now(timezone.utc)
     doc = {
         "user_id": ObjectId(user_id),
-        "document_type": payload.document_type,
+        "document_type": normalized_document_type,
         "purpose": payload.purpose,
         "status": "pending",
         "admin_notes": None,
         "rejection_reason": None,
         "generated_document_id": None,
+        "source_document_id": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -186,64 +234,38 @@ async def generate_document(request_id: str, current_user: dict = Depends(_requi
         raise HTTPException(status_code=404, detail="Request not found")
     client = get_motor_client()
     requests = document_requests_collection(client)
-    docs = documents_collection(client)
     request = await requests.find_one({"_id": object_id})
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    user = await users_collection(client).find_one({"_id": request.get("user_id")}, {"full_name": 1, "email": 1})
-    profile = await alumni_profiles_collection(client).find_one({"user_id": request.get("user_id")}, {"student_id": 1, "course": 1, "graduation_year": 1})
+    document = await _resolve_uploaded_document(client, request)
+    computed_hash, _full_path = await _verify_document_release_integrity(document)
     now = datetime.now(timezone.utc)
-    filename = f"generated_request_{request_id}.pdf"
-    relative_path = f"uploads/{filename}"
-    full_path = Path(__file__).resolve().parents[3] / relative_path
-    full_path.parent.mkdir(parents=True, exist_ok=True)
-    pdf_bytes = _simple_pdf_bytes(
-        [
-            f"Document Request: {request.get('document_type')}",
-            f"Name: {(user or {}).get('full_name', 'Unknown')}",
-            f"Email: {(user or {}).get('email', 'Unknown')}",
-            f"Student ID: {(profile or {}).get('student_id', 'N/A')}",
-            f"Course: {(profile or {}).get('course', 'N/A')}",
-            f"Purpose: {request.get('purpose') or 'N/A'}",
-            f"Generated At: {now.isoformat()}",
-        ]
-    )
-    full_path.write_bytes(pdf_bytes)
-
-    document = {
-        "user_id": request.get("user_id"),
-        "alumni_profile_id": (await _find_profile_by_user(client, str(request.get("user_id")))).get("_id") if await _find_profile_by_user(client, str(request.get("user_id"))) else None,
-        "document_type": request.get("document_type"),
-        "title": f"Generated {request.get('document_type')}",
-        "description": request.get("purpose"),
-        "file_path": relative_path,
-        "file_name": filename,
-        "mime_type": "application/pdf",
-        "file_size": len(pdf_bytes),
-        "status": "approved",
-        "verification_status": "verified",
-        "uploaded_at": now,
-        "created_at": now,
-        "updated_at": now,
-    }
-    insert_result = await docs.insert_one(document)
     await requests.update_one(
         {"_id": object_id},
         {
             "$set": {
                 "status": "completed",
-                "generated_document_id": insert_result.inserted_id,
-                "document_id": insert_result.inserted_id,
+                "generated_document_id": document["_id"],
+                "document_id": document["_id"],
+                "source_document_id": document["_id"],
+                "released_document_hash": computed_hash,
+                "released_at": now,
                 "updated_at": now,
             }
         },
     )
-    return {"document_id": str(insert_result.inserted_id), "success": True}
+    return {
+        "document_id": str(document["_id"]),
+        "success": True,
+        "status": "VERIFIED",
+        "document_type": document.get("document_type"),
+        "file_name": document.get("file_name"),
+    }
 
 
 @router.get("/document-requests/{request_id}/download")
-async def download_generated_document(request_id: str, current_user: dict = Depends(_require_auth)) -> Response:
+async def download_generated_document(request_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
     object_id = _object_id(request_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -254,20 +276,29 @@ async def download_generated_document(request_id: str, current_user: dict = Depe
     if not current_user.get("is_admin") and str(request.get("user_id")) != str(current_user.get("sub")):
         raise HTTPException(status_code=403, detail="Not allowed to download this document")
 
+    if request.get("status") != "completed":
+        raise HTTPException(status_code=409, detail="This request is not ready for download yet")
+
     document_id = request.get("generated_document_id") or request.get("document_id")
     if not document_id:
-        raise HTTPException(status_code=404, detail="Generated document not found")
+        raise HTTPException(status_code=404, detail="Released document not found")
 
-    document = await documents_collection(client).find_one({"_id": document_id})
+    resolved_document_id = document_id if isinstance(document_id, ObjectId) else _object_id(str(document_id))
+    if resolved_document_id is None:
+        raise HTTPException(status_code=404, detail="Released document reference is invalid")
+
+    document = await documents_collection(client).find_one({"_id": resolved_document_id})
     if not document:
-        raise HTTPException(status_code=404, detail="Generated document not found")
+        raise HTTPException(status_code=404, detail="Released document not found")
 
-    full_path = Path(__file__).resolve().parents[3] / document.get("file_path")
-    if not full_path.exists():
-        raise HTTPException(status_code=404, detail="Generated file not found")
+    computed_hash, full_path = await _verify_document_release_integrity(document)
+    await document_requests_collection(client).update_one(
+        {"_id": object_id},
+        {"$set": {"last_download_verified_hash": computed_hash, "last_download_verified_at": datetime.now(timezone.utc)}},
+    )
 
     return FileResponse(
         full_path,
         media_type=document.get("mime_type") or "application/octet-stream",
-        filename=document.get("file_name") or f"document-{request_id}.pdf",
+        filename=document.get("file_name") or f"document-{request_id}",
     )

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pymongo.errors import PyMongoError
 
+from app.constants.document_types import is_supported_document_type, normalize_document_type
 from app.db.collections import alumni_profiles_collection, documents_collection, users_collection, get_default_db
 from app.db.session import get_motor_client
 from app.utils.auth import get_current_user
@@ -84,6 +85,10 @@ async def upload_document(
     if not profile:
         raise HTTPException(status_code=404, detail="Alumni profile not found")
 
+    normalized_document_type = normalize_document_type(document_type)
+    if not is_supported_document_type(normalized_document_type):
+        raise HTTPException(status_code=400, detail="Unsupported document type")
+
     current_user_id = current_user.get("sub")
     if not current_user.get("is_admin") and str(profile.get("user_id")) != str(current_user_id):
         raise HTTPException(status_code=403, detail="Not allowed to upload for this alumni profile")
@@ -101,7 +106,7 @@ async def upload_document(
         "user_id": profile.get("user_id"),
         "alumni_profile_id": profile.get("_id"),
         "student_id": profile.get("student_id"),
-        "document_type": document_type,
+        "document_type": normalized_document_type,
         "title": title,
         "description": description,
         "file_path": relative_path,
