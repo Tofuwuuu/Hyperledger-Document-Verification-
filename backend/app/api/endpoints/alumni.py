@@ -6,18 +6,39 @@ from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from pymongo.errors import PyMongoError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
-from app.db.collections import alumni_profiles_collection, users_collection
 from app.db.session import get_motor_client
+from app.db.collections import alumni_profiles_collection
 from app.schemas.alumni_profile import AlumniProfileCreate, AlumniProfileUpdate
-from app.utils.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _users_collection(client):
+    try:
+        db = client.get_default_database()
+    except Exception:
+        db = client["cvsu_alumni"]
+    return db["users"]
+
+
+def _serialize_document(document: dict[str, Any]) -> dict[str, Any]:
+    if not document:
+        return {}
+
+    result = {**document}
+    result.pop("password_hash", None)
+    result.pop("hashed_password", None)
+    if "_id" in result:
+        object_id = str(result["_id"])
+        result["_id"] = object_id
+        result["id"] = object_id
+    return result
 
 
 def _get_object_id(value: str) -> ObjectId | None:
@@ -25,92 +46,6 @@ def _get_object_id(value: str) -> ObjectId | None:
         return ObjectId(value)
     except Exception:
         return None
-
-
-def _sanitize_profile_write_data(data: dict[str, Any]) -> dict[str, Any]:
-    data.pop("_id", None)
-    data.pop("id", None)
-    data.pop("user_id", None)
-    data.pop("password_hash", None)
-    data.pop("hashed_password", None)
-    data.pop("is_admin", None)
-    return data
-
-
-def _is_missing_profile_value(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return value.strip() == ""
-    return False
-
-
-def _merge_profile_with_user(profile: dict[str, Any] | None, user: dict[str, Any] | None) -> dict[str, Any]:
-    if not profile and not user:
-        return {}
-
-    result: dict[str, Any] = {}
-    if profile:
-        result.update(profile)
-    if user:
-        fallback_fields = (
-            "full_name",
-            "email",
-            "student_id",
-            "graduation_year",
-            "phone",
-            "batch",
-            "course",
-            "department",
-            "sex",
-            "civil_status",
-            "birthday",
-            "region_of_origin",
-            "address",
-            "bio",
-            "profile_picture",
-            "current_job",
-            "current_employer",
-        )
-        for field_name in fallback_fields:
-            if _is_missing_profile_value(result.get(field_name)) and not _is_missing_profile_value(user.get(field_name)):
-                result[field_name] = user.get(field_name)
-
-        result.update(
-            {
-                "is_admin": bool(user.get("is_admin", False)),
-                "is_verified": bool(user.get("is_verified", False)),
-                "user_id": str(user.get("_id")),
-            }
-        )
-
-    result.pop("password_hash", None)
-    result.pop("hashed_password", None)
-    if "_id" in result:
-        object_id = str(result["_id"])
-        result["_id"] = object_id
-        result["id"] = object_id
-    if "user_id" in result and not isinstance(result["user_id"], str):
-        result["user_id"] = str(result["user_id"])
-    return result
-
-
-async def _load_profile_with_user_by_profile_id(client, profile_id: ObjectId) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    profiles = alumni_profiles_collection(client)
-    users = users_collection(client)
-    profile = await profiles.find_one({"_id": profile_id})
-    if not profile:
-        return None, None
-    user = await users.find_one({"_id": profile.get("user_id")})
-    return profile, user
-
-
-async def _load_profile_with_user_by_user_id(client, user_id: ObjectId) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    profiles = alumni_profiles_collection(client)
-    users = users_collection(client)
-    profile = await profiles.find_one({"user_id": user_id})
-    user = await users.find_one({"_id": user_id})
-    return profile, user
 
 
 @router.get("/alumni/health")
@@ -121,70 +56,45 @@ async def alumni_health() -> dict[str, str]:
 @router.get("/alumni/user/{user_id}")
 async def get_alumni_by_user(user_id: str) -> dict[str, Any]:
     client = get_motor_client()
+    collection = _users_collection(client)
     object_id = _get_object_id(user_id)
-    if object_id is None:
-        return JSONResponse(status_code=200, content=None)
-
+    query = {"_id": object_id} if object_id is not None else {"user_id": user_id}
     try:
-        profile, user = await _load_profile_with_user_by_user_id(client, object_id)
+        document = await collection.find_one(query)
     except PyMongoError as exc:
         logger.exception("Database error fetching alumni profile by user_id")
         raise HTTPException(status_code=503, detail="Database error") from exc
 
-    if not profile:
+    if not document:
         return JSONResponse(status_code=200, content=None)
 
-    return _merge_profile_with_user(profile, user)
-
-
-@router.get("/alumni/me")
-async def get_my_alumni_profile(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
-    client = get_motor_client()
-    user_id = _get_object_id(str(current_user.get("sub", "")))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Invalid user session")
-    try:
-        profile, user = await _load_profile_with_user_by_user_id(client, user_id)
-    except PyMongoError as exc:
-        logger.exception("Database error fetching current alumni profile")
-        raise HTTPException(status_code=503, detail="Database error") from exc
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if not profile:
-        raise HTTPException(status_code=404, detail="Alumni profile not found")
-    return _merge_profile_with_user(profile, user)
+    return _serialize_document(document)
 
 
 @router.get("/alumni/{alumni_id}")
 async def get_alumni_by_id(alumni_id: str) -> dict[str, Any]:
-    if alumni_id == "list":
-        response = await list_alumni_profiles()
-        return response.model_dump()
-
     client = get_motor_client()
+    collection = _users_collection(client)
     object_id = _get_object_id(alumni_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
     try:
-        profile, user = await _load_profile_with_user_by_profile_id(client, object_id)
-        if not profile:
-            profile, user = await _load_profile_with_user_by_user_id(client, object_id)
+        document = await collection.find_one({"_id": object_id})
     except PyMongoError as exc:
         logger.exception("Database error fetching alumni profile by id")
         raise HTTPException(status_code=503, detail="Database error") from exc
 
-    if not profile:
+    if not document:
         raise HTTPException(status_code=404, detail="Alumni profile not found")
 
-    return _merge_profile_with_user(profile, user)
+    return _serialize_document(document)
 
 
 @router.post("/alumni")
 async def create_alumni_profile(payload: AlumniProfileCreate) -> dict[str, Any]:
     client = get_motor_client()
-    users = users_collection(client)
-    profiles = alumni_profiles_collection(client)
+    collection = _users_collection(client)
 
     if not payload.user_id:
         raise HTTPException(status_code=400, detail="user_id is required")
@@ -193,84 +103,91 @@ async def create_alumni_profile(payload: AlumniProfileCreate) -> dict[str, Any]:
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid user ID")
 
-    user = await users.find_one({"_id": object_id})
-    if not user:
+    existing = await collection.find_one({"_id": object_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="User not found")
 
-    document = _sanitize_profile_write_data(payload.model_dump(exclude_unset=True))
-    if document.get("email"):
-        document["email"] = str(document["email"]).strip().lower()
-    if not document.get("full_name"):
-        document["full_name"] = user.get("full_name", "")
-    document["user_id"] = object_id
-    now = datetime.now(timezone.utc)
-    document["updated_at"] = now
+    document = payload.dict(exclude_unset=True)
+    document.pop("user_id", None)
+    document["updated_at"] = datetime.now(timezone.utc)
 
     try:
-        await profiles.update_one(
-            {"user_id": object_id},
-            {"$set": document, "$setOnInsert": {"created_at": now}},
-            upsert=True,
-        )
-        user_update = {}
-        if document.get("full_name"):
-            user_update["full_name"] = document["full_name"]
-        if document.get("email"):
-            user_update["email"] = document["email"]
-        if user_update:
-            user_update["updated_at"] = now
-            await users.update_one({"_id": object_id}, {"$set": user_update})
-        profile = await profiles.find_one({"user_id": object_id})
-        user = await users.find_one({"_id": object_id})
+        await collection.update_one({"_id": object_id}, {"$set": document})
+        updated_document = await collection.find_one({"_id": object_id})
     except PyMongoError as exc:
         logger.exception("Database error creating alumni profile")
         raise HTTPException(status_code=503, detail="Database error") from exc
 
-    return _merge_profile_with_user(profile, user)
+    return _serialize_document(updated_document)
 
 
 @router.put("/alumni/{alumni_id}")
 async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) -> dict[str, Any]:
     client = get_motor_client()
-    users = users_collection(client)
-    profiles = alumni_profiles_collection(client)
+    collection = _users_collection(client)
     object_id = _get_object_id(alumni_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
-    update_data = _sanitize_profile_write_data(payload.model_dump(exclude_unset=True))
-    if "email" in update_data and update_data["email"] is not None:
-        update_data["email"] = str(update_data["email"]).strip().lower()
+    update_data = payload.dict(exclude_unset=True)
+    update_data.pop("user_id", None)
+    update_data.pop("password_hash", None)
+    update_data.pop("hashed_password", None)
+    update_data.pop("is_admin", None)
+    # Normalize empty strings to None so Mongo doesn't store empty strings for optional fields
+    for k, v in list(update_data.items()):
+        if isinstance(v, str) and v.strip() == "":
+            update_data[k] = None
+
+    # Recursively remove any `_id` or `id` keys from the update payload so we do
+    # not attempt to modify MongoDB's immutable `_id` field even if nested objects
+    # include IDs coming from the frontend.
+    def _remove_id_keys(obj):
+        if isinstance(obj, dict):
+            obj.pop("_id", None)
+            obj.pop("id", None)
+            for val in obj.values():
+                _remove_id_keys(val)
+        elif isinstance(obj, list):
+            for item in obj:
+                _remove_id_keys(item)
+
+    _remove_id_keys(update_data)
+
     update_data["updated_at"] = datetime.now(timezone.utc)
 
-    try:
-        profile = await profiles.find_one({"_id": object_id})
-        profile_filter = {"_id": object_id}
-        if not profile:
-            profile = await profiles.find_one({"user_id": object_id})
-            if profile:
-                profile_filter = {"user_id": object_id}
+    profile_filter = {"_id": object_id}
 
-        result = await profiles.update_one(profile_filter, {"$set": update_data})
+    # Use the alumni_profiles collection for profile updates (not the users collection)
+    profiles = alumni_profiles_collection(client)
+
+    try:
+        # Log useful debug info before attempting the update to help diagnose
+        # any remaining cases where an `_id` might still be present in the payload.
+        logger.debug("Updating alumni profile %s with filter=%s keys=%s", alumni_id, profile_filter, list(update_data.keys()))
+        # Use upsert=True to create the document if it doesn't exist yet. This avoids 404s
+        # originating from a missing document when clients attempt to save a profile.
+        result = await profiles.update_one(profile_filter, {"$set": update_data}, upsert=True)
     except PyMongoError as exc:
-        logger.exception("Database error updating alumni profile")
+        # Log the update payload to help debugging the immutable _id error
+        try:
+            logger.exception("Database error updating alumni profile. update_data=%s", update_data)
+            # Also persist a copy to disk for easier inspection during debugging
+            try:
+                debug_path = Path(__file__).resolve().parents[2] / "update_debug.log"
+                with debug_path.open("a", encoding="utf-8") as fh:
+                    fh.write(f"{datetime.now(timezone.utc).isoformat()} FILTER={profile_filter} UPDATE={repr(update_data)}\n")
+            except Exception:
+                logger.exception("Failed writing update_debug.log")
+        except Exception:
+            logger.exception("Database error updating alumni profile (failed to stringify update_data)")
         raise HTTPException(status_code=503, detail="Database error") from exc
 
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Alumni profile not found")
+    # If upsert created a new document, matched_count may be 0 but upserted_id will be set.
+    # Continue and fetch the resulting document in either case.
 
-    updated_profile = await profiles.find_one(profile_filter)
-    user_object_id = updated_profile.get("user_id")
-    user_update = {}
-    if update_data.get("full_name") is not None:
-        user_update["full_name"] = update_data["full_name"]
-    if update_data.get("email") is not None:
-        user_update["email"] = update_data["email"]
-    if user_update:
-        user_update["updated_at"] = datetime.now(timezone.utc)
-        await users.update_one({"_id": user_object_id}, {"$set": user_update})
-    user = await users.find_one({"_id": user_object_id})
-    return _merge_profile_with_user(updated_profile, user)
+    updated_document = await profiles.find_one({"_id": object_id})
+    return _serialize_document(updated_document)
 
 
 @router.post("/alumni/simple")
@@ -295,16 +212,12 @@ class AlumniListResponse(BaseModel):
 @router.get("/alumni")
 async def list_alumni_profiles(offset: int = 0, limit: int = 25) -> AlumniListResponse:
     client = get_motor_client()
-    profiles = alumni_profiles_collection(client)
-    users = users_collection(client)
+    collection = _users_collection(client)
 
     try:
-        cursor = profiles.find().skip(offset).limit(limit)
-        documents = []
-        async for profile in cursor:
-            user = await users.find_one({"_id": profile.get("user_id")})
-            documents.append(_merge_profile_with_user(profile, user))
-        total = await profiles.count_documents({})
+        cursor = collection.find().skip(offset).limit(limit)
+        documents = [ _serialize_document(doc) async for doc in cursor ]
+        total = await collection.count_documents({})
     except PyMongoError as exc:
         logger.exception("Database error listing alumni profiles")
         raise HTTPException(status_code=503, detail="Database error") from exc
@@ -325,7 +238,7 @@ async def upload_alumni_profile_picture(alumni_id: str, profile_picture: UploadF
 
     uploads_dir = Path(__file__).resolve().parents[3] / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{alumni_id}_{Path(profile_picture.filename).name}".replace(" ", "_")
+    filename = f"{alumni_id}_{Path(profile_picture.filename).name}".replace(' ', '_')
     saved_path = uploads_dir / filename
 
     try:
@@ -335,19 +248,14 @@ async def upload_alumni_profile_picture(alumni_id: str, profile_picture: UploadF
         logger.exception("Error saving profile picture")
         raise HTTPException(status_code=500, detail="Could not save profile picture") from exc
 
-    client = get_motor_client()
-    profiles = alumni_profiles_collection(client)
+    client = get_motor_client() 
+    collection = _users_collection(client)
 
     try:
-        result = await profiles.update_one(
+        await collection.update_one(
             {"_id": object_id},
-            {"$set": {"profile_picture": f"uploads/{filename}", "updated_at": datetime.now(timezone.utc)}},
+            {"$set": {"profile_picture": f"uploads/{filename}", "updated_at": datetime.now(timezone.utc)}}
         )
-        if result.matched_count == 0:
-            await profiles.update_one(
-                {"user_id": object_id},
-                {"$set": {"profile_picture": f"uploads/{filename}", "updated_at": datetime.now(timezone.utc)}},
-            )
     except PyMongoError as exc:
         logger.exception("Database error updating profile picture path")
         raise HTTPException(status_code=503, detail="Database error") from exc

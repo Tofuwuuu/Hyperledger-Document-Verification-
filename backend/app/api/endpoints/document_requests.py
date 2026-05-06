@@ -24,6 +24,22 @@ from app.utils.auth import get_current_user
 router = APIRouter()
 
 
+def _backend_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _uploads_root() -> Path:
+    return _backend_root() / "uploads"
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
 class DocumentRequestCreate(BaseModel):
     document_type: str
     purpose: str | None = None
@@ -77,14 +93,28 @@ def _document_file_path(document: dict[str, Any]) -> Path:
     file_path = document.get("file_path")
     if not isinstance(file_path, str) or not file_path:
         raise HTTPException(status_code=404, detail="Document file path is missing")
-    full_path = Path(__file__).resolve().parents[3] / file_path
+    uploads_root = _uploads_root().resolve()
+    full_path = (_backend_root() / file_path).resolve()
+    if not _is_relative_to(full_path, uploads_root):
+        raise HTTPException(status_code=400, detail="Document file path is invalid")
     if not full_path.exists():
+        raise HTTPException(status_code=404, detail="Document file not found in server storage")
+    if not full_path.is_file():
         raise HTTPException(status_code=404, detail="Document file not found in server storage")
     return full_path
 
 
 def _document_hash(raw: bytes) -> str:
     return sha256(raw).hexdigest()
+
+
+def _mongo_hash_matches_verified_document(document: dict[str, Any], computed_hash: str) -> bool:
+    persisted_hash = document.get("blockchain_hash")
+    return (
+        document.get("verification_status") == "verified"
+        and isinstance(persisted_hash, str)
+        and persisted_hash == computed_hash
+    )
 
 
 async def _resolve_uploaded_document(client, request: dict[str, Any]) -> dict[str, Any]:
@@ -122,6 +152,8 @@ async def _verify_document_release_integrity(document: dict[str, Any]) -> tuple[
             detail=verification.get("message", "Blockchain verification failed during document release"),
         )
     if not verification.get("verified"):
+        if verification.get("record") is None and _mongo_hash_matches_verified_document(document, computed_hash):
+            return computed_hash, full_path
         raise HTTPException(
             status_code=409,
             detail="Document integrity verification failed. The stored file no longer matches the blockchain record.",

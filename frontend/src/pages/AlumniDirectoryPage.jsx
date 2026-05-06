@@ -80,9 +80,9 @@ export default function AlumniDirectoryPage() {
   };
 
   // Extract unique programs, departments and years from alumni data
-  const programs = [...new Set(alumni.map(a => a.course))].filter(Boolean);
-  const departments = [...new Set(alumni.map(a => a.department))].filter(Boolean);
-  const years = [...new Set(alumni.map(a => a.graduation_year))].sort((a, b) => b - a);
+  const programs = [...new Set(alumni.map(a => String(a.course || '').trim()).filter(Boolean))];
+  const departments = [...new Set(alumni.map(a => String(a.department || '').trim()).filter(Boolean))];
+  const years = [...new Set(alumni.map(a => Number(a.graduation_year)).filter(Number.isFinite))].sort((a, b) => b - a);
 
   // Calculate number of pages
   const totalPages = Math.ceil(totalAlumni / limit);
@@ -96,7 +96,30 @@ export default function AlumniDirectoryPage() {
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       return `${baseUrl}/${profilePicture}`;
     }
-    return 'https://via.placeholder.com/150?text=No+Image';
+    return null;
+  };
+
+  const getAlumnusKey = (alumnus, index) => {
+    return alumnus._id || alumnus.id || alumnus.user_id || `${alumnus.full_name || 'alumnus'}-${index}`;
+  };
+
+  const renderAvatar = (alumnus) => {
+    const imageUrl = getProfileImageUrl(alumnus.profile_picture);
+    if (imageUrl) {
+      return (
+        <img
+          src={imageUrl}
+          alt={alumnus.full_name || 'Alumni profile'}
+          className="h-16 w-16 rounded-full object-cover"
+        />
+      );
+    }
+
+    return (
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cvsu-green/10 text-cvsu-green">
+        <AcademicCapIcon className="h-8 w-8" aria-hidden="true" />
+      </div>
+    );
   };
 
   return (
@@ -121,14 +144,10 @@ export default function AlumniDirectoryPage() {
               Featured Alumni
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {featuredAlumni.map((alumnus) => (
-                <div key={alumnus._id} className="bg-white p-6 rounded-lg shadow-md">
+              {featuredAlumni.map((alumnus, index) => (
+                <div key={getAlumnusKey(alumnus, index)} className="bg-white p-6 rounded-lg shadow-md">
                   <div className="flex items-center space-x-4">
-                    <img
-                      src={getProfileImageUrl(alumnus.profile_picture)}
-                      alt={alumnus.full_name}
-                      className="h-16 w-16 rounded-full object-cover"
-                    />
+                    {renderAvatar(alumnus)}
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
                         <Link to={`/alumni/${alumnus._id}`} className="hover:text-cvsu-green">
@@ -189,8 +208,8 @@ export default function AlumniDirectoryPage() {
               onChange={(e) => setSelectedDepartment(e.target.value)}
             >
               <option value="">All Departments</option>
-              {departments.map((department) => (
-                <option key={department} value={department}>
+              {departments.map((department, index) => (
+                <option key={`department-${department}-${index}`} value={department}>
                   {department}
                 </option>
               ))}
@@ -208,8 +227,8 @@ export default function AlumniDirectoryPage() {
               onChange={(e) => setSelectedProgram(e.target.value)}
             >
               <option value="">All Programs</option>
-              {programs.map((program) => (
-                <option key={program} value={program}>
+              {programs.map((program, index) => (
+                <option key={`program-${program}-${index}`} value={program}>
                   {program}
                 </option>
               ))}
@@ -228,7 +247,7 @@ export default function AlumniDirectoryPage() {
             >
               <option value="">All Years</option>
               {years.map((year) => (
-                <option key={year} value={year}>
+                <option key={`year-${year}`} value={year}>
                   {year}
                 </option>
               ))}
@@ -265,19 +284,15 @@ export default function AlumniDirectoryPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {alumni.map((alumnus) => (
+              {alumni.map((alumnus, index) => (
                 <Link 
-                  key={alumnus._id} 
+                  key={getAlumnusKey(alumnus, index)} 
                   to={`/alumni/${alumnus._id}`}
                   className="block bg-white shadow rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                 >
                   <div className="p-6">
                     <div className="flex items-center space-x-4">
-                      <img
-                        src={getProfileImageUrl(alumnus.profile_picture)}
-                        alt={alumnus.full_name}
-                        className="h-16 w-16 rounded-full object-cover"
-                      />
+                      {renderAvatar(alumnus)}
                       <div>
                         <h3 className="text-lg font-medium text-gray-900">{alumnus.full_name}</h3>
                         <p className="text-sm text-gray-500">{alumnus.course}</p>

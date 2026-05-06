@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { adminDocumentRequestService } from '../../services/api';
+import { adminDocumentRequestService, documentRequestService } from '../../services/api';
 import { getDocumentTypeLabel } from '../../constants/documentTypes';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,6 +22,7 @@ const AdminDocumentRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -163,6 +164,23 @@ const AdminDocumentRequests = () => {
 
   const formatDocumentType = (type) => {
     return getDocumentTypeLabel(type);
+  };
+
+  const handleDownloadDocument = async () => {
+    if (!selectedRequest) return;
+
+    setIsDownloading(true);
+    try {
+      const response = await documentRequestService.downloadGeneratedDocument(selectedRequest._id);
+      if (!response.success) {
+        toast.error(response.error || 'Failed to download document');
+      }
+    } catch (error) {
+      toast.error('An unexpected error occurred');
+      console.error('Error downloading document:', error);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -431,15 +449,15 @@ const AdminDocumentRequests = () => {
                 )}
 
                 {selectedRequest.status === 'completed' && selectedRequest.document_id && (
-                  <a
-                    href={`/api/v1/document-requests/${selectedRequest._id}/download`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={handleDownloadDocument}
+                    disabled={isDownloading}
                     className="mr-2 inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                   >
                     <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-                    Download
-                  </a>
+                    {isDownloading ? 'Downloading...' : 'Download'}
+                  </button>
                 )}
               </div>
             </div>
