@@ -81,6 +81,7 @@ services:
     environment:
       - MONGODB_URL=mongodb://mongodb:27017/cvsu_alumni
       - BLOCKCHAIN_ENABLED=true
+      - USE_REAL_BLOCKCHAIN=true
       - CHAINCODE_NAME=final-smart-contract
       - FABRIC_GATEWAY_URL=http://fabric-gateway:3001
       - ENV=development
@@ -127,4 +128,4 @@ networks:
 
 volumes:
   mongodb_data:
-    name: cvsu_alumni_mongodb_data 
+    name: cvsu_alumni_mongodb_data

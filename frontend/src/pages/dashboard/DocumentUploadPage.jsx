@@ -205,7 +205,7 @@ export default function DocumentUploadPage() {
         file
       });
       
-      setSuccess('Document uploaded successfully. It is now pending admin approval and will be recorded on the blockchain once approved.');
+      setSuccess('Document uploaded and pending admin verification. It will be recorded on the blockchain after approval.');
       
       // Reset form
       setTitle('');

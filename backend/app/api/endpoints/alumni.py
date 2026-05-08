@@ -56,11 +56,24 @@ async def alumni_health() -> dict[str, str]:
 @router.get("/alumni/user/{user_id}")
 async def get_alumni_by_user(user_id: str) -> dict[str, Any]:
     client = get_motor_client()
-    collection = _users_collection(client)
+    profiles = alumni_profiles_collection(client)
+    users = _users_collection(client)
     object_id = _get_object_id(user_id)
-    query = {"_id": object_id} if object_id is not None else {"user_id": user_id}
+    profile_queries: list[dict[str, Any]] = []
+    if object_id is not None:
+        profile_queries.extend([{"_id": object_id}, {"user_id": object_id}])
+    profile_queries.append({"user_id": user_id})
+
     try:
-        document = await collection.find_one(query)
+        document = None
+        for query in profile_queries:
+            document = await profiles.find_one(query)
+            if document:
+                break
+
+        if not document:
+            user_query = {"_id": object_id} if object_id is not None else {"user_id": user_id}
+            document = await users.find_one(user_query)
     except PyMongoError as exc:
         logger.exception("Database error fetching alumni profile by user_id")
         raise HTTPException(status_code=503, detail="Database error") from exc
@@ -74,13 +87,18 @@ async def get_alumni_by_user(user_id: str) -> dict[str, Any]:
 @router.get("/alumni/{alumni_id}")
 async def get_alumni_by_id(alumni_id: str) -> dict[str, Any]:
     client = get_motor_client()
-    collection = _users_collection(client)
+    profiles = alumni_profiles_collection(client)
+    users = _users_collection(client)
     object_id = _get_object_id(alumni_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
     try:
-        document = await collection.find_one({"_id": object_id})
+        document = await profiles.find_one({"_id": object_id})
+        if not document:
+            document = await profiles.find_one({"user_id": object_id})
+        if not document:
+            document = await users.find_one({"_id": object_id})
     except PyMongoError as exc:
         logger.exception("Database error fetching alumni profile by id")
         raise HTTPException(status_code=503, detail="Database error") from exc
@@ -130,7 +148,7 @@ async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) ->
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
     update_data = payload.dict(exclude_unset=True)
-    update_data.pop("user_id", None)
+    payload_user_id = update_data.pop("user_id", None)
     update_data.pop("password_hash", None)
     update_data.pop("hashed_password", None)
     update_data.pop("is_admin", None)
@@ -155,6 +173,9 @@ async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) ->
     _remove_id_keys(update_data)
 
     update_data["updated_at"] = datetime.now(timezone.utc)
+    owner_id = _get_object_id(str(payload_user_id)) if payload_user_id else object_id
+    if owner_id is not None:
+        update_data["user_id"] = owner_id
 
     profile_filter = {"_id": object_id}
 

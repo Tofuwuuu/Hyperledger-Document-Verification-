@@ -48,7 +48,10 @@ async def _resolve_profile(client, alumni_id: str) -> tuple[dict[str, Any] | Non
 
     profile = await profiles.find_one({"_id": object_id})
     if profile:
-        user = await users.find_one({"_id": profile.get("user_id")})
+        owner_id = profile.get("user_id") or object_id
+        user = await users.find_one({"_id": owner_id})
+        if not profile.get("user_id") and user:
+            profile["user_id"] = owner_id
         return profile, user
 
     profile = await profiles.find_one({"user_id": object_id})
@@ -57,6 +60,19 @@ async def _resolve_profile(client, alumni_id: str) -> tuple[dict[str, Any] | Non
         return profile, user
 
     return None, None
+
+
+def _profile_belongs_to_current_user(profile: dict[str, Any], current_user: dict[str, Any]) -> bool:
+    if current_user.get("is_admin"):
+        return True
+
+    current_user_id = str(current_user.get("sub") or "")
+    owner_ids = {
+        str(value)
+        for value in (profile.get("user_id"), profile.get("_id"))
+        if value is not None
+    }
+    return current_user_id in owner_ids
 
 
 def _serialize_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -89,8 +105,7 @@ async def upload_document(
     if not is_supported_document_type(normalized_document_type):
         raise HTTPException(status_code=400, detail="Unsupported document type")
 
-    current_user_id = current_user.get("sub")
-    if not current_user.get("is_admin") and str(profile.get("user_id")) != str(current_user_id):
+    if not _profile_belongs_to_current_user(profile, current_user):
         raise HTTPException(status_code=403, detail="Not allowed to upload for this alumni profile")
 
     filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{Path(file.filename).name}".replace(" ", "_")
@@ -103,7 +118,7 @@ async def upload_document(
 
     now = datetime.now(timezone.utc)
     doc = {
-        "user_id": profile.get("user_id"),
+        "user_id": profile.get("user_id") or profile.get("_id"),
         "alumni_profile_id": profile.get("_id"),
         "student_id": profile.get("student_id"),
         "document_type": normalized_document_type,
@@ -137,8 +152,7 @@ async def get_alumni_documents(alumni_id: str, current_user: dict = Depends(_req
     if not profile:
         return []
 
-    current_user_id = current_user.get("sub")
-    if not current_user.get("is_admin") and str(profile.get("user_id")) != str(current_user_id):
+    if not _profile_belongs_to_current_user(profile, current_user):
         raise HTTPException(status_code=403, detail="Not allowed to view documents for this alumni profile")
 
     cursor = documents_collection(client).find({"alumni_profile_id": profile.get("_id")}).sort("created_at", -1)

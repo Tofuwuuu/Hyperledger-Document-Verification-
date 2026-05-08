@@ -163,6 +163,20 @@ const getStoredProfile = (userId) => {
   }
 };
 
+const normalizeProfileResponse = (responseData, fallbackData = {}) => {
+  const responseProfile = responseData?.profile || (!responseData?.success ? responseData : {});
+  const profileId = responseProfile?.id || responseProfile?._id || responseData?.id || fallbackData?.id;
+
+  return buildDashboardProfileData({
+    ...fallbackData,
+    ...responseProfile,
+    id: profileId,
+    graduation_year: (responseProfile?.graduation_year || fallbackData?.graduation_year)
+      ? String(responseProfile?.graduation_year || fallbackData?.graduation_year)
+      : ''
+  });
+};
+
 export default function ProfilePage() {
   const { currentUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -828,37 +842,52 @@ export default function ProfilePage() {
         }
       }
 
-      if (userId) {
-        storeProfileLocally(
-          userId,
-          buildDashboardProfileData(response?.data?.profile || response?.data || { ...profileData, id: response?.data?.id || profileData.id })
-        );
-      }
-      
       // Update the local profile state with the response data
       if (response && response.data) {
-        // If it's just success status without full data, fetch the profile
-        if (response.data.success && response.data.id && !response.data.full_name) {
+        const updatedProfile = normalizeProfileResponse(response.data, profileData);
+
+        if (response.data.profile || !response.data.success) {
+          setProfile(updatedProfile);
+          setInitialProfile(updatedProfile);
+          calculateCompletionPercentage(updatedProfile);
+
+          if (userId) {
+            storeProfileLocally(userId, updatedProfile);
+          }
+        } else if (response.data.success && response.data.id) {
+          // If it's just a success status without profile data, fetch the profile.
           try {
             const fetchResponse = await alumniService.getProfile(response.data.id);
-            setProfile(buildDashboardProfileData(fetchResponse.data));
-            setInitialProfile(buildDashboardProfileData(fetchResponse.data));
+            const fetchedProfile = normalizeProfileResponse(fetchResponse.data, {
+              ...profileData,
+              id: response.data.id
+            });
+
+            setProfile(fetchedProfile);
+            setInitialProfile(fetchedProfile);
             
             // Calculate and update completion percentage
-            calculateCompletionPercentage(fetchResponse.data);
+            calculateCompletionPercentage(fetchedProfile);
+
+            if (userId) {
+              storeProfileLocally(userId, fetchedProfile);
+            }
           } catch (fetchError) {
             console.error('Error fetching updated profile:', fetchError);
             // Still update with what we have
-            setProfile(buildDashboardProfileData({ ...profileData, id: response.data.id }));
-            setInitialProfile(buildDashboardProfileData({ ...profileData, id: response.data.id }));
+            const fallbackProfile = normalizeProfileResponse(
+              { success: true, id: response.data.id },
+              profileData
+            );
+
+            setProfile(fallbackProfile);
+            setInitialProfile(fallbackProfile);
+            calculateCompletionPercentage(fallbackProfile);
+
+            if (userId) {
+              storeProfileLocally(userId, fallbackProfile);
+            }
           }
-        } else {
-          // We have the full profile data in the response
-      setProfile(buildDashboardProfileData(response.data));
-          setInitialProfile(buildDashboardProfileData(response.data));
-          
-          // Calculate and update completion percentage
-          calculateCompletionPercentage(response.data);
         }
       }
       

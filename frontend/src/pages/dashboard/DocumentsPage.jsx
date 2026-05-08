@@ -362,7 +362,9 @@ export default function DocumentsPage() {
                 <CheckCircleIcon className="h-5 w-5 text-green-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-green-800">Document was uploaded successfully!</p>
+                <p className="text-sm font-medium text-green-800">
+                  Document uploaded and pending admin verification. It will be recorded on the blockchain after approval.
+                </p>
               </div>
             </div>
           </div>

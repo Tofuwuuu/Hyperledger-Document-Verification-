@@ -28,6 +28,10 @@ function New-CleanDir([string]$Path) {
   New-Item -ItemType Directory -Path $Path | Out-Null
 }
 
+function Remove-CleanDir([string]$Path) {
+  if (Test-Path $Path) { Remove-Item -Recurse -Force $Path }
+}
+
 Write-Host "Starting Hyperledger Fabric network (Docker)..." -ForegroundColor Cyan
 
 Assert-DockerRunning
@@ -40,14 +44,26 @@ Push-Location $workdir
 
 Write-Host "Cleaning any existing Fabric containers/volumes..." -ForegroundColor Cyan
 docker compose -f docker-compose-fabric.yml down -v --remove-orphans
+$fabricContainers = @("ca.org1.example.com", "couchdb0", "orderer.example.com", "peer0.org1.example.com", "fabric-cli")
+foreach ($container in $fabricContainers) {
+  $containerExists = docker ps -a --format "{{.Names}}" | Where-Object { $_ -eq $container }
+  if ($containerExists) {
+    docker rm -f $container *> $null
+  }
+}
 
-New-CleanDir (Join-Path $workdir "organizations")
+Remove-CleanDir (Join-Path $workdir "organizations")
 New-CleanDir (Join-Path $workdir "system-genesis-block")
 New-CleanDir (Join-Path $workdir "channel-artifacts")
 
 Write-Host "Generating crypto material (cryptogen)..." -ForegroundColor Cyan
-docker compose -f docker-compose-fabric.yml run --rm cli sh -c "cryptogen generate --config=/workdir/config/crypto-config.yaml --output=/workdir/organizations"
+$cryptoArchive = Join-Path $workdir "generated-organizations.tar.gz"
+if (Test-Path $cryptoArchive) { Remove-Item -Force $cryptoArchive }
+docker compose -f docker-compose-fabric.yml run --rm cli sh -c "rm -rf /tmp/organizations && cryptogen generate --config=/workdir/config/crypto-config.yaml --output=/tmp/organizations && tar -C /tmp/organizations -czf /workdir/generated-organizations.tar.gz ."
 Assert-LastExitCode "cryptogen generate"
+New-CleanDir (Join-Path $workdir "organizations")
+tar -xzf $cryptoArchive -C (Join-Path $workdir "organizations")
+Remove-Item -Force $cryptoArchive
 
 Write-Host "Generating genesis block + channel tx (configtxgen)..." -ForegroundColor Cyan
 docker compose -f docker-compose-fabric.yml run --rm cli sh -c "FABRIC_CFG_PATH=/workdir/config configtxgen -profile AlumniGenesis -channelID system-channel -outputBlock /workdir/system-genesis-block/genesis.block && FABRIC_CFG_PATH=/workdir/config configtxgen -profile AlumniChannel -outputCreateChannelTx /workdir/channel-artifacts/$ChannelName.tx -channelID $ChannelName"

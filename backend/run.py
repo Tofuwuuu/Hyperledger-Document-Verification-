@@ -2,11 +2,14 @@ import os
 import sys
 
 import uvicorn
+from dotenv import load_dotenv
 
 
 def main() -> None:
     # Ensure `backend/app` is imported as `app` (this repo also has a top-level `app/` dir).
     backend_dir = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(backend_dir, ".env"))
+
     if backend_dir not in sys.path:
         sys.path.insert(0, backend_dir)
 

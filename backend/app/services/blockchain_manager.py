@@ -80,27 +80,19 @@ class BlockchainManager:
             
             if FABRIC_CLIENT_AVAILABLE:
                 try:
-                    # Create real client
-                    if os.path.exists(NETWORK_CONFIG_PATH):
-                        self.client = FabricClient(
-                            connection_profile_path=NETWORK_CONFIG_PATH,
-                            channel_name=CHANNEL_NAME
-                        )
-                        connected = self.client.connect()
-                        if asyncio.iscoroutine(connected):
-                            connected = await connected
-                        if not connected:
-                            logger.error("Failed to connect to Fabric network. Falling back to mock implementation.")
-                            self.use_real_blockchain = False
-                            return False
-                        return True
-                    else:
-                        logger.error(f"Connection profile not found at {NETWORK_CONFIG_PATH}")
-                        self.use_real_blockchain = False
+                    self.client = FabricClient(
+                        connection_profile_path=NETWORK_CONFIG_PATH,
+                        channel_name=CHANNEL_NAME
+                    )
+                    connected = self.client.connect()
+                    if asyncio.iscoroutine(connected):
+                        connected = await connected
+                    if not connected:
+                        logger.error("Failed to connect to Fabric Gateway.")
                         return False
+                    return True
                 except Exception as e:
                     logger.error(f"Error initializing Fabric client: {str(e)}")
-                    self.use_real_blockchain = False
                     return False
         return True
     
@@ -143,8 +135,11 @@ class BlockchainManager:
                             "document_id": document_id
                         }
                 else:
-                    # Fall back to mock implementation
-                    logger.warning("Real blockchain client not available. Using mock implementation.")
+                    return {
+                        "success": False,
+                        "message": "Real blockchain mode is enabled, but the Fabric Gateway is not available.",
+                        "document_id": document_id,
+                    }
             
             # Use mock implementation
             result = await store_document_hash(document_id, document_hash, metadata)
@@ -217,8 +212,11 @@ class BlockchainManager:
                             "document_id": document_id
                         }
                 else:
-                    # Fall back to mock implementation
-                    logger.warning("Real blockchain client not available. Using mock implementation.")
+                    return {
+                        "success": False,
+                        "message": "Real blockchain mode is enabled, but the Fabric Gateway is not available.",
+                        "document_id": document_id,
+                    }
             
             # Use mock implementation
             result = await verify_document_hash(document_id, document_hash)
@@ -269,7 +267,11 @@ class BlockchainManager:
                         "hash": document_hash,
                     }
 
-                logger.warning("Real blockchain client not available. Using mock implementation.")
+                return {
+                    "success": False,
+                    "message": "Real blockchain mode is enabled, but the Fabric Gateway is not available.",
+                    "hash": document_hash,
+                }
 
             result = await verify_hash_value(document_hash)
             if result.get("success"):
@@ -328,8 +330,11 @@ class BlockchainManager:
                             "document_id": document_id
                         }
                 else:
-                    # Fall back to mock implementation
-                    logger.warning("Real blockchain client not available. Using mock implementation.")
+                    return {
+                        "success": False,
+                        "message": "Real blockchain mode is enabled, but the Fabric Gateway is not available.",
+                        "document_id": document_id,
+                    }
             
             # Use mock implementation
             result = await get_document_history(document_id)

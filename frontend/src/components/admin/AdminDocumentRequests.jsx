@@ -75,7 +75,7 @@ const AdminDocumentRequests = () => {
       const response = await adminDocumentRequestService.generateDocument(selectedRequest._id);
       
       if (response.success) {
-        toast.success('Document generated successfully');
+        toast.success('Blockchain-verified uploaded document released successfully');
         
         // Update the request in the list
         setRequests(requests.map(r => 
@@ -94,7 +94,7 @@ const AdminDocumentRequests = () => {
         // Refresh the list
         fetchRequests();
       } else {
-        toast.error(response.error || 'Failed to generate document');
+        toast.error(response.error || 'No approved blockchain-verified uploaded document is available for this request type');
       }
     } catch (error) {
       toast.error('An unexpected error occurred');

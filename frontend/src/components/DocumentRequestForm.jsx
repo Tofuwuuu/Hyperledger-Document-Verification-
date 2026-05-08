@@ -40,6 +40,9 @@ const DocumentRequestForm = ({ onRequestCreated }) => {
   return (
     <div className="bg-white p-4 sm:p-6 shadow rounded-lg">
       <h2 className="text-lg font-medium text-gray-900 mb-4">Request a Document</h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Requests can only be released from documents you already uploaded, admin approved, and recorded on the blockchain.
+      </p>
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           <div>

@@ -74,7 +74,11 @@ def _serialize_request(request: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _find_profile_by_user(client, user_id: str) -> dict[str, Any] | None:
-    return await alumni_profiles_collection(client).find_one({"user_id": ObjectId(user_id)})
+    object_id = ObjectId(user_id)
+    profile = await alumni_profiles_collection(client).find_one({"user_id": object_id})
+    if profile:
+        return profile
+    return await alumni_profiles_collection(client).find_one({"_id": object_id})
 
 
 async def _enrich_request(client, request: dict[str, Any]) -> dict[str, Any]:
@@ -140,6 +144,24 @@ async def _resolve_uploaded_document(client, request: dict[str, Any]) -> dict[st
     return document
 
 
+async def _has_verified_uploaded_document(client, user_id: ObjectId, document_type: str) -> bool:
+    matching_types = list(equivalent_document_types(document_type))
+    if not matching_types:
+        return False
+
+    document = await documents_collection(client).find_one(
+        {
+            "user_id": user_id,
+            "document_type": {"$in": matching_types},
+            "status": "approved",
+            "verification_status": "verified",
+            "blockchain_hash": {"$type": "string"},
+        },
+        {"_id": 1},
+    )
+    return document is not None
+
+
 async def _verify_document_release_integrity(document: dict[str, Any]) -> tuple[str, Path]:
     full_path = _document_file_path(document)
     content = full_path.read_bytes()
@@ -174,9 +196,19 @@ async def create_document_request(payload: DocumentRequestCreate, current_user: 
     if not is_supported_document_type(normalized_document_type):
         raise HTTPException(status_code=400, detail="Unsupported document type")
 
+    user_object_id = ObjectId(user_id)
+    if not await _has_verified_uploaded_document(client, user_object_id, normalized_document_type):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No approved blockchain-verified uploaded document is available for this request type. "
+                "Upload the document first and wait for admin verification."
+            ),
+        )
+
     now = datetime.now(timezone.utc)
     doc = {
-        "user_id": ObjectId(user_id),
+        "user_id": user_object_id,
         "document_type": normalized_document_type,
         "purpose": payload.purpose,
         "status": "pending",
