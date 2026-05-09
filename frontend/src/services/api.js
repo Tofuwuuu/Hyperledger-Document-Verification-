@@ -1334,6 +1334,22 @@ export const getUserToken = () => {
 
 // Document Request services
 export const documentRequestService = {
+  getAvailableDocumentTypes: async () => {
+    try {
+      const response = await api.get('/document-requests/available-types');
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error fetching available document request types:', error);
+      return {
+        success: false,
+        error: error.response?.data?.detail || error.message
+      };
+    }
+  },
+
   createDocumentRequest: async (documentType, purpose) => {
     try {
       const response = await api.post(`/document-requests/`, {
@@ -1393,13 +1409,21 @@ export const documentRequestService = {
       });
 
       const contentDisposition = response.headers['content-disposition'] || '';
+      const contentType = response.headers['content-type'] || response.data?.type || 'application/octet-stream';
       const headerFilenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+      const fallbackExtension = contentType.includes('pdf')
+        ? '.pdf'
+        : contentType.includes('wordprocessingml')
+          ? '.docx'
+          : contentType.includes('msword')
+            ? '.doc'
+            : '';
       const resolvedFilename = headerFilenameMatch
         ? decodeURIComponent(headerFilenameMatch[1].replace(/"/g, '').trim())
-        : (filename || 'document');
+        : (filename || `document-${requestId}${fallbackExtension}`);
 
       // Create a download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', resolvedFilename);

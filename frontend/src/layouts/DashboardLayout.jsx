@@ -11,7 +11,6 @@ import {
   ClipboardDocumentCheckIcon,
   UsersIcon,
   ArrowLeftOnRectangleIcon,
-  ArrowUpTrayIcon,
   DocumentArrowUpIcon,
   FingerPrintIcon,
   BellIcon,
@@ -23,10 +22,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import pollingService from '../services/polling';
-// import cvsuLogo from '../assets/cvsu-logo.png';
-
-// Placeholder for the logo until the actual image is added
-const cvsuLogo = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzM4YTM4OSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgYWxpZ25tZW50LWJhc2VsaW5lPSJtaWRkbGUiPkNWU1U8L3RleHQ+PC9zdmc+';
+import cvsuLogo from '../assets/cvsu-logo.png';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -158,42 +154,49 @@ export default function DashboardLayout() {
       href: '/admin/user-verification', 
       icon: FingerPrintIcon,
       current: location.pathname === '/admin/user-verification',
-      alwaysAccessible: true // Added to ensure it's always visible
+      alwaysAccessible: true,
+      section: 'Verification'
     },
     { 
       name: 'Document Verification', 
       href: '/admin/verifications', 
       icon: ClipboardDocumentCheckIcon, 
       current: location.pathname === '/admin/verifications',
-      alwaysAccessible: true
+      alwaysAccessible: true,
+      section: 'Verification',
+      badge: 'Review'
     },
     { 
       name: 'All Documents', 
       href: '/admin/admin-documents', 
       icon: DocumentCheckIcon, 
       current: location.pathname === '/admin/admin-documents',
-      alwaysAccessible: true
+      alwaysAccessible: true,
+      section: 'Documents'
     },
     {
       name: 'Manage Document Requests',
       href: '/admin/document-requests-admin',
       icon: DocumentIcon,
       current: location.pathname === '/admin/document-requests-admin',
-      alwaysAccessible: true
+      alwaysAccessible: true,
+      section: 'Documents'
     },
     { 
       name: 'User Management', 
       href: '/admin/users', 
       icon: UserGroupIcon, 
       current: location.pathname === '/admin/users',
-      alwaysAccessible: true
+      alwaysAccessible: true,
+      section: 'People'
     },
     { 
       name: 'Role Management', 
       href: '/admin/roles', 
       icon: ShieldCheckIcon, 
       current: location.pathname === '/admin/roles',
-      alwaysAccessible: true
+      alwaysAccessible: true,
+      section: 'People'
     },
     { 
       name: 'Events Management', 
@@ -201,6 +204,7 @@ export default function DashboardLayout() {
       icon: CalendarIcon, 
       current: location.pathname === '/admin/events' || location.pathname === '/admin/events/new' || location.pathname.startsWith('/admin/events/edit/'),
       alwaysAccessible: true,
+      section: 'Operations',
       subItems: [
         { 
           name: 'All Events', 
@@ -210,7 +214,7 @@ export default function DashboardLayout() {
         { 
           name: 'Event Registrations', 
           href: '/admin/event-registrations',
-          current: location.pathname.includes('/admin/events/registrations')
+          current: location.pathname === '/admin/event-registrations' || location.pathname.includes('/admin/events/registrations')
         }
       ]
     },
@@ -219,7 +223,8 @@ export default function DashboardLayout() {
       href: '/admin/alumni',
       icon: AcademicCapIcon,
       current: location.pathname === '/admin/alumni' || location.pathname.startsWith('/admin/alumni/'),
-      alwaysAccessible: true
+      alwaysAccessible: true,
+      section: 'People'
     }
   ];
 
@@ -227,6 +232,95 @@ export default function DashboardLayout() {
   const fullNavigation = isAdminUser 
     ? [...commonNavigation, ...adminOnlyNavigation] 
     : commonNavigation;
+  const activeNavigationItem = fullNavigation.find((item) => item.current);
+
+  const navigationSections = isAdminUser
+    ? [
+        { name: 'Workspace', items: commonNavigation },
+        { name: 'Verification', items: adminOnlyNavigation.filter((item) => item.section === 'Verification') },
+        { name: 'Documents', items: adminOnlyNavigation.filter((item) => item.section === 'Documents') },
+        { name: 'Operations', items: adminOnlyNavigation.filter((item) => item.section === 'Operations') },
+        { name: 'People', items: adminOnlyNavigation.filter((item) => item.section === 'People') },
+      ]
+    : [{ name: 'Menu', items: fullNavigation }];
+
+  const renderNavigationItem = (item, isCompact = false) => {
+    const isAccessible = item.alwaysAccessible || isVerified || isAdminUser;
+    const itemClasses = classNames(
+      item.current
+        ? 'bg-cvsu-green text-white shadow-sm'
+        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
+      'group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-semibold transition'
+    );
+    const iconClasses = classNames(
+      item.current ? 'text-white' : 'text-slate-400 group-hover:text-cvsu-green',
+      'h-5 w-5 shrink-0'
+    );
+
+    if (!isAccessible) {
+      return (
+        <div
+          className="flex cursor-not-allowed items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-400"
+          title="Account needs verification to access this feature"
+        >
+          <item.icon className="h-5 w-5 shrink-0 text-slate-300" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <Link
+          to={item.href}
+          className={itemClasses}
+          onClick={() => {
+            if (isCompact) {
+              setSidebarOpen(false);
+            }
+            localStorage.setItem('lastNavigation', JSON.stringify({
+              name: item.name,
+              path: item.href,
+              time: new Date().toISOString()
+            }));
+          }}
+        >
+          <item.icon className={iconClasses} aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+          {item.badge && (
+            <span
+              className={classNames(
+                item.current ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700',
+                'rounded-full px-2 py-0.5 text-[11px] font-bold'
+              )}
+            >
+              {item.badge}
+            </span>
+          )}
+        </Link>
+        {item.subItems && (
+          <ul className="ml-8 mt-1 space-y-1 border-l border-slate-200 pl-3">
+            {item.subItems.map((subItem) => (
+              <li key={subItem.name}>
+                <Link
+                  to={subItem.href}
+                  onClick={() => isCompact && setSidebarOpen(false)}
+                  className={classNames(
+                    subItem.current
+                      ? 'text-cvsu-green'
+                      : 'text-slate-500 hover:text-slate-950',
+                    'block rounded-md px-3 py-1.5 text-sm font-medium hover:bg-slate-100'
+                  )}
+                >
+                  {subItem.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </>
+    );
+  };
 
   // Debug logging for path changes
   useEffect(() => {
@@ -456,97 +550,37 @@ export default function DashboardLayout() {
                 </Transition.Child>
                 
                 {/* Sidebar component for mobile */}
-                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
-                  <div className="flex h-16 shrink-0 items-center">
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-4 pb-4">
+                  <div className="flex h-16 shrink-0 items-center px-2">
                     <img
                       className="h-10 w-auto"
                       src={cvsuLogo}
                       alt="CVSU Logo"
                     />
-                    <span className="ml-3 text-lg font-bold text-cvsu-green">CVSU-Carmona</span>
+                    <div className="ml-3">
+                      <p className="text-base font-bold text-cvsu-green">CVSU-Carmona</p>
+                      <p className="text-xs font-medium text-slate-500">{isAdminUser ? 'Admin Console' : 'Alumni Portal'}</p>
+                    </div>
                   </div>
                   <nav className="flex flex-1 flex-col">
-                    <ul role="list" className="flex flex-1 flex-col gap-y-7">
+                    <ul role="list" className="flex flex-1 flex-col gap-y-6">
+                      {navigationSections.map((section) => (
+                        <li key={section.name}>
+                          <div className="px-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">{section.name}</div>
+                          <ul role="list" className="mt-2 space-y-1">
+                            {section.items.map((item) => (
+                              <li key={item.name}>{renderNavigationItem(item, true)}</li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
                       <li>
-                        <ul role="list" className="-mx-2 space-y-1">
-                          {fullNavigation.map((item) => {
-                            // Enhanced isAccessible check without special user handling
-                            const isAccessible = item.alwaysAccessible || isVerified || isAdminUser;
-                            
-                            return (
-                              <li key={item.name}>
-                                {isAccessible ? (
-                                  <Link
-                                    to={item.href}
-                                    className={classNames(
-                                      item.current
-                                        ? 'bg-gray-50 text-cvsu-green'
-                                        : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                      'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                                    )}
-                                    onClick={() => {
-                                      console.log(`Navigation clicked: ${item.name} -> ${item.href}`);
-                                      // Add path to localStorage to debug route changes
-                                      localStorage.setItem('lastNavigation', JSON.stringify({
-                                        name: item.name,
-                                        path: item.href,
-                                        time: new Date().toISOString()
-                                      }));
-                                    }}
-                                  >
-                                    <item.icon
-                                      className={classNames(
-                                        item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
-                                        'h-6 w-6 shrink-0'
-                                      )}
-                                      aria-hidden="true"
-                                    />
-                                    {item.name}
-                                  </Link>
-                                ) : (
-                                  <div
-                                    className="text-gray-400 cursor-not-allowed flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
-                                    title="Account needs verification to access this feature"
-                                  >
-                                    <item.icon
-                                      className="text-gray-300 h-6 w-6 shrink-0"
-                                      aria-hidden="true"
-                                    />
-                                    {item.name}
-                                    <span className="ml-2 text-xs text-red-400">(Needs verification)</span>
-                                  </div>
-                                )}
-                                {item.subItems && isAccessible && (
-                                  <ul className="mt-1 pl-8 space-y-1">
-                                    {item.subItems.map((subItem) => (
-                                      <li key={subItem.name}>
-                                        <Link
-                                          to={subItem.href}
-                                          className={classNames(
-                                            subItem.current
-                                              ? 'bg-gray-50 text-cvsu-green'
-                                              : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                            'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
-                                          )}
-                                        >
-                                          {subItem.name}
-                                        </Link>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </li>
-                      <li>
-                        <div className="-mx-2 mt-auto">
+                        <div className="mt-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
                           <button
                             onClick={handleLogout}
-                            className="flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50"
+                            className="flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
                           >
-                            <ArrowLeftOnRectangleIcon className="h-6 w-6 text-gray-400" aria-hidden="true" />
+                            <ArrowLeftOnRectangleIcon className="h-5 w-5 text-slate-400" aria-hidden="true" />
                             Log out
                           </button>
                         </div>
@@ -562,97 +596,39 @@ export default function DashboardLayout() {
 
       {/* Static sidebar for desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
-          <div className="flex h-16 shrink-0 items-center">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-200 bg-white px-4 pb-4">
+          <div className="flex h-20 shrink-0 items-center rounded-b-2xl bg-cvsu-green/5 px-3">
             <img
               className="h-10 w-auto"
               src={cvsuLogo}
               alt="CVSU Logo"
             />
-            <span className="ml-3 text-lg font-bold text-cvsu-green">CVSU-Carmona</span>
+            <div className="ml-3">
+              <p className="text-base font-bold text-cvsu-green">CVSU-Carmona</p>
+              <p className="text-xs font-medium text-slate-500">{isAdminUser ? 'Admin Console' : 'Alumni Portal'}</p>
+            </div>
           </div>
           <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              <li>
-                <div className="text-xs font-semibold leading-6 text-gray-400">MENU</div>
-                <ul role="list" className="-mx-2 mt-2 space-y-1">
-                  {fullNavigation.map((item) => {
-                    // Enhanced isAccessible check without special user handling
-                    const isAccessible = item.alwaysAccessible || isVerified || isAdminUser;
-                    
-                    return (
-                      <li key={item.name}>
-                        {isAccessible ? (
-                          <Link
-                            to={item.href}
-                            className={classNames(
-                              item.current
-                                ? 'bg-gray-50 text-cvsu-green'
-                                : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                              'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold'
-                            )}
-                            onClick={() => {
-                              console.log(`Navigation clicked: ${item.name} -> ${item.href}`);
-                              // Add path to localStorage to debug route changes
-                              localStorage.setItem('lastNavigation', JSON.stringify({
-                                name: item.name,
-                                path: item.href,
-                                time: new Date().toISOString()
-                              }));
-                            }}
-                          >
-                            <item.icon
-                              className={classNames(
-                                item.current ? 'text-cvsu-green' : 'text-gray-400 group-hover:text-cvsu-green',
-                                'h-6 w-6 shrink-0'
-                              )}
-                              aria-hidden="true"
-                            />
-                            {item.name}
-                          </Link>
-                        ) : (
-                          <div
-                            className="text-gray-400 cursor-not-allowed flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
-                            title="Account needs verification to access this feature"
-                          >
-                            <item.icon
-                              className="text-gray-300 h-6 w-6 shrink-0"
-                              aria-hidden="true"
-                            />
-                            {item.name}
-                            <span className="ml-2 text-xs text-red-400">(Needs verification)</span>
-                          </div>
-                        )}
-                        {item.subItems && isAccessible && (
-                          <ul className="mt-1 pl-8 space-y-1">
-                            {item.subItems.map((subItem) => (
-                              <li key={subItem.name}>
-                                <Link
-                                  to={subItem.href}
-                                  className={classNames(
-                                    subItem.current
-                                      ? 'bg-gray-50 text-cvsu-green'
-                                      : 'text-gray-700 hover:text-cvsu-green hover:bg-gray-50',
-                                    'group flex gap-x-3 rounded-md p-2 text-sm leading-6'
-                                  )}
-                                >
-                                  {subItem.name}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-              <li className="-mx-2 mt-auto">
+            <ul role="list" className="flex flex-1 flex-col gap-y-6">
+              {navigationSections.map((section) => (
+                <li key={section.name}>
+                  <div className="px-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">{section.name}</div>
+                  <ul role="list" className="mt-2 space-y-1">
+                    {section.items.map((item) => (
+                      <li key={item.name}>{renderNavigationItem(item)}</li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+              <li className="mt-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 px-1 text-xs font-medium text-slate-500">
+                  Signed in as {currentUser?.full_name || currentUser?.email || 'Administrator'}
+                </p>
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-gray-50"
+                  className="flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
                 >
-                  <ArrowLeftOnRectangleIcon className="h-6 w-6 text-gray-400" aria-hidden="true" />
+                  <ArrowLeftOnRectangleIcon className="h-5 w-5 text-slate-400" aria-hidden="true" />
                   Log out
                 </button>
               </li>
@@ -662,8 +638,8 @@ export default function DashboardLayout() {
       </div>
 
       {/* Top header and content */}
-      <div className="lg:pl-72">
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-slate-50 lg:pl-72">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-slate-200 bg-white/95 px-4 shadow-sm backdrop-blur sm:gap-x-6 sm:px-6 lg:px-8">
           <button type="button" className="-m-2.5 p-2.5 text-gray-700 lg:hidden" onClick={() => setSidebarOpen(true)}>
             <span className="sr-only">Open sidebar</span>
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
@@ -672,9 +648,16 @@ export default function DashboardLayout() {
           {/* Separator */}
           <div className="h-6 w-px bg-gray-200 lg:hidden" aria-hidden="true" />
 
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
+          <div className="hidden flex-1 items-center lg:flex">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{activeNavigationItem?.name || (isAdminUser ? 'Admin Console' : 'Alumni Portal')}</p>
+              <p className="text-xs text-slate-500">{isAdminUser ? 'Manage verification, documents, events, and accounts' : 'Manage your profile and records'}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-1 gap-x-4 self-stretch lg:flex-none lg:gap-x-6 justify-end">
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <Link to="/" className="text-sm text-gray-500 hover:text-gray-700 py-3">
+              <Link to="/" className="hidden rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950 sm:block">
                 Home
               </Link>
               
@@ -682,10 +665,10 @@ export default function DashboardLayout() {
               <div className="relative">
                 <Menu as="div" className="relative">
                   <div>
-                    <Menu.Button className="flex items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2">
+                    <Menu.Button className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2">
                       <span className="sr-only">Open notifications menu</span>
                       <div className="relative">
-                        <BellIcon className="h-6 w-6 text-gray-400 hover:text-gray-500" aria-hidden="true" />
+                        <BellIcon className="h-5 w-5 text-slate-500" aria-hidden="true" />
                         {unreadCount > 0 && (
                           <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-500 text-white text-xs">
                             {unreadCount > 9 ? '9+' : unreadCount}
@@ -703,7 +686,7 @@ export default function DashboardLayout() {
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
                   >
-                    <Menu.Items className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <Menu.Items className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-lg bg-white py-1 shadow-xl ring-1 ring-slate-900/10 focus:outline-none">
                       <div className="px-4 py-2 border-b flex justify-between items-center">
                         <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
                         {unreadCount > 0 && (
@@ -764,9 +747,9 @@ export default function DashboardLayout() {
               <div className="relative">
                 <Menu as="div" className="relative ml-3">
                   <div>
-                    <Menu.Button className="flex max-w-xs items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2">
+                    <Menu.Button className="flex max-w-xs items-center rounded-full border border-slate-200 bg-white p-1 text-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2">
                       <span className="sr-only">Open user menu</span>
-                      <UserCircleIcon className="h-8 w-8 text-gray-400" aria-hidden="true" />
+                      <UserCircleIcon className="h-8 w-8 text-slate-500" aria-hidden="true" />
                     </Menu.Button>
                   </div>
                   <Transition
@@ -778,7 +761,11 @@ export default function DashboardLayout() {
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
                   >
-                    <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <Menu.Items className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-lg bg-white py-1 shadow-xl ring-1 ring-slate-900/10 focus:outline-none">
+                      <div className="border-b border-slate-100 px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">{currentUser?.full_name || 'Administrator'}</p>
+                        <p className="truncate text-xs text-slate-500">{currentUser?.email || 'Admin account'}</p>
+                      </div>
                       <Menu.Item>
                         {({ active }) => (
                           <Link
@@ -855,7 +842,7 @@ export default function DashboardLayout() {
           </div>
         )}
 
-        <main className="py-10">
+        <main className="py-8">
           <div className="px-4 sm:px-6 lg:px-8">
             <Outlet />
           </div>

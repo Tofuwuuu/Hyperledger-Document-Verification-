@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.constants.document_types import (
+    DOCUMENT_TYPE_LABELS,
     document_type_label,
     equivalent_document_types,
     is_supported_document_type,
@@ -121,15 +122,28 @@ def _mongo_hash_matches_verified_document(document: dict[str, Any], computed_has
     )
 
 
+def _document_owner_filter(user_id: ObjectId, profile: dict[str, Any] | None = None) -> dict[str, Any]:
+    owner_conditions: list[dict[str, Any]] = [{"user_id": user_id}]
+    if profile and profile.get("_id"):
+        owner_conditions.extend(
+            [
+                {"alumni_profile_id": profile["_id"]},
+                {"user_id": profile["_id"]},
+            ]
+        )
+    return {"$or": owner_conditions}
+
+
 async def _resolve_uploaded_document(client, request: dict[str, Any]) -> dict[str, Any]:
     docs = documents_collection(client)
     matching_types = list(equivalent_document_types(str(request.get("document_type", ""))))
     if not matching_types:
         raise HTTPException(status_code=400, detail="Request document type is invalid")
 
+    profile = await _find_profile_by_user(client, str(request.get("user_id")))
     document = await docs.find_one(
         {
-            "user_id": request.get("user_id"),
+            **_document_owner_filter(request.get("user_id"), profile),
             "document_type": {"$in": matching_types},
             "status": "approved",
             "verification_status": "verified",
@@ -149,9 +163,10 @@ async def _has_verified_uploaded_document(client, user_id: ObjectId, document_ty
     if not matching_types:
         return False
 
+    profile = await _find_profile_by_user(client, str(user_id))
     document = await documents_collection(client).find_one(
         {
-            "user_id": user_id,
+            **_document_owner_filter(user_id, profile),
             "document_type": {"$in": matching_types},
             "status": "approved",
             "verification_status": "verified",
@@ -160,6 +175,42 @@ async def _has_verified_uploaded_document(client, user_id: ObjectId, document_ty
         {"_id": 1},
     )
     return document is not None
+
+
+async def _available_verified_document_types(client, user_id: ObjectId, profile: dict[str, Any]) -> list[dict[str, Any]]:
+    cursor = documents_collection(client).find(
+        {
+            **_document_owner_filter(user_id, profile),
+            "status": "approved",
+            "verification_status": "verified",
+            "blockchain_hash": {"$type": "string"},
+        },
+        {
+            "_id": 1,
+            "document_type": 1,
+            "title": 1,
+            "file_name": 1,
+            "verified_at": 1,
+            "updated_at": 1,
+            "created_at": 1,
+        },
+    ).sort([("verified_at", -1), ("updated_at", -1), ("created_at", -1)])
+
+    by_type: dict[str, dict[str, Any]] = {}
+    async for document in cursor:
+        normalized_type = normalize_document_type(str(document.get("document_type") or ""))
+        if normalized_type not in DOCUMENT_TYPE_LABELS or normalized_type in by_type:
+            continue
+
+        by_type[normalized_type] = {
+            "id": normalized_type,
+            "label": document_type_label(normalized_type),
+            "document_id": str(document["_id"]),
+            "title": document.get("title"),
+            "file_name": document.get("file_name"),
+        }
+
+    return list(by_type.values())
 
 
 async def _verify_document_release_integrity(document: dict[str, Any]) -> tuple[str, Path]:
@@ -232,6 +283,20 @@ async def get_document_requests(status: str | None = None, current_user: dict = 
         query["status"] = status
     cursor = document_requests_collection(client).find(query).sort("created_at", -1)
     return [_serialize_request(doc) async for doc in cursor]
+
+
+@router.get("/document-requests/available-types")
+async def get_available_document_request_types(current_user: dict = Depends(_require_auth)) -> list[dict]:
+    client = get_motor_client()
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    profile = await _find_profile_by_user(client, user_id)
+    if not profile:
+        return []
+
+    return await _available_verified_document_types(client, ObjectId(user_id), profile)
 
 
 @router.get("/document-requests/{request_id}")

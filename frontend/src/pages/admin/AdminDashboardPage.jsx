@@ -5,7 +5,11 @@ import {
   DocumentCheckIcon, 
   ChartBarIcon, 
   UserPlusIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  ArrowPathIcon,
+  ArrowRightIcon,
+  ClockIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -697,191 +701,160 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // Admin dashboard (original content)
+  const statCards = [
+    {
+      label: 'Total Alumni',
+      value: stats.totalAlumni,
+      href: '/admin/alumni',
+      action: 'View alumni',
+      icon: UsersIcon,
+      tone: 'bg-emerald-50 text-emerald-700',
+    },
+    {
+      label: 'Pending Verifications',
+      value: stats.pendingVerifications,
+      href: '/admin/verifications',
+      action: 'Review queue',
+      icon: DocumentCheckIcon,
+      tone: 'bg-amber-50 text-amber-700',
+    },
+    {
+      label: 'Verified Documents',
+      value: stats.verifiedDocuments,
+      href: '/admin/admin-documents',
+      action: 'View documents',
+      icon: ChartBarIcon,
+      tone: 'bg-cvsu-green/10 text-cvsu-green',
+    },
+    {
+      label: 'New Registrations',
+      value: stats.newRegistrations,
+      href: '/admin/new-registrations',
+      action: 'Review users',
+      icon: UserPlusIcon,
+      tone: 'bg-violet-50 text-violet-700',
+    },
+  ];
+
+  const quickActions = [
+    { label: 'Review documents', href: '/admin/verifications', icon: DocumentCheckIcon },
+    { label: 'Verify accounts', href: '/admin/user-verification', icon: ShieldCheckIcon },
+    { label: 'Manage users', href: '/admin/users', icon: UsersIcon },
+    { label: 'Add alumni', href: '/admin/alumni/add', icon: UserPlusIcon },
+    { label: 'Upload documents', href: '/admin/documents/admin-upload', icon: DocumentCheckIcon },
+    { label: 'Role management', href: '/admin/roles', icon: ShieldCheckIcon },
+  ];
+
+  const statusClass = (status) => (
+    status === 'verified' || status === 'completed'
+      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+      : status === 'pending'
+        ? 'bg-amber-50 text-amber-700 ring-amber-600/20'
+        : 'bg-slate-100 text-slate-700 ring-slate-600/20'
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Welcome to the CVSU-Carmona Alumni Document Verification System admin panel.
-        </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
-                <UsersIcon className="h-6 w-6 text-green-600" aria-hidden="true" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Total Alumni</dt>
-                  <dd>
-                    <div className="text-lg font-medium text-gray-900">{loading ? '...' : stats.totalAlumni}</div>
-                  </dd>
-                </dl>
-              </div>
+    <div className="space-y-8">
+      <section className="overflow-hidden rounded-2xl border border-cvsu-green/20 bg-cvsu-green shadow-sm">
+        <div className="px-6 py-7 sm:px-8">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-cvsu-yellow">Admin Dashboard</p>
+              <h1 className="mt-2 text-3xl font-extrabold text-white">Welcome back, {currentUser?.full_name || 'Admin'}.</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85">
+                Monitor verification queues, alumni records, document releases, and system activity from one console.
+              </p>
             </div>
-          </div>
-          <div className="bg-gray-50 px-5 py-3">
-            <div className="text-sm">
-              <Link to="/admin/alumni" className="font-medium text-cvsu-green hover:text-cvsu-green">
-                View all
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={fetchDashboardData}
+                className="inline-flex items-center justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-cvsu-green shadow-sm hover:bg-slate-50"
+              >
+                <ArrowPathIcon className="mr-2 h-4 w-4" />
+                Refresh
+              </button>
+              <Link
+                to="/admin/verifications"
+                className="inline-flex items-center justify-center rounded-md bg-cvsu-yellow px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm hover:bg-yellow-300"
+              >
+                Review queue
+                <ArrowRightIcon className="ml-2 h-4 w-4" />
               </Link>
             </div>
           </div>
+          <div className="mt-6 flex flex-wrap gap-3 text-xs font-medium text-white/85">
+            <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1">
+              <ClockIcon className="mr-1.5 h-4 w-4" />
+              {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Auto-refreshes every 60 seconds'}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1">
+              {stats.pendingVerifications} pending verification{stats.pendingVerifications === 1 ? '' : 's'}
+            </span>
+          </div>
         </div>
+      </section>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                <DocumentCheckIcon className="h-6 w-6 text-white" />
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((card) => (
+          <Link
+            key={card.label}
+            to={card.href}
+            className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-cvsu-green/40 hover:shadow-md"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${card.tone}`}>
+                <card.icon className="h-6 w-6" />
               </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Pending Verifications</dt>
-                  <dd>
-                    {loading ? (
-                      <div className="h-7 flex items-center">
-                        <svg className="animate-spin h-5 w-5 text-yellow-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="text-lg font-semibold text-gray-900">{stats.pendingVerifications}</div>
-                    )}
-                  </dd>
-                </dl>
-              </div>
+              <ArrowRightIcon className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-cvsu-green" />
             </div>
-          </div>
-          <div className="bg-gray-50 px-5 py-3">
-            <div className="text-sm">
-              <Link to="/admin/verifications" className="font-medium text-yellow-600 hover:text-yellow-900">
-                Review verifications
-              </Link>
-            </div>
-          </div>
-        </div>
+            <p className="mt-5 text-sm font-medium text-slate-500">{card.label}</p>
+            <p className="mt-1 text-3xl font-bold text-slate-950">{loading ? '...' : card.value}</p>
+            <p className="mt-4 text-sm font-semibold text-cvsu-green">{card.action}</p>
+          </Link>
+        ))}
+      </section>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                <ChartBarIcon className="h-6 w-6 text-white" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Verified Documents</dt>
-                  <dd>
-                    {loading ? (
-                      <div className="h-7 flex items-center">
-                        <svg className="animate-spin h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="text-lg font-semibold text-gray-900">{stats.verifiedDocuments}</div>
-                    )}
-                  </dd>
-                </dl>
-              </div>
+      <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-950">Recent Activity</h2>
+              <p className="mt-1 text-sm text-slate-500">Latest verification, profile, and document events.</p>
             </div>
           </div>
-          <div className="bg-gray-50 px-5 py-3">
-            <div className="text-sm">
-              <Link to="/admin/documents" className="font-medium text-green-600 hover:text-green-900">
-                View all documents
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
-                <UserPlusIcon className="h-6 w-6 text-white" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">New Registrations</dt>
-                  <dd>
-                    {loading ? (
-                      <div className="h-7 flex items-center">
-                        <svg className="animate-spin h-5 w-5 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="text-lg font-semibold text-gray-900">{stats.newRegistrations}</div>
-                    )}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-50 px-5 py-3">
-            <div className="text-sm">
-              <Link to="/admin/registrations" className="font-medium text-purple-600 hover:text-purple-900">
-                View new registrations
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white shadow overflow-hidden rounded-lg mb-8">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Activity</h3>
-        </div>
-        <div className="border-t border-gray-200">
+          <div>
           {loading ? (
             <div className="py-10 flex justify-center items-center">
-              <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span className="ml-2 text-gray-600">Loading recent activities...</span>
+              <ArrowPathIcon className="h-8 w-8 animate-spin text-cvsu-green" />
+              <span className="ml-2 text-slate-600">Loading recent activities...</span>
             </div>
           ) : recentActivity.length === 0 ? (
-            <div className="py-10 text-center text-gray-500">
+            <div className="py-10 text-center text-slate-500">
               <p>No recent activity found.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200">
+            <ul className="divide-y divide-slate-100">
               {recentActivity.map((activity, i) => (
-                <li key={activity.id || `activity-${i}`} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${activity.status === 'verified' || activity.status === 'completed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : activity.status === 'pending' 
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'}`}>
-                        {activity.status === 'verified' ? 'Verified' : 
-                         activity.status === 'completed' ? 'Completed' : 
-                         activity.status === 'pending' ? 'Pending' : 
-                         activity.status}
-                      </p>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">
+                <li key={activity.id || `activity-${i}`} className="px-5 py-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-0.5 inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ring-inset ${statusClass(activity.status)}`}>
+                        {activity.status === 'verified' ? 'Verified' :
+                         activity.status === 'completed' ? 'Completed' :
+                         activity.status === 'pending' ? 'Pending' :
+                         activity.status || 'Logged'}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">
                           {formatActivityTitle(activity)}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="mt-1 text-sm text-slate-500">
                           {formatActivityDescription(activity)}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right text-sm text-gray-500">
+                    <div className="text-sm text-slate-500 sm:text-right">
                       {formatDate(activity.timestamp)}
                     </div>
                   </div>
@@ -890,39 +863,30 @@ export default function AdminDashboardPage() {
             </ul>
           )}
         </div>
-      </div>
+        </div>
 
-      {/* Quick Links */}
-      <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Quick Actions</h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">Common administrative tasks</p>
-        </div>
-        <div className="border-t border-gray-200 px-4 py-5 sm:p-0">
-          <dl className="sm:divide-y sm:divide-gray-200">
-            <div className="py-4 sm:py-5 sm:grid sm:grid-cols-4 sm:gap-4 sm:px-6">
-              <Link to="/admin/verifications" className="text-sm font-medium text-cvsu-green hover:text-cvsu-green/90">
-                Review Pending Verifications
+        <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div>
+            <h2 className="text-base font-bold text-slate-950">Quick Actions</h2>
+            <p className="mt-1 text-sm text-slate-500">Jump into common admin work.</p>
+          </div>
+          <div className="mt-5 space-y-2">
+            {quickActions.map((action) => (
+              <Link
+                key={action.label}
+                to={action.href}
+                className="group flex items-center justify-between rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-700 hover:border-cvsu-green/40 hover:bg-cvsu-green/5 hover:text-cvsu-green"
+              >
+                <span className="flex items-center gap-3">
+                  <action.icon className="h-5 w-5 text-slate-400 group-hover:text-cvsu-green" />
+                  {action.label}
+                </span>
+                <ArrowRightIcon className="h-4 w-4 text-slate-300 group-hover:text-cvsu-green" />
               </Link>
-              <Link to="/admin/user-verification" className="text-sm font-medium text-cvsu-green hover:text-cvsu-green/90">
-                Verify User Accounts
-              </Link>
-              <Link to="/admin/users" className="text-sm font-medium text-cvsu-green hover:text-cvsu-green/90">
-                Manage Admin Users
-              </Link>
-              <Link to="/admin/alumni/add" className="text-sm font-medium text-cvsu-green hover:text-cvsu-green/90">
-                Add New Alumni
-              </Link>
-              <Link to="/admin/documents/admin-upload" className="text-sm font-medium text-cvsu-green hover:text-cvsu-green/90">
-                Upload Batch Documents
-              </Link>
-              <Link to="/admin/roles" className="text-sm font-medium text-cvsu-green hover:text-cvsu-green/90">
-                Role Management
-              </Link>
-            </div>
-          </dl>
-        </div>
-      </div>
+            ))}
+          </div>
+        </aside>
+      </section>
     </div>
   );
 } 

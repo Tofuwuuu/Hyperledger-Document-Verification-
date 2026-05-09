@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { getUpcomingEvents } from '../services/eventService';
+import { CalendarDaysIcon, MapPinIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 const UpcomingEvents = () => {
   const [events, setEvents] = useState([]);
@@ -28,9 +29,11 @@ const UpcomingEvents = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cvsu-green"></div>
-      </div>
+      <section className="bg-white py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="h-56 animate-pulse rounded-lg bg-slate-100" />
+        </div>
+      </section>
     );
   }
 
@@ -39,54 +42,59 @@ const UpcomingEvents = () => {
   }
 
   return (
-    <div className="py-8">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-cvsu-green">Upcoming Events</h2>
-          <Link to="/events" className="text-blue-600 hover:text-blue-800">View all events</Link>
+    <section className="bg-white py-14 sm:py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex items-end justify-between gap-6">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-cvsu-green">Upcoming Events</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-slate-950 sm:text-3xl">Meet, learn, and reconnect</h2>
+          </div>
+          <Link to="/events" className="hidden items-center text-sm font-semibold text-cvsu-green hover:text-cvsu-green/80 sm:inline-flex">
+            View all events
+            <ArrowRightIcon className="ml-2 h-4 w-4" />
+          </Link>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
           {events.map((event) => (
-            <div key={event._id} className="bg-white shadow-md rounded-lg overflow-hidden">
+            <article key={event._id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               {event.image_url ? (
                 <img 
                   src={event.image_url} 
                   alt={event.title} 
-                  className="w-full h-40 object-cover"
+                  className="h-44 w-full object-cover"
                 />
               ) : (
-                <div className="w-full h-40 bg-cvsu-green flex items-center justify-center">
-                  <span className="text-white text-xl">CVSU Event</span>
+                <div className="flex h-44 w-full items-center justify-center bg-cvsu-green">
+                  <span className="text-lg font-bold text-white">CVSU Event</span>
                 </div>
               )}
-              <div className="p-4">
-                <h3 className="text-lg font-semibold mb-2 truncate">{event.title}</h3>
-                <div className="flex items-center text-gray-500 mb-2 text-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+              <div className="p-5">
+                <h3 className="truncate text-lg font-bold text-slate-950">{event.title}</h3>
+                <div className="mt-4 flex items-center text-sm text-slate-600">
+                  <CalendarDaysIcon className="mr-2 h-4 w-4 text-cvsu-green" />
                   {format(new Date(event.start_date), 'MMMM d, yyyy')}
                 </div>
-                <div className="flex items-center text-gray-500 mb-3 text-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
+                <div className="mt-2 flex items-center text-sm text-slate-600">
+                  <MapPinIcon className="mr-2 h-4 w-4 text-cvsu-green" />
                   {event.location}
                 </div>
                 <Link 
                   to={`/events/${event._id}`}
-                  className="block w-full bg-cvsu-green hover:bg-green-700 text-white font-medium py-2 px-4 rounded text-center transition duration-300 text-sm"
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-cvsu-green px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cvsu-green/90"
                 >
-                  View Details
+                  View details
                 </Link>
               </div>
-            </div>
+            </article>
           ))}
         </div>
+        <Link to="/events" className="mt-6 inline-flex items-center text-sm font-semibold text-cvsu-green hover:text-cvsu-green/80 sm:hidden">
+          View all events
+          <ArrowRightIcon className="ml-2 h-4 w-4" />
+        </Link>
       </div>
-    </div>
+    </section>
   );
 };
 

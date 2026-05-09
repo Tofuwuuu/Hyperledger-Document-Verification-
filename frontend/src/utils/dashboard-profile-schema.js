@@ -67,7 +67,7 @@ export const dashboardProfileSchema = {
 };
 
 export const buildDashboardProfileData = (profileData = {}) => {
-  return {
+  const normalizedProfile = {
     ...dashboardProfileSchema,
     ...profileData,
     advanced_studies: {
@@ -83,4 +83,22 @@ export const buildDashboardProfileData = (profileData = {}) => {
       ? profileData.competencies_from_college
       : []
   };
+
+  Object.entries(dashboardProfileSchema).forEach(([key, defaultValue]) => {
+    if (defaultValue === '' && normalizedProfile[key] == null) {
+      normalizedProfile[key] = '';
+    }
+  });
+
+  Object.entries(dashboardProfileSchema.advanced_studies).forEach(([key, defaultValue]) => {
+    if (defaultValue === '' && normalizedProfile.advanced_studies[key] == null) {
+      normalizedProfile.advanced_studies[key] = '';
+    }
+  });
+
+  if (!normalizedProfile.advanced_studies.level) {
+    normalizedProfile.advanced_studies.level = dashboardProfileSchema.advanced_studies.level;
+  }
+
+  return normalizedProfile;
 };

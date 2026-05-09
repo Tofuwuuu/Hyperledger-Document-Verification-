@@ -1,20 +1,20 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { Fragment, useState } from 'react';
-import { Dialog, Disclosure, Popover, Transition } from '@headlessui/react';
+import { useState } from 'react';
+import { Dialog, Popover } from '@headlessui/react';
 import { 
   Bars3Icon, 
   XMarkIcon, 
-  UserCircleIcon,
-  AcademicCapIcon,
-  DocumentCheckIcon
 } from '@heroicons/react/24/outline';
-import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import { useAuth } from '../context/AuthContext';
 import cvsuLogo from '../assets/cvsu-logo.png';
 
-function classNames(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
+const navItems = [
+  { label: 'Home', to: '/' },
+  { label: 'About', to: '/about' },
+  { label: 'Alumni Directory', to: '/alumni-directory' },
+  { label: 'Events', to: '/events' },
+  { label: 'Verify Document', to: '/verify' },
+];
 
 export default function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -27,18 +27,18 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="bg-white">
+    <div className="min-h-screen bg-white text-slate-900">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <nav className="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8" aria-label="Global">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Global">
           <div className="flex lg:flex-1">
             <Link to="/" className="-m-1.5 p-1.5 flex items-center">
               <img
-                className="h-12 w-auto"
+                className="h-10 w-auto"
                 src={cvsuLogo}
                 alt="CVSU"
               />
-              <span className="ml-3 text-xl font-bold text-cvsu-green">CVSU-Carmona Alumni</span>
+              <span className="ml-3 text-base font-bold text-cvsu-green sm:text-lg">CVSU-Carmona Alumni</span>
             </Link>
           </div>
           <div className="flex lg:hidden">
@@ -51,22 +51,12 @@ export default function MainLayout() {
               <Bars3Icon className="h-6 w-6" aria-hidden="true" />
             </button>
           </div>
-          <Popover.Group className="hidden lg:flex lg:gap-x-12">
-            <Link to="/" className="text-sm font-semibold leading-6 text-gray-900">
-              Home
-            </Link>
-            <Link to="/about" className="text-sm font-semibold leading-6 text-gray-900">
-              About
-            </Link>
-            <Link to="/alumni-directory" className="text-sm font-semibold leading-6 text-gray-900">
-              Alumni Directory
-            </Link>
-            <Link to="/events" className="text-sm font-semibold leading-6 text-gray-900">
-              Events
-            </Link>
-            <Link to="/verify" className="text-sm font-semibold leading-6 text-gray-900">
-              Verify Document
-            </Link>
+          <Popover.Group className="hidden lg:flex lg:gap-x-8">
+            {navItems.map((item) => (
+              <Link key={item.to} to={item.to} className="text-sm font-semibold leading-6 text-slate-700 hover:text-cvsu-green">
+                {item.label}
+              </Link>
+            ))}
           </Popover.Group>
           <div className="hidden lg:flex lg:flex-1 lg:justify-end">
             {currentUser ? (
@@ -74,27 +64,27 @@ export default function MainLayout() {
                 {currentUser.is_admin && (
                   <Link
                     to="/admin"
-                    className="text-sm font-semibold text-gray-900 mr-4"
+                    className="mr-4 text-sm font-semibold text-slate-700 hover:text-cvsu-green"
                   >
                     Admin
                   </Link>
                 )}
                 <Link
                   to="/dashboard"
-                  className="text-sm font-semibold text-gray-900 mr-4"
+                  className="mr-4 text-sm font-semibold text-slate-700 hover:text-cvsu-green"
                 >
                   Dashboard
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="text-sm font-semibold text-gray-900"
+                  className="text-sm font-semibold text-slate-700 hover:text-cvsu-green"
                 >
-                  Log out <span aria-hidden="true">&rarr;</span>
+                  Log out
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="text-sm font-semibold leading-6 text-gray-900">
-                Log in <span aria-hidden="true">&rarr;</span>
+              <Link to="/login" className="rounded-md border border-cvsu-green/20 px-4 py-2 text-sm font-semibold leading-6 text-cvsu-green hover:bg-cvsu-green hover:text-white">
+                Log in
               </Link>
             )}
           </div>
@@ -124,36 +114,16 @@ export default function MainLayout() {
             <div className="mt-6 flow-root">
               <div className="-my-6 divide-y divide-gray-500/10">
                 <div className="space-y-2 py-6">
-                  <Link
-                    to="/"
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                  >
-                    Home
-                  </Link>
-                  <Link
-                    to="/about"
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                  >
-                    About
-                  </Link>
-                  <Link
-                    to="/alumni-directory"
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                  >
-                    Alumni Directory
-                  </Link>
-                  <Link
-                    to="/events"
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                  >
-                    Events
-                  </Link>
-                  <Link
-                    to="/verify"
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                  >
-                    Verify Document
-                  </Link>
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-slate-900 hover:bg-slate-50"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
                 </div>
                 <div className="py-6">
                   {currentUser ? (
@@ -200,33 +170,36 @@ export default function MainLayout() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-cvsu-green text-white">
+      <footer className="bg-slate-950 text-white">
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             <div>
-              <h3 className="text-lg font-semibold mb-4">CVSU-Carmona</h3>
-              <p className="text-sm">
+              <div className="flex items-center">
+                <img className="h-9 w-auto" src={cvsuLogo} alt="CVSU" />
+                <h3 className="ml-3 text-lg font-semibold">CVSU-Carmona</h3>
+              </div>
+              <p className="mt-4 max-w-sm text-sm text-slate-300">
                 Alumni Profile Management System with Blockchain Document Verification
               </p>
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-4">Links</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/" className="hover:underline">Home</Link></li>
-                <li><Link to="/about" className="hover:underline">About</Link></li>
-                <li><Link to="/alumni-directory" className="hover:underline">Alumni Directory</Link></li>
-                <li><Link to="/events" className="hover:underline">Events</Link></li>
-                <li><Link to="/verify" className="hover:underline">Verify Document</Link></li>
+              <ul className="space-y-2 text-sm text-slate-300">
+                {navItems.map((item) => (
+                  <li key={item.to}>
+                    <Link to={item.to} className="hover:text-white">{item.label}</Link>
+                  </li>
+                ))}
               </ul>
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-4">Contact</h3>
-              <p className="text-sm">Cavite State University - Carmona Campus</p>
-              <p className="text-sm">Carmona, Cavite, Philippines</p>
-              <p className="text-sm">Email: info@cvsu-carmona.edu.ph</p>
+              <p className="text-sm text-slate-300">Cavite State University - Carmona Campus</p>
+              <p className="text-sm text-slate-300">Carmona, Cavite, Philippines</p>
+              <p className="text-sm text-slate-300">info@cvsu-carmona.edu.ph</p>
             </div>
           </div>
-          <div className="mt-8 border-t border-gray-600 pt-8 text-center text-sm">
+          <div className="mt-8 border-t border-white/10 pt-8 text-center text-sm text-slate-400">
             <p>&copy; {new Date().getFullYear()} CVSU-Carmona. All rights reserved.</p>
           </div>
         </div>

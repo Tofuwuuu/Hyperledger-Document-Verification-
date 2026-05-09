@@ -64,6 +64,7 @@ if settings.enable_cors:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Content-Disposition", "Content-Type"],
     )
     logger.info("CORS enabled. Allowed origins: %s", settings.cors_origins_list)
 

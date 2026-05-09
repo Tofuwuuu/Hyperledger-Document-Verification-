@@ -31,11 +31,22 @@ def _serialize_document(document: dict[str, Any]) -> dict[str, Any]:
     if not document:
         return {}
 
-    result = {**document}
+    def _json_safe(value: Any) -> Any:
+        if isinstance(value, ObjectId):
+            return str(value)
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return {key: _json_safe(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [_json_safe(item) for item in value]
+        return value
+
+    result = _json_safe({**document})
     result.pop("password_hash", None)
     result.pop("hashed_password", None)
     if "_id" in result:
-        object_id = str(result["_id"])
+        object_id = result["_id"]
         result["_id"] = object_id
         result["id"] = object_id
     return result
@@ -142,7 +153,7 @@ async def create_alumni_profile(payload: AlumniProfileCreate) -> dict[str, Any]:
 @router.put("/alumni/{alumni_id}")
 async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) -> dict[str, Any]:
     client = get_motor_client()
-    collection = _users_collection(client)
+    users = _users_collection(client)
     object_id = _get_object_id(alumni_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
@@ -173,16 +184,28 @@ async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) ->
     _remove_id_keys(update_data)
 
     update_data["updated_at"] = datetime.now(timezone.utc)
-    owner_id = _get_object_id(str(payload_user_id)) if payload_user_id else object_id
-    if owner_id is not None:
-        update_data["user_id"] = owner_id
-
-    profile_filter = {"_id": object_id}
 
     # Use the alumni_profiles collection for profile updates (not the users collection)
     profiles = alumni_profiles_collection(client)
 
     try:
+        existing_profile = await profiles.find_one({"_id": object_id})
+        if existing_profile:
+            profile_filter = {"_id": object_id}
+        else:
+            existing_profile = await profiles.find_one({"user_id": object_id})
+            profile_filter = {"_id": existing_profile["_id"]} if existing_profile else {"_id": object_id}
+
+        if payload_user_id:
+            owner_id = _get_object_id(str(payload_user_id))
+            if owner_id is None:
+                raise HTTPException(status_code=400, detail="Invalid user ID")
+            update_data["user_id"] = owner_id
+        elif not existing_profile:
+            user = await users.find_one({"_id": object_id}, {"_id": 1})
+            if user:
+                update_data["user_id"] = object_id
+
         # Log useful debug info before attempting the update to help diagnose
         # any remaining cases where an `_id` might still be present in the payload.
         logger.debug("Updating alumni profile %s with filter=%s keys=%s", alumni_id, profile_filter, list(update_data.keys()))

@@ -573,6 +573,8 @@ export default function ProfilePage() {
     setProfile({ ...profile, [name]: value });
   };
 
+  const getFieldValue = (value) => value ?? '';
+
   const handleSocialMediaChange = (index, field, value) => {
     const updatedSocialMedia = [...profile.social_media];
     
@@ -1702,7 +1704,7 @@ export default function ProfilePage() {
                         type="text"
                         name="department"
                         id="department"
-                        value={profile.department}
+                        value={getFieldValue(profile.department)}
                         onChange={handleInputChange}
                         className={getInputClass('department')}
                       />
@@ -1720,7 +1722,7 @@ export default function ProfilePage() {
                       <select
                         name="course"
                         id="course"
-                        value={profile.course}
+                        value={getFieldValue(profile.course)}
                         onChange={handleInputChange}
                         className={getInputClass('course')}
                       >
@@ -1744,7 +1746,7 @@ export default function ProfilePage() {
                         type="text"
                         name="batch"
                         id="batch"
-                        value={profile.batch}
+                        value={getFieldValue(profile.batch)}
                         onChange={handleInputChange}
                         className={getInputClass('batch')}
                       />
@@ -1765,7 +1767,7 @@ export default function ProfilePage() {
                         id="graduation_year"
                         min="1948"
                         max={new Date().getFullYear()}
-                        value={profile.graduation_year}
+                        value={getFieldValue(profile.graduation_year)}
                         onChange={handleInputChange}
                         className={getInputClass('graduation_year')}
                       />
@@ -1914,11 +1916,11 @@ export default function ProfilePage() {
                               <input
                                 type="text"
                                 name="advanced_studies_institution"
-                                value={profile.advanced_studies.institution || ''}
+                                value={profile.advanced_studies?.institution || ''}
                                 onChange={(e) => setProfile({
                                   ...profile,
                                   advanced_studies: {
-                                    ...profile.advanced_studies,
+                                    ...(profile.advanced_studies || {}),
                                     institution: e.target.value
                                   }
                                 })}
@@ -1933,11 +1935,11 @@ export default function ProfilePage() {
                               <input
                                 type="text"
                                 name="advanced_studies_field"
-                                value={profile.advanced_studies.field || ''}
+                                value={profile.advanced_studies?.field || ''}
                                 onChange={(e) => setProfile({
                                   ...profile,
                                   advanced_studies: {
-                                    ...profile.advanced_studies,
+                                    ...(profile.advanced_studies || {}),
                                     field: e.target.value
                                   }
                                 })}
@@ -1952,11 +1954,11 @@ export default function ProfilePage() {
                               <textarea
                                 name="advanced_studies_motivation"
                                 rows={3}
-                                value={profile.advanced_studies.motivation || ''}
+                                value={profile.advanced_studies?.motivation || ''}
                                 onChange={(e) => setProfile({
                                   ...profile,
                                   advanced_studies: {
-                                    ...profile.advanced_studies,
+                                    ...(profile.advanced_studies || {}),
                                     motivation: e.target.value
                                   }
                                 })}
