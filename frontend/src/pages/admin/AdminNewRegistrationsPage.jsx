@@ -88,14 +88,9 @@ export default function AdminNewRegistrationsPage() {
     // Essential fields might be named differently in the database vs the API response
     const hasFullName = !!user.full_name;
     const hasStudentId = !!user.student_id;
-    const hasDepartment = !!user.department;
-    const hasGraduationYear = !!(user.graduation_year || user.year_graduated);
-    
     console.log(`Profile check for ${user.email}:`, {
       hasFullName,
-      hasStudentId, 
-      hasDepartment, 
-      hasGraduationYear
+      hasStudentId
     });
     
     // Add specific field debugging for this user
@@ -114,7 +109,7 @@ export default function AdminNewRegistrationsPage() {
       });
     }
     
-    return !hasFullName || !hasStudentId || !hasDepartment || !hasGraduationYear;
+    return !hasFullName || !hasStudentId;
   };
   
   // Filter users if needed

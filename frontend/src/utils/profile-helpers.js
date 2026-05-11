@@ -34,7 +34,7 @@ export const ensureUserIdInProfile = async (profileData) => {
 };
 
 /**
- * Prepare profile data for creation/update by ensuring required fields
+ * Prepare profile data for creation/update by normalizing optional fields
  * @param {Object} profileData - The profile data to prepare
  * @returns {Promise<Object>} - Prepared profile data
  */
@@ -47,6 +47,9 @@ export const prepareProfileData = async (profileData) => {
     full_name: withUserId.full_name || withUserId.name || '',
     email: withUserId.email || '',
     student_id: withUserId.student_id || withUserId.studentId || '',
-    graduation_year: withUserId.graduation_year ? String(withUserId.graduation_year) : ''
+    graduation_year: withUserId.graduation_year ? String(withUserId.graduation_year) : '',
+    batch: withUserId.batch || '',
+    course: withUserId.course || '',
+    department: withUserId.department || ''
   });
 }; 

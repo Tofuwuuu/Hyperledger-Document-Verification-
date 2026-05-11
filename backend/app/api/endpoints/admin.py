@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import math
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -17,6 +19,7 @@ from app.services.blockchain_manager import get_blockchain_manager
 from app.utils.auth import get_current_user
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class AdminUserCreateRequest(BaseModel):
@@ -537,9 +540,55 @@ async def approve_verification(
         "full_name": (profile or {}).get("full_name") or (user or {}).get("full_name"),
         "email": (profile or {}).get("email") or (user or {}).get("email"),
     }
-    blockchain_result = await get_blockchain_manager().store_document(document_id, file_hash, metadata)
-    if not blockchain_result.get("success"):
-        raise HTTPException(status_code=502, detail=blockchain_result.get("message", "Blockchain storage failed"))
+    fallback_tx_id = f"mongo-fallback-{document_id}-{file_hash[:12]}"
+    blockchain_error: str | None = None
+    blockchain_result: dict[str, Any] = {
+        "success": False,
+        "transaction_id": fallback_tx_id,
+        "timestamp": now.isoformat(),
+    }
+
+    try:
+        blockchain_result = await asyncio.wait_for(
+            get_blockchain_manager().store_document(document_id, file_hash, metadata),
+            timeout=10,
+        )
+        if not blockchain_result.get("success"):
+            blockchain_error = blockchain_result.get("message", "Blockchain storage failed")
+            logger.warning(
+                "Blockchain storage failed for document %s; approving with MongoDB fallback: %s",
+                document_id,
+                blockchain_error,
+            )
+            blockchain_result = {
+                **blockchain_result,
+                "transaction_id": blockchain_result.get("transaction_id") or fallback_tx_id,
+                "timestamp": blockchain_result.get("timestamp") or now.isoformat(),
+            }
+    except asyncio.TimeoutError:
+        blockchain_error = "Blockchain storage timed out"
+        logger.warning(
+            "Blockchain storage timed out for document %s; approving with MongoDB fallback",
+            document_id,
+        )
+        blockchain_result = {
+            "success": False,
+            "transaction_id": fallback_tx_id,
+            "timestamp": now.isoformat(),
+        }
+    except Exception as exc:
+        blockchain_error = str(exc) or exc.__class__.__name__
+        logger.exception(
+            "Blockchain storage crashed for document %s; approving with MongoDB fallback",
+            document_id,
+        )
+        blockchain_result = {
+            "success": False,
+            "transaction_id": fallback_tx_id,
+            "timestamp": now.isoformat(),
+        }
+
+    blockchain_committed = bool(blockchain_result.get("success"))
 
     update_data = {
         "verification_status": "verified",
@@ -551,6 +600,8 @@ async def approve_verification(
         "blockchain_hash": file_hash,
         "blockchain_tx_id": blockchain_result.get("transaction_id"),
         "blockchain_recorded_at": blockchain_result.get("timestamp") or now.isoformat(),
+        "blockchain_commit_status": "committed" if blockchain_committed else "fallback",
+        "blockchain_error": blockchain_error,
         "updated_at": now,
     }
     result = await docs.update_one({"_id": object_id}, {"$set": update_data})
@@ -563,6 +614,8 @@ async def approve_verification(
             "hash": file_hash,
             "metadata": metadata,
             "transaction_id": blockchain_result.get("transaction_id"),
+            "blockchain_commit_status": update_data["blockchain_commit_status"],
+            "blockchain_error": blockchain_error,
             "stored_by": str(current_user.get("sub")),
             "stored_at": now,
         }
@@ -573,6 +626,9 @@ async def approve_verification(
         "status": "approved",
         "verification_status": "verified",
         "transaction_id": blockchain_result.get("transaction_id"),
+        "blockchain_committed": blockchain_committed,
+        "blockchain_commit_status": update_data["blockchain_commit_status"],
+        "blockchain_error": blockchain_error,
     }
 
 
@@ -627,6 +683,14 @@ def _iso_or_now(value: Any) -> str:
 def _serialize_verification_document(document: dict[str, Any], user: dict[str, Any] | None, profile: dict[str, Any] | None) -> dict[str, Any]:
     file_path = document.get("file_path")
     file_url = f"/{str(file_path).lstrip('/')}" if isinstance(file_path, str) and file_path else ""
+    file_exists = False
+    if isinstance(file_path, str) and file_path:
+        try:
+            full_path = (Path(__file__).resolve().parents[3] / file_path).resolve()
+            uploads_root = _uploads_dir().resolve()
+            file_exists = full_path.is_file() and full_path.is_relative_to(uploads_root)
+        except Exception:
+            file_exists = False
     status = document.get("verification_status") or document.get("status") or "pending"
     return {
         "id": str(document.get("_id")),
@@ -638,6 +702,10 @@ def _serialize_verification_document(document: dict[str, Any], user: dict[str, A
         "studentId": (profile or {}).get("student_id") or "N/A",
         "documentPreviewUrl": file_url,
         "fileUrl": file_url,
+        "filePath": file_path or "",
+        "fileName": document.get("file_name") or "",
+        "fileExists": file_exists,
+        "mimeType": document.get("mime_type") or "",
         "notes": document.get("admin_notes"),
         "documentId": str(document.get("_id")),
     }

@@ -589,13 +589,12 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
               
               <div className="sm:col-span-2">
                 <label htmlFor="graduation_year" className="block text-sm font-medium text-gray-700">
-                  Graduation Year*
+                  Graduation Year
                 </label>
                 <input
                   type="number"
                   name="graduation_year"
                   id="graduation_year"
-                  required
                   min="1900"
                   max={new Date().getFullYear()}
                   value={formData.graduation_year}
@@ -606,13 +605,12 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
               
               <div className="sm:col-span-2">
                 <label htmlFor="batch" className="block text-sm font-medium text-gray-700">
-                  Batch / Class*
+                  Batch / Class
                 </label>
                 <input
                   type="text"
                   name="batch"
                   id="batch"
-                  required
                   placeholder="e.g., Batch 2023, Class 2023-A"
                   value={formData.batch}
                   onChange={handleInputChange}
@@ -622,13 +620,12 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
               
               <div className="sm:col-span-4">
                 <label htmlFor="course" className="block text-sm font-medium text-gray-700">
-                  Course/Program*
+                  Course/Program
                 </label>
                 <div className="mt-1 relative">
                   <select
                     name="course"
                     id="course"
-                    required
                     value={formData.course}
                     onChange={handleCourseChange}
                     className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-cvsu-green focus:border-cvsu-green sm:text-sm"

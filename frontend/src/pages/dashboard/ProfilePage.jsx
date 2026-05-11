@@ -1,5 +1,21 @@
 import { useState, useEffect } from 'react';
-import { PencilIcon, CheckIcon, XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import {
+  AcademicCapIcon,
+  BriefcaseIcon,
+  CalendarDaysIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ClipboardDocumentCheckIcon,
+  EnvelopeIcon,
+  ExclamationTriangleIcon,
+  IdentificationIcon,
+  PencilIcon,
+  PlusIcon,
+  SparklesIcon,
+  TrashIcon,
+  UserCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { alumniService, referenceService } from '../../services/api';
 import { toast } from 'react-toastify';
@@ -545,7 +561,12 @@ export default function ProfilePage() {
   const fetchCVSUCourses = async () => {
     try {
       const response = await referenceService.getCVSUCourses();
-      setCourses(response.data);
+      const courseItems = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.items)
+          ? response.data.items
+          : [];
+      setCourses(courseItems);
     } catch (error) {
       console.error('Error fetching CVSU courses:', error);
       // Fallback to hardcoded courses if API fails
@@ -1028,10 +1049,7 @@ export default function ProfilePage() {
   
   // Calculate profile completion percentage
   const calculateCompletionPercentage = (data) => {
-    const requiredFields = [
-      'full_name', 'student_id', 'email', 'course', 
-      'department', 'graduation_year', 'batch'
-    ];
+    const requiredFields = ['full_name', 'student_id', 'email'];
     
     // Count how many required fields are completed
     let completedFields = 0;
@@ -1075,10 +1093,86 @@ export default function ProfilePage() {
 
   // Helper function to determine input class based on validation state
   const getInputClass = (fieldName) => {
-    const baseClass = "max-w-lg block w-full shadow-sm focus:ring-cvsu-green focus:border-cvsu-green sm:text-sm border-gray-300 rounded-md";
+    const baseClass = "block w-full rounded-lg border-gray-300 bg-white shadow-sm transition focus:border-cvsu-green focus:ring-cvsu-green sm:text-sm";
     return validationErrors[fieldName] 
       ? `${baseClass} border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500` 
       : baseClass;
+  };
+
+  const getDisplayValue = (value, fallback = 'Not provided') => {
+    if (Array.isArray(value)) return value.length ? value.join(', ') : fallback;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return value && value.toString().trim() !== '' ? value : fallback;
+  };
+
+  const requiredFields = ['full_name', 'student_id', 'email'];
+  const recommendedFields = [
+    'department', 'course', 'batch', 'graduation_year', 'phone', 'address', 'bio',
+    'sex', 'civil_status', 'birthday', 'region_of_origin', 'is_employed',
+    'csc_passer', 'honors_awards', 'degree_reasons'
+  ];
+
+  const completedRequired = requiredFields.filter(field =>
+    profile[field] && profile[field].toString().trim() !== ''
+  ).length;
+
+  const completedRecommended = recommendedFields.filter(field => {
+    if (Array.isArray(profile[field])) return profile[field].length > 0;
+    if (typeof profile[field] === 'boolean') return true;
+    return profile[field] && profile[field].toString().trim() !== '';
+  }).length;
+
+  const completionPercentage = Math.round(
+    ((completedRequired / requiredFields.length) * 0.7 + (completedRecommended / recommendedFields.length) * 0.3) * 100
+  );
+  const missingRequiredCount = requiredFields.length - completedRequired;
+  const statusText = completionPercentage >= 85
+    ? 'Excellent'
+    : completionPercentage >= 60
+      ? 'Good Progress'
+      : completionPercentage >= 30
+        ? 'Getting Started'
+        : 'Needs Attention';
+  const completionColor = completionPercentage >= 85
+    ? 'bg-emerald-500'
+    : completionPercentage >= 60
+      ? 'bg-amber-500'
+      : completionPercentage >= 30
+        ? 'bg-orange-500'
+        : 'bg-red-500';
+  const completionTone = completionPercentage >= 85
+    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+    : completionPercentage >= 60
+      ? 'text-amber-700 bg-amber-50 border-amber-200'
+      : completionPercentage >= 30
+        ? 'text-orange-700 bg-orange-50 border-orange-200'
+        : 'text-red-700 bg-red-50 border-red-200';
+
+  const profileInitials = (profile.full_name || currentUser?.name || currentUser?.email || 'Alumni')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+
+  const profileFacts = [
+    { label: 'Student ID', value: getDisplayValue(profile.student_id), icon: IdentificationIcon },
+    { label: 'Email', value: getDisplayValue(profile.email), icon: EnvelopeIcon },
+    { label: 'Course', value: getDisplayValue(profile.course), icon: AcademicCapIcon },
+    { label: 'Batch', value: getDisplayValue(profile.batch || profile.graduation_year), icon: CalendarDaysIcon },
+  ];
+  const courseOptions = Array.isArray(courses) ? courses : [];
+  const getCourseOptionValue = (course) => {
+    if (course && typeof course === 'object') {
+      return course.code || course.name || course.id || '';
+    }
+    return course || '';
+  };
+  const getCourseOptionLabel = (course) => {
+    if (course && typeof course === 'object') {
+      return course.name || course.code || course.id || 'Unnamed course';
+    }
+    return course || 'Unnamed course';
   };
 
   if (loading && !isEditing) {
@@ -1091,11 +1185,11 @@ export default function ProfilePage() {
 
   // Tab navigation configuration
   const tabs = [
-    { id: 'personal', name: 'Personal Information' },
-    { id: 'education', name: 'Educational Background' },
-    { id: 'eligibility', name: 'Eligibility & Licensure' },
-    { id: 'employment', name: 'Employment Data' },
-    { id: 'skills', name: 'Skills & Abilities' },
+    { id: 'personal', name: 'Personal Information', shortName: 'Personal', icon: UserCircleIcon },
+    { id: 'education', name: 'Educational Background', shortName: 'Education', icon: AcademicCapIcon },
+    { id: 'eligibility', name: 'Eligibility & Licensure', shortName: 'Licensure', icon: ClipboardDocumentCheckIcon },
+    { id: 'employment', name: 'Employment Data', shortName: 'Employment', icon: BriefcaseIcon },
+    { id: 'skills', name: 'Skills & Abilities', shortName: 'Skills', icon: SparklesIcon },
   ];
 
   const handleUnemploymentReasonChange = (reason, isChecked) => {
@@ -1134,241 +1228,214 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="bg-white shadow sm:rounded-lg relative">
-      {/* Profile header */}
-      <div className="px-4 py-5 sm:px-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              Alumni Profile
-            </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Your personal information and academic details
-            </p>
-          </div>
-          {!isEditing && (
-            <button
-              type="button"
-              onClick={startEditing}
-              className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-cvsu-green hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
-            >
-              <PencilIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
-              Edit
-            </button>
-          )}
-        </div>
-
-        {/* Profile Completion Indicator */}
-        <div className="mt-6">
-          {profile && (
-            <>
-              {(() => {
-                // Calculate profile completion percentage
-                const requiredFields = ['full_name', 'student_id', 'email', 'department', 'course', 'batch', 'graduation_year'];
-                const recommendedFields = [
-                  'phone', 'address', 'bio', 'sex', 'civil_status', 'birthday', 'region_of_origin',
-                  'is_employed', 'csc_passer', 'honors_awards', 'degree_reasons'
-                ];
-                
-                // Count completed required fields
-                const completedRequired = requiredFields.filter(field => 
-                  profile[field] && profile[field].toString().trim() !== ''
-                ).length;
-                
-                // Count completed recommended fields
-                const completedRecommended = recommendedFields.filter(field => {
-                  // Handle array fields
-                  if (Array.isArray(profile[field])) {
-                    return profile[field].length > 0;
-                  }
-                  // Handle boolean fields
-                  if (typeof profile[field] === 'boolean') {
-                    return true; // If it's a boolean value, it's considered filled
-                  }
-                  // Handle regular fields
-                  return profile[field] && profile[field].toString().trim() !== '';
-                }).length;
-                
-                // Calculate overall percentage (weight required fields more heavily)
-                const totalFields = requiredFields.length + recommendedFields.length;
-                const requiredWeight = 0.7; // Required fields are 70% of completion
-                const recommendedWeight = 0.3; // Recommended fields are 30% of completion
-                
-                const requiredCompletion = (completedRequired / requiredFields.length) * requiredWeight;
-                const recommendedCompletion = (completedRecommended / recommendedFields.length) * recommendedWeight;
-                
-                const completionPercentage = Math.round((requiredCompletion + recommendedCompletion) * 100);
-                
-                // Determine status color based on completion
-                let statusColor = 'bg-red-500';
-                let statusText = 'Needs Attention';
-                
-                if (completionPercentage >= 85) {
-                  statusColor = 'bg-green-500';
-                  statusText = 'Excellent';
-                } else if (completionPercentage >= 60) {
-                  statusColor = 'bg-yellow-500';
-                  statusText = 'Good Progress';
-                } else if (completionPercentage >= 30) {
-                  statusColor = 'bg-orange-500';
-                  statusText = 'Getting Started';
-                }
-                
-                return (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="text-sm font-medium text-gray-700">Profile Completion</h4>
-                      <span className="text-sm font-medium text-gray-700">{completionPercentage}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`${statusColor} h-2.5 rounded-full transition-all duration-500 ease-in-out`} 
-                        style={{width: `${completionPercentage}%`}}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs text-gray-500">Status: <span className="font-medium">{statusText}</span></span>
-                      {completedRequired < requiredFields.length && (
-                        <span className="text-xs text-red-600">
-                          Missing required fields: {requiredFields.length - completedRequired}
-                        </span>
-                      )}
-                    </div>
+    <div className="relative mx-auto max-w-7xl space-y-6">
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-amber-50 px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-white bg-cvsu-green shadow-sm">
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Profile" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-white">
+                    {profileInitials || 'A'}
                   </div>
-                );
-              })()}
-            </>
-          )}
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-2xl font-semibold text-slate-950">
+                    {profile.full_name || 'Alumni Profile'}
+                  </h2>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${completionTone}`}>
+                    {statusText}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600">
+                  {getDisplayValue(profile.course, 'Complete your profile details to keep alumni records current')}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 ring-1 ring-slate-200">
+                    <IdentificationIcon className="h-4 w-4 text-cvsu-green" />
+                    {getDisplayValue(profile.student_id, 'Student ID pending')}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 ring-1 ring-slate-200">
+                    <CalendarDaysIcon className="h-4 w-4 text-cvsu-green" />
+                    {getDisplayValue(profile.graduation_year || profile.batch, 'Batch pending')}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 ring-1 ring-slate-200">
+                    <BriefcaseIcon className="h-4 w-4 text-cvsu-green" />
+                    {getDisplayValue(profile.is_employed, 'Employment pending')}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="inline-flex items-center justify-center rounded-lg bg-cvsu-green px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2"
+              >
+                <PencilIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+                Edit Profile
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="mt-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                  ${activeTab === tab.id 
-                    ? 'border-cvsu-green text-cvsu-green' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                `}
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-              >
-                {tab.name}
-              </button>
-            ))}
+        <div className="grid gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {profileFacts.map((fact) => {
+              const Icon = fact.icon;
+              return (
+                <div key={fact.label} className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <Icon className="h-4 w-4 text-cvsu-green" />
+                    {fact.label}
+                  </div>
+                  <p className="mt-2 break-words text-sm font-semibold text-slate-950">{fact.value}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Profile Completion</p>
+                <p className="mt-1 text-xs text-slate-500">{completedRequired} of {requiredFields.length} required fields complete</p>
+              </div>
+              <span className="text-2xl font-semibold text-slate-950">{completionPercentage}%</span>
+            </div>
+            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`${completionColor} h-full rounded-full transition-all duration-500 ease-out`}
+                style={{ width: `${completionPercentage}%` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium text-slate-600">Status: {statusText}</span>
+              {missingRequiredCount > 0 ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-red-600">
+                  <ExclamationTriangleIcon className="h-4 w-4" />
+                  {missingRequiredCount} missing
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Required complete
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 px-4 sm:px-6 lg:px-8">
+          <nav className="flex gap-2 overflow-x-auto py-3" aria-label="Tabs">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    activeTab === tab.id
+                      ? 'bg-cvsu-green text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                  }`}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.name}</span>
+                  <span className="sm:hidden">{tab.shortName}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
+      </section>
 
-        {/* Status Messages */}
-        {successMessage && (
-          <div className="mt-4 rounded-md bg-green-50 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <CheckIcon className="h-5 w-5 text-green-400" aria-hidden="true" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-green-800">{successMessage}</p>
-              </div>
-            </div>
+      {successMessage && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex items-center gap-3">
+            <CheckIcon className="h-5 w-5 text-emerald-500" aria-hidden="true" />
+            <p className="text-sm font-medium text-emerald-800">{successMessage}</p>
           </div>
-        )}
+        </div>
+      )}
 
-        {errorMessage && (
-          <div className="mt-4 rounded-md bg-red-50 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <XMarkIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-red-800">{errorMessage}</p>
-              </div>
-            </div>
+      {errorMessage && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center gap-3">
+            <XMarkIcon className="h-5 w-5 text-red-500" aria-hidden="true" />
+            <p className="text-sm font-medium text-red-800">{errorMessage}</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Profile content */}
-      <div className="border-t border-gray-200">
+      <div>
         <dl>
           {/* Personal Information Tab Content */}
           {activeTab === 'personal' && (
-            <div className="bg-white shadow-sm rounded-lg mb-6">
-              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-6">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">Personal Information</h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500">Your basic personal details</p>
               </div>
               
-              <div className="px-4 py-5 sm:p-6">
+              <div className="divide-y divide-slate-100 px-4 py-2 sm:px-6">
                 {/* Profile Picture Section */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Profile Picture</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                    <div className="flex items-center space-x-5">
+                <div className="py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Profile Picture</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                       <div className="flex-shrink-0">
-                        <div className="relative h-16 w-16 rounded-full overflow-hidden bg-gray-100">
+                        <div className="relative h-20 w-20 overflow-hidden rounded-full bg-slate-100 ring-4 ring-slate-50">
                           {previewUrl ? (
-                            <>
-                              {/* Debug info - remove in production */}
-                              {console.log('Rendering image with URL:', previewUrl)}
-                              <img 
-                                src={previewUrl} 
-                                alt="Profile" 
-                                className="h-full w-full object-cover"
-                                // Add key to force React to recreate the image element when URL changes
-                                key={previewUrl?.substring(0, 30)} // Use just the beginning of the URL as key to avoid overly long keys
-                                // Add onLoad handler to confirm successful loading
-                                onLoad={() => console.log('Profile image loaded successfully')}
-                                // Add onError handler to handle any loading issues
-                                onError={(e) => {
-                                  console.error('Error loading profile image:', previewUrl?.substring(0, 30) + '...');
-                                  e.target.onerror = null; // Prevent infinite fallback loop
-                                  
-                                  // If localStorage image is available, try that as fallback
-                                  if (profile.user_id) {
-                                    const localImage = getImageFromLocalStorage(profile.user_id);
-                                    if (localImage && localImage !== previewUrl) {
-                                      console.log('Falling back to localStorage image');
-                                      e.target.src = localImage;
-                                      return;
-                                    }
+                            <img
+                              src={previewUrl}
+                              alt="Profile"
+                              className="h-full w-full object-cover"
+                              key={previewUrl?.substring(0, 30)}
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                if (profile.user_id) {
+                                  const localImage = getImageFromLocalStorage(profile.user_id);
+                                  if (localImage && localImage !== previewUrl) {
+                                    e.target.src = localImage;
+                                    return;
                                   }
-                                  
-                                  // If we got here, both approaches failed
-                                  console.log('All image loading attempts failed, using default avatar');
-                                  // Set display to none and let the parent SVG show through
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            </>
+                                }
+                                e.target.style.display = 'none';
+                              }}
+                            />
                           ) : (
-                            <svg className="h-full w-full text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
+                            <div className="flex h-full w-full items-center justify-center bg-cvsu-green text-lg font-semibold text-white">
+                              {profileInitials || 'A'}
+                            </div>
                           )}
                         </div>
                       </div>
                       {isEditing && (
-                        <div>
-                          <div className="flex text-sm text-gray-600">
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
+                          <div className="flex flex-wrap text-sm text-slate-600">
                             <label
                               htmlFor="profile-picture-upload"
-                              className="relative cursor-pointer rounded-md bg-white font-medium text-cvsu-green hover:text-cvsu-green/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-cvsu-green"
+                              className="relative cursor-pointer font-semibold text-cvsu-green hover:text-cvsu-green/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-cvsu-green focus-within:ring-offset-2"
                             >
                               <span>Upload a file</span>
                               <input id="profile-picture-upload" name="profile-picture-upload" type="file" accept="image/*" className="sr-only" onChange={handleProfilePictureChange} />
                             </label>
-                            <p className="pl-1">or drag and drop</p>
+                            <p className="pl-1">to update your photo</p>
                           </div>
-                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                          <p className="mt-1 text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
                           {profilePicture && (
                             <button
                               type="button"
                               disabled={isUploading}
                               onClick={uploadProfilePicture}
-                              className="mt-2 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-cvsu-green bg-cvsu-green/10 hover:bg-cvsu-green/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+                              className="mt-3 inline-flex items-center rounded-md border border-transparent bg-cvsu-green/10 px-3 py-1.5 text-xs font-semibold text-cvsu-green hover:bg-cvsu-green/20 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2"
                             >
                               {isUploading ? 'Uploading...' : 'Upload Image'}
                             </button>
@@ -1380,9 +1447,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Basic Personal Info Fields */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Full Name</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Full Name</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="text"
@@ -1399,9 +1466,9 @@ export default function ProfilePage() {
                   </dd>
                 </div>
 
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Student ID</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Student ID</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="text"
@@ -1418,9 +1485,9 @@ export default function ProfilePage() {
                   </dd>
                 </div>
 
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Email</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Email</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="email"
@@ -1438,9 +1505,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Sex/Gender */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Sex</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Sex</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <select
                         name="sex"
@@ -1461,9 +1528,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Civil Status */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Civil Status</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Civil Status</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <select
                         name="civil_status"
@@ -1486,14 +1553,14 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Birthday */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Birthday
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       Please enter your date of birth in YYYY-MM-DD format
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="date"
@@ -1511,9 +1578,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Region of Origin */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Region of Origin</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Region of Origin</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <select
                         name="region_of_origin"
@@ -1537,9 +1604,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Phone */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Phone</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Phone</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="text"
@@ -1557,9 +1624,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Address */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Address</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Address</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="address"
@@ -1577,9 +1644,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Bio */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Bio</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Bio</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="bio"
@@ -1597,9 +1664,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Social Media */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">Social Media</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">Social Media</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <div className="space-y-4">
                         {profile.social_media?.map((social, index) => (
@@ -1672,7 +1739,7 @@ export default function ProfilePage() {
                                 </div>
                                 <div>
                                   <div className="font-medium capitalize">{social.platform}</div>
-                                  <div className="text-xs text-gray-500 truncate max-w-[200px]">{social.url}</div>
+                                  <div className="text-xs text-slate-500 truncate max-w-[200px]">{social.url}</div>
                                 </div>
                               </a>
                             ))}
@@ -1688,17 +1755,17 @@ export default function ProfilePage() {
 
           {/* Educational Background Tab Content */}
           {activeTab === 'education' && (
-            <div className="bg-white shadow-sm rounded-lg mb-6">
-              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-6">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">Educational Background</h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500">Your academic history and achievements</p>
               </div>
               
-              <div className="px-4 py-5 sm:p-6">
+              <div className="divide-y divide-slate-100 px-4 py-2 sm:px-6">
                 {/* Department, Batch, Course fields */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Department</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Department</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="text"
@@ -1715,9 +1782,9 @@ export default function ProfilePage() {
                   </dd>
                 </div>
                 
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Course</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Course</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <select
                         name="course"
@@ -1727,8 +1794,10 @@ export default function ProfilePage() {
                         className={getInputClass('course')}
                       >
                         <option value="">Select course</option>
-                        {courses.map((course, index) => (
-                          <option key={index} value={course}>{course}</option>
+                        {courseOptions.map((course, index) => (
+                          <option key={getCourseOptionValue(course) || index} value={getCourseOptionValue(course)}>
+                            {getCourseOptionLabel(course)}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -1738,9 +1807,9 @@ export default function ProfilePage() {
                   </dd>
                 </div>
                 
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Batch</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Batch</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="text"
@@ -1757,9 +1826,9 @@ export default function ProfilePage() {
                   </dd>
                 </div>
                 
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Graduation Year</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Graduation Year</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <input
                         type="number"
@@ -1779,9 +1848,9 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* Graduation Month */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Graduation Period</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Graduation Period</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <select
                         name="graduation_month"
@@ -1803,14 +1872,14 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Honors and Awards */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Honors/Awards Received
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       List any academic honors, dean's list awards, or scholarships you received
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="honors_awards"
@@ -1829,9 +1898,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Reasons for pursuing degree */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Reasons for Pursuing Degree</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Reasons for Pursuing Degree</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <div className="space-y-2">
                         {degreeReasons.map((reason, index) => (
@@ -1848,13 +1917,13 @@ export default function ProfilePage() {
                               }}
                               className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded mt-1"
                             />
-                            <label htmlFor={`reason-${index}`} className="ml-2 block text-sm text-gray-700">
+                            <label htmlFor={`reason-${index}`} className="ml-2 block text-sm text-slate-700">
                               {reason}
                             </label>
                           </div>
                         ))}
                         <div>
-                          <label htmlFor="reason-other" className="block text-sm text-gray-700 mb-1">
+                          <label htmlFor="reason-other" className="block text-sm text-slate-700 mb-1">
                             Other reason:
                           </label>
                           <input
@@ -1883,9 +1952,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Advanced Studies */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
-                  <dt className="text-sm font-medium text-gray-500">Advanced Studies</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+                  <dt className="text-sm font-semibold text-slate-600">Advanced Studies</dt>
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <div className="space-y-3">
                         <select
@@ -1910,7 +1979,7 @@ export default function ProfilePage() {
                         {profile.advanced_studies?.level && profile.advanced_studies.level !== 'None' && (
                           <>
                             <div>
-                              <label className="block text-sm text-gray-700 mb-1">
+                              <label className="block text-sm text-slate-700 mb-1">
                                 Institution
                               </label>
                               <input
@@ -1929,7 +1998,7 @@ export default function ProfilePage() {
                             </div>
                             
                             <div>
-                              <label className="block text-sm text-gray-700 mb-1">
+                              <label className="block text-sm text-slate-700 mb-1">
                                 Field of Study
                               </label>
                               <input
@@ -1948,7 +2017,7 @@ export default function ProfilePage() {
                             </div>
                             
                             <div>
-                              <label className="block text-sm text-gray-700 mb-1">
+                              <label className="block text-sm text-slate-700 mb-1">
                                 Motivation
                               </label>
                               <textarea
@@ -1989,19 +2058,19 @@ export default function ProfilePage() {
           
           {/* Add placeholder sections for other tabs */}
           {activeTab === 'eligibility' && (
-            <div className="bg-white shadow-sm rounded-lg mb-6">
-              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-6">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">Eligibility & Licensure</h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500">Information about your professional credentials and certifications</p>
               </div>
               
-              <div className="px-4 py-5 sm:p-6">
+              <div className="divide-y divide-slate-100 px-4 py-2 sm:px-6">
                 {/* Civil Service Eligibility */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Civil Service Professional (CSC) Passer
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <>
                       <div className="space-y-4">
@@ -2019,7 +2088,7 @@ export default function ProfilePage() {
                                 onChange={() => handleInputChange({ target: { name: 'csc_passer', value: true } })}
                                 className="focus:ring-cvsu-green h-4 w-4 text-cvsu-green border-gray-300"
                               />
-                              <label htmlFor="csc_passer_yes" className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor="csc_passer_yes" className="ml-2 block text-sm text-slate-700">
                                 Yes
                               </label>
                             </div>
@@ -2032,7 +2101,7 @@ export default function ProfilePage() {
                                 onChange={() => handleInputChange({ target: { name: 'csc_passer', value: false } })}
                                 className="focus:ring-cvsu-green h-4 w-4 text-cvsu-green border-gray-300"
                               />
-                              <label htmlFor="csc_passer_no" className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor="csc_passer_no" className="ml-2 block text-sm text-slate-700">
                                 No
                               </label>
                             </div>
@@ -2077,14 +2146,14 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* Professional Examinations */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Professional Examination(s) Passed
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       PRC Licensure Examinations and the like
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="professional_exams"
@@ -2103,14 +2172,14 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* Certifications */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Certification
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       NC Level, Microsoft Certificates, CISCO Certificates, etc. (Be Specific)
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="certifications"
@@ -2132,19 +2201,19 @@ export default function ProfilePage() {
           )}
           
           {activeTab === 'employment' && (
-            <div className="bg-white shadow-sm rounded-lg mb-6">
-              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-6">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">Employment Data</h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500">Information about your current employment status</p>
               </div>
               
-              <div className="px-4 py-5 sm:p-6">
+              <div className="divide-y divide-slate-100 px-4 py-2 sm:px-6">
                 {/* Employment Status */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Are you presently employed? (Self-employed considered "employed")
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2162,7 +2231,7 @@ export default function ProfilePage() {
                                 onChange={() => setProfile({ ...profile, is_employed: option })}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                               />
-                              <label htmlFor={`employed_${option.toLowerCase().replace(' ', '_')}`} className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor={`employed_${option.toLowerCase().replace(' ', '_')}`} className="ml-2 block text-sm text-slate-700">
                                 {option}
                               </label>
                             </div>
@@ -2212,11 +2281,11 @@ export default function ProfilePage() {
                 
                 {/* Unemployment Reason - Only show if not employed */}
                 {(profile.is_employed === "No" || profile.is_employed === "Never Employed") && isEditing && (
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6 border-t border-gray-200">
-                    <dt className="text-sm font-medium text-gray-500">
+                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6 border-t border-gray-200">
+                    <dt className="text-sm font-semibold text-slate-600">
                       Reason(s) why you are not yet employed
                     </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                    <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                       <div className="space-y-2">
                         <div className="flex items-center">
                           <input
@@ -2227,7 +2296,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("Advanced Studies", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-advanced-studies" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-advanced-studies" className="ml-2 block text-sm text-slate-700">
                             Advanced studies
                           </label>
                         </div>
@@ -2240,7 +2309,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("Family Concern", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-family" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-family" className="ml-2 block text-sm text-slate-700">
                             Family concern and decided not to find a job
                           </label>
                         </div>
@@ -2253,7 +2322,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("No Job Opportunity", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-no-job" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-no-job" className="ml-2 block text-sm text-slate-700">
                             No job opportunity
                           </label>
                         </div>
@@ -2266,7 +2335,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("Skills Mismatch", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-no-match" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-no-match" className="ml-2 block text-sm text-slate-700">
                             Did not match qualifications for available job opportunity
                           </label>
                         </div>
@@ -2279,7 +2348,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("Salary Issue", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-salary" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-salary" className="ml-2 block text-sm text-slate-700">
                             Salary/compensation issue
                           </label>
                         </div>
@@ -2292,7 +2361,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("Health Issue", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-health" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-health" className="ml-2 block text-sm text-slate-700">
                             Health-related reason
                           </label>
                         </div>
@@ -2305,7 +2374,7 @@ export default function ProfilePage() {
                             onChange={(e) => handleUnemploymentReasonChange("Employment Strain", e.target.checked)}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-employment-strain" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-employment-strain" className="ml-2 block text-sm text-slate-700">
                             Strain and demand of employment
                           </label>
                         </div>
@@ -2330,7 +2399,7 @@ export default function ProfilePage() {
                             }}
                             className="h-4 w-4 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded"
                           />
-                          <label htmlFor="reason-other" className="ml-2 block text-sm text-gray-700">
+                          <label htmlFor="reason-other" className="ml-2 block text-sm text-slate-700">
                             Other
                           </label>
                         </div>
@@ -2360,11 +2429,11 @@ export default function ProfilePage() {
 
                 {/* Display unemployment reason if not editing and value exists */}
                 {(profile.is_employed === "No" || profile.is_employed === "Never Employed") && !isEditing && profile.unemployment_reason && (
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6 border-t border-gray-200">
-                    <dt className="text-sm font-medium text-gray-500">
+                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6 border-t border-gray-200">
+                    <dt className="text-sm font-semibold text-slate-600">
                       Reason(s) why you are not yet employed
                     </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                    <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                       {typeof profile.unemployment_reason === 'string' 
                         ? profile.unemployment_reason 
                         : (Array.isArray(profile.unemployment_reason) 
@@ -2378,11 +2447,11 @@ export default function ProfilePage() {
                 {profile.is_employed === "Yes" && (
                   <>
                     {/* Employment Type */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Employment Type
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="employment_status"
@@ -2410,11 +2479,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Occupation/Position */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Present Occupation
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="text"
@@ -2433,11 +2502,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Company Name */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Name of Your Company or Organization?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="text"
@@ -2456,11 +2525,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Company Address */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Complete address of your organization or institution?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <textarea
                             name="company_address"
@@ -2478,11 +2547,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Company Sector */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Company Sector
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="company_sector"
@@ -2506,11 +2575,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Business Line */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Business Line
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="business_line"
@@ -2534,11 +2603,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Work Location */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Work Location
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="work_location"
@@ -2562,11 +2631,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Is First Job */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Is this your first job?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <div className="flex space-x-4">
                             <div className="flex items-center">
@@ -2578,7 +2647,7 @@ export default function ProfilePage() {
                                 onChange={() => setProfile({ ...profile, is_first_job: true })}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                               />
-                              <label htmlFor="is_first_job_yes" className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor="is_first_job_yes" className="ml-2 block text-sm text-slate-700">
                                 Yes
                               </label>
                             </div>
@@ -2591,7 +2660,7 @@ export default function ProfilePage() {
                                 onChange={() => setProfile({ ...profile, is_first_job: false })}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                               />
-                              <label htmlFor="is_first_job_no" className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor="is_first_job_no" className="ml-2 block text-sm text-slate-700">
                                 No
                               </label>
                             </div>
@@ -2604,11 +2673,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Stay Reasons */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Reasons for staying on the job
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <div className="space-y-2">
                             {stayReasons.map((reason) => (
@@ -2627,7 +2696,7 @@ export default function ProfilePage() {
                                 />
                                 <label 
                                   htmlFor={`stay_reason_${reason.toLowerCase().replace(/\s+/g, '_')}`} 
-                                  className="ml-2 block text-sm text-gray-700"
+                                  className="ml-2 block text-sm text-slate-700"
                                 >
                                   {reason}
                                 </label>
@@ -2642,11 +2711,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* First Job Related */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Is your first job related to your course?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <div className="flex space-x-4">
                             <div className="flex items-center">
@@ -2658,7 +2727,7 @@ export default function ProfilePage() {
                                 onChange={() => setProfile({ ...profile, first_job_related: true })}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                               />
-                              <label htmlFor="first_job_related_yes" className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor="first_job_related_yes" className="ml-2 block text-sm text-slate-700">
                                 Yes
                               </label>
                             </div>
@@ -2671,7 +2740,7 @@ export default function ProfilePage() {
                                 onChange={() => setProfile({ ...profile, first_job_related: false })}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                               />
-                              <label htmlFor="first_job_related_no" className="ml-2 block text-sm text-gray-700">
+                              <label htmlFor="first_job_related_no" className="ml-2 block text-sm text-slate-700">
                                 No
                               </label>
                             </div>
@@ -2684,11 +2753,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* First Job Reasons */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Reasons for accepting first job
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <div className="space-y-2">
                             {firstJobReasons.map((reason) => (
@@ -2707,7 +2776,7 @@ export default function ProfilePage() {
                                 />
                                 <label 
                                   htmlFor={`first_job_reason_${reason.toLowerCase().replace(/\s+/g, '_')}`} 
-                                  className="ml-2 block text-sm text-gray-700"
+                                  className="ml-2 block text-sm text-slate-700"
                                 >
                                   {reason}
                                 </label>
@@ -2722,11 +2791,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* First Job Tenure */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         How long did you stay in your first job?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="first_job_tenure"
@@ -2750,11 +2819,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* First Job Acquisition */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         How did you find your first job?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="first_job_acquisition"
@@ -2778,11 +2847,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Time to First Job */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         How long did it take to find your first job?
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="text"
@@ -2801,11 +2870,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* First Job Level */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Level of your first job
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="first_job_level"
@@ -2829,11 +2898,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Current Job Level */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Level of your current job
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="current_job_level"
@@ -2857,11 +2926,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Initial Salary */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Initial Salary (First Job)
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="text"
@@ -2880,11 +2949,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Curriculum Relevance First */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Relevance of curriculum to first job
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="number"
@@ -2905,11 +2974,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Curriculum Relevance Current */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Relevance of curriculum to current job
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="number"
@@ -2930,11 +2999,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Date Employed */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Date Employed
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <input
                             type="date"
@@ -2952,11 +3021,11 @@ export default function ProfilePage() {
                     </div>
                     
                     {/* Monthly Salary Range */}
-                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                      <dt className="text-sm font-medium text-gray-500">
+                    <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                      <dt className="text-sm font-semibold text-slate-600">
                         Monthly Salary Range
                       </dt>
-                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                         {isEditing ? (
                           <select
                             id="monthly_salary"
@@ -2999,22 +3068,22 @@ export default function ProfilePage() {
           )}
           
           {activeTab === 'skills' && (
-            <div className="bg-white shadow-sm rounded-lg mb-6">
-              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-6">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">Skills & Abilities</h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500">Share your professional skills and achievements</p>
               </div>
               
-              <div className="px-4 py-5 sm:p-6">
+              <div className="divide-y divide-slate-100 px-4 py-2 sm:px-6">
                 {/* Professional Skills */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Professional Skills
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       List your key professional skills
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="skills"
@@ -3035,14 +3104,14 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* Achievements */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Achievements
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       List your notable achievements and awards
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="achievements"
@@ -3063,14 +3132,14 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* Special Projects */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Special Projects
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       Describe any significant projects you've worked on
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="special_projects"
@@ -3091,14 +3160,14 @@ export default function ProfilePage() {
                 </div>
                 
                 {/* Professional Organizations */}
-                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">
+                <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+                  <dt className="text-sm font-semibold text-slate-600">
                     Professional Organizations
-                    <div className="mt-1 text-xs text-gray-400 font-normal">
+                    <div className="mt-1 text-xs text-slate-400 font-normal">
                       List any professional groups or associations you belong to
                     </div>
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
                     {isEditing ? (
                       <textarea
                         name="professional_organizations"

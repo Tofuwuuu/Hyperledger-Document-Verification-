@@ -670,7 +670,7 @@ export const alumniService = {
   // Reliable methods using simplified endpoints
   createProfileReliable: async (profileData) => {
     try {
-      // Ensure profile data has user_id and other required fields
+      // Normalize profile data and attach user_id before saving
       const preparedData = await prepareProfileData(profileData);
       
       console.log('Creating alumni profile using reliable endpoint with data:', preparedData);
@@ -726,7 +726,7 @@ export const alumniService = {
   
   createProfile: async (profileData) => {
     try {
-      // Ensure profile data has user_id and other required fields
+      // Normalize profile data and attach user_id before saving
       const preparedData = await prepareProfileData(profileData);
       
       console.log('Creating alumni profile with data:', preparedData);
@@ -1303,7 +1303,7 @@ export const adminVerificationService = {
       }, { timeout: 10000 });
     } catch (error) {
       console.error(`Error approving verification ${documentId}:`, error);
-      throw new Error(error.response?.data?.message || 'Failed to approve verification');
+      throw new Error(error.response?.data?.detail || error.response?.data?.message || 'Failed to approve verification');
     }
   },
   

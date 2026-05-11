@@ -55,6 +55,7 @@ app = FastAPI(
 uploads_dir = Path(__file__).resolve().parents[0].parents[0] / "uploads"
 uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+app.mount("/api/v1/uploads", StaticFiles(directory=uploads_dir), name="api_uploads")
 
 
 if settings.enable_cors:
