@@ -3,10 +3,15 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-// import cvsuLogo from '../../assets/cvsu-logo.png';
-
-// Placeholder for the logo until the actual image is added
-const cvsuLogo = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzM4YTM4OSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgYWxpZ25tZW50LWJhc2VsaW5lPSJtaWRkbGUiPkNWU1U8L3RleHQ+PC9zdmc+';
+import {
+  ArrowRightIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  KeyIcon,
+  LockClosedIcon,
+} from '@heroicons/react/24/outline';
+import AuthShell from './AuthShell';
 
 // Validation schema
 const LoginSchema = Yup.object().shape({
@@ -24,6 +29,7 @@ export default function LoginPage() {
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -126,34 +132,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <img
-          className="mx-auto h-16 w-auto"
-          src={cvsuLogo}
-          alt="CVSU Logo"
-        />
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link to="/register" className="font-medium text-cvsu-green hover:text-green-700">
-            register for a new account
-          </Link>
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in to continue to your alumni dashboard."
+      switchText="New to the portal?"
+      switchTo="/register"
+      switchLabel="Create an account"
+      badgeText="Secure alumni access"
+    >
           {generalError && (
-            <div className="rounded-md bg-red-50 p-4 mb-4 border-2 border-red-400">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
+            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
+              <div className="flex gap-3">
+                <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">
                     Login Failed
@@ -204,13 +194,13 @@ export default function LoginPage() {
             }}
           >
             {({ isSubmitting, errors, touched, handleSubmit: formikHandleSubmit }) => (
-              <Form className="space-y-6" onSubmit={(e) => {
+              <Form className="space-y-5" onSubmit={(e) => {
                 // Extra protection against form submission refresh
                 e.preventDefault();
                 formikHandleSubmit(e);
               }}>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
                     Email address
                   </label>
                   <div className="mt-1">
@@ -221,7 +211,7 @@ export default function LoginPage() {
                       autoComplete="email"
                       placeholder="Enter your email address"
                       className={`form-input ${
-                        errors.email && touched.email ? 'border-red-500' : ''
+                        errors.email && touched.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
                       }`}
                     />
                     <ErrorMessage
@@ -233,29 +223,41 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
                     Password
                   </label>
-                  <div className="mt-1">
+                  <div className="relative mt-1">
                     <Field
                       id="password"
                       name="password"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       placeholder="Enter your password"
-                      className={`form-input ${
-                        errors.password && touched.password ? 'border-red-500' : ''
+                      className={`form-input pr-11 ${
+                        errors.password && touched.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
                       }`}
                     />
-                    <ErrorMessage
-                      name="password"
-                      component="p"
-                      className="mt-2 text-sm text-red-600"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-700"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-5 w-5" aria-hidden="true" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5" aria-hidden="true" />
+                      )}
+                    </button>
                   </div>
+                  <ErrorMessage
+                    name="password"
+                    component="p"
+                    className="mt-2 text-sm text-red-600"
+                  />
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-center">
                     <Field
                       id="remember-me"
@@ -263,22 +265,18 @@ export default function LoginPage() {
                       type="checkbox"
                       className="h-5 w-5 text-cvsu-green focus:ring-cvsu-green border-gray-300 rounded transition-all duration-200 hover:border-cvsu-green"
                     />
-                    <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 hover:text-gray-900 cursor-pointer transition-colors duration-200">
+                    <label htmlFor="remember-me" className="ml-2 block cursor-pointer text-sm text-slate-700 transition-colors duration-200 hover:text-slate-900">
                       Remember me
                     </label>
                   </div>
 
-                  <div className="text-sm">
-                    <Link to="/reset-password" className="font-medium text-cvsu-green hover:text-green-700 flex items-center transition-colors duration-200">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                      </svg>
+                  <div className="space-y-1 text-sm sm:text-right">
+                    <Link to="/reset-password" className="flex items-center font-semibold text-cvsu-green transition-colors duration-200 hover:text-cvsu-green/80 sm:justify-end">
+                      <KeyIcon className="mr-1 h-4 w-4" aria-hidden="true" />
                       Forgot your password?
                     </Link>
-                    <Link to="/account-recovery" className="font-medium text-gray-500 hover:text-cvsu-green block mt-1 flex items-center transition-colors duration-200">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                      </svg>
+                    <Link to="/account-recovery" className="flex items-center font-medium text-slate-500 transition-colors duration-200 hover:text-cvsu-green sm:justify-end">
+                      <LockClosedIcon className="mr-1 h-4 w-4" aria-hidden="true" />
                       More recovery options
                     </Link>
                   </div>
@@ -288,14 +286,19 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || isLoading}
-                    className="btn-primary w-full flex justify-center"
+                    className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isLoading ? (
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                    ) : 'Sign in'}
+                    ) : (
+                      <>
+                        Sign in
+                        <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />
+                      </>
+                    )}
                   </button>
                 </div>
               </Form>
@@ -312,17 +315,15 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-5">
               <Link
                 to="/verify"
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
+                className="flex w-full justify-center rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2"
               >
                 Go to Document Verification
               </Link>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 } 

@@ -3,10 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-// import cvsuLogo from '../../assets/cvsu-logo.png';
-
-// Placeholder for the logo until the actual image is added
-const cvsuLogo = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzM4YTM4OSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgYWxpZ25tZW50LWJhc2VsaW5lPSJtaWRkbGUiPkNWU1U8L3RleHQ+PC9zdmc+';
+import {
+  ArrowRightIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+} from '@heroicons/react/24/outline';
+import AuthShell from './AuthShell';
 
 // Validation schema
 const RegisterSchema = Yup.object().shape({
@@ -29,6 +33,8 @@ export default function RegisterPage() {
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
@@ -78,31 +84,20 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <img
-          className="mx-auto h-16 w-auto"
-          src={cvsuLogo}
-          alt="CVSU Logo"
-        />
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Register for an account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link to="/login" className="font-medium text-cvsu-green hover:text-green-700">
-            sign in to your existing account
-          </Link>
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <AuthShell
+      title="Create your account"
+      subtitle="Join the alumni portal with your active email address."
+      switchText="Already registered?"
+      switchTo="/login"
+      switchLabel="Sign in"
+      badgeText="Alumni registration"
+    >
           {registrationSuccess ? (
-            <div className="rounded-md bg-green-50 p-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-green-800">Registration successful!</h3>
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <div className="flex gap-3">
+                <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden="true" />
+                <div>
+                  <h3 className="text-sm font-semibold text-green-800">Registration successful!</h3>
                   <div className="mt-2 text-sm text-green-700">
                     <p>Your account has been created. You will be redirected to the login page shortly.</p>
                   </div>
@@ -112,15 +107,11 @@ export default function RegisterPage() {
           ) : (
             <>
               {generalError && (
-                <div className="rounded-md bg-red-50 p-4 mb-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">There were errors with your submission</h3>
+                <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
+                  <div className="flex gap-3">
+                    <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-800">There were errors with your submission</h3>
                       <div className="mt-2 text-sm text-red-700">
                         <p>{generalError}</p>
                       </div>
@@ -140,9 +131,9 @@ export default function RegisterPage() {
                 onSubmit={handleSubmit}
               >
                 {({ isSubmitting, errors, touched }) => (
-                  <Form className="space-y-6">
+                  <Form className="space-y-5">
                     <div>
-                      <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="fullName" className="block text-sm font-semibold text-slate-700">
                         Full Name
                       </label>
                       <div className="mt-1">
@@ -151,8 +142,9 @@ export default function RegisterPage() {
                           name="fullName"
                           type="text"
                           autoComplete="name"
+                          placeholder="Enter your full name"
                           className={`form-input ${
-                            errors.fullName && touched.fullName ? 'border-red-500' : ''
+                            errors.fullName && touched.fullName ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
                           }`}
                         />
                         <ErrorMessage
@@ -164,7 +156,7 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
                         Email address
                       </label>
                       <div className="mt-1">
@@ -173,8 +165,9 @@ export default function RegisterPage() {
                           name="email"
                           type="email"
                           autoComplete="email"
+                          placeholder="Enter your email address"
                           className={`form-input ${
-                            errors.email && touched.email ? 'border-red-500' : ''
+                            errors.email && touched.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
                           }`}
                         />
                         <ErrorMessage
@@ -186,71 +179,102 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
                         Password
                       </label>
-                      <div className="mt-1">
+                      <div className="relative mt-1">
                         <Field
                           id="password"
                           name="password"
-                          type="password"
+                          type={showPassword ? 'text' : 'password'}
                           autoComplete="new-password"
-                          className={`form-input ${
-                            errors.password && touched.password ? 'border-red-500' : ''
+                          placeholder="Create a password"
+                          className={`form-input pr-11 ${
+                            errors.password && touched.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
                           }`}
                         />
-                        <ErrorMessage
-                          name="password"
-                          component="p"
-                          className="mt-2 text-sm text-red-600"
-                        />
-                        {touched.password && !errors.password && (
-                          <p className="mt-1 text-xs text-gray-500">
-                            Password must have at least 6 characters.
-                          </p>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((current) => !current)}
+                          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-700"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? (
+                            <EyeSlashIcon className="h-5 w-5" aria-hidden="true" />
+                          ) : (
+                            <EyeIcon className="h-5 w-5" aria-hidden="true" />
+                          )}
+                        </button>
                       </div>
+                      <ErrorMessage
+                        name="password"
+                        component="p"
+                        className="mt-2 text-sm text-red-600"
+                      />
+                      {touched.password && !errors.password && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Password must have at least 6 characters.
+                        </p>
+                        )}
                     </div>
 
                     <div>
-                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="confirmPassword" className="block text-sm font-semibold text-slate-700">
                         Confirm Password
                       </label>
-                      <div className="mt-1">
+                      <div className="relative mt-1">
                         <Field
                           id="confirmPassword"
                           name="confirmPassword"
-                          type="password"
+                          type={showConfirmPassword ? 'text' : 'password'}
                           autoComplete="new-password"
-                          className={`form-input ${
-                            errors.confirmPassword && touched.confirmPassword ? 'border-red-500' : ''
+                          placeholder="Re-enter your password"
+                          className={`form-input pr-11 ${
+                            errors.confirmPassword && touched.confirmPassword ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
                           }`}
                         />
-                        <ErrorMessage
-                          name="confirmPassword"
-                          component="p"
-                          className="mt-2 text-sm text-red-600"
-                        />
-                        {touched.confirmPassword && touched.password && errors.confirmPassword && (
-                          <div className="mt-1 p-2 bg-red-50 border border-red-100 rounded text-sm text-red-800">
-                            <strong>Important:</strong> Passwords must match exactly. Please check both fields.
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((current) => !current)}
+                          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-700"
+                          aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeSlashIcon className="h-5 w-5" aria-hidden="true" />
+                          ) : (
+                            <EyeIcon className="h-5 w-5" aria-hidden="true" />
+                          )}
+                        </button>
                       </div>
+                      <ErrorMessage
+                        name="confirmPassword"
+                        component="p"
+                        className="mt-2 text-sm text-red-600"
+                      />
+                      {touched.confirmPassword && touched.password && errors.confirmPassword && (
+                        <div className="mt-2 rounded-md border border-red-100 bg-red-50 p-2 text-sm text-red-800">
+                          <strong>Important:</strong> Passwords must match exactly. Please check both fields.
+                        </div>
+                        )}
                     </div>
 
                     <div>
                       <button
                         type="submit"
                         disabled={isSubmitting || isLoading}
-                        className="btn-primary w-full flex justify-center"
+                        className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {isLoading ? (
                           <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                        ) : 'Register'}
+                        ) : (
+                          <>
+                            Create account
+                            <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />
+                          </>
+                        )}
                       </button>
                     </div>
                   </Form>
@@ -258,8 +282,6 @@ export default function RegisterPage() {
               </Formik>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 } 

@@ -1,40 +1,63 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { KeyIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  KeyIcon,
+} from '@heroicons/react/24/outline';
 import { requestPasswordReset, verifyResetToken, resetPassword } from '../services/authService';
+import AuthShell from './auth/AuthShell';
+
+const steps = ['Email', 'Token', 'New password'];
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const initialToken = searchParams.get('token') || '';
-  
+
   const [email, setEmail] = useState('');
   const [token, setToken] = useState(initialToken);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [step, setStep] = useState(initialToken ? 3 : 1); // 1: Email, 2: Token, 3: New Password, 4: Success
+  const [step, setStep] = useState(initialToken ? 3 : 1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState(initialToken ? 'Recovery verified. Choose a new password.' : '');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const getErrorMessage = (err, fallback) => (
+    err.response?.data?.detail || err.message || fallback
+  );
 
   const handleRequestReset = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (!email) {
+    setNotice('');
+
+    if (!email.trim()) {
       setError('Email is required');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      await requestPasswordReset(email);
-      setStep(2);
-    } catch (error) {
-      if (error.response && error.response.data) {
-        setError(error.response.data.detail || 'Failed to send reset email');
+      const response = await requestPasswordReset(email.trim());
+
+      if (response.reset_token) {
+        setToken(response.reset_token);
+        setNotice('A reset session was created. You can set a new password now.');
+        setStep(3);
       } else {
-        setError('Network error, please try again later');
+        setNotice('If the email exists, a reset token has been issued.');
+        setStep(2);
       }
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to request password reset'));
     } finally {
       setLoading(false);
     }
@@ -43,23 +66,21 @@ export default function ResetPasswordPage() {
   const handleVerifyToken = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (!token) {
+    setNotice('');
+
+    if (!token.trim()) {
       setError('Token is required');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      await verifyResetToken(token);
+      const response = await verifyResetToken(token.trim());
+      setNotice(response.email ? `Token verified for ${response.email}.` : 'Token verified.');
       setStep(3);
-    } catch (error) {
-      if (error.response && error.response.data) {
-        setError(error.response.data.detail || 'Invalid or expired token');
-      } else {
-        setError('Network error, please try again later');
-      }
+    } catch (err) {
+      setError(getErrorMessage(err, 'Invalid or expired token'));
     } finally {
       setLoading(false);
     }
@@ -68,243 +89,240 @@ export default function ResetPasswordPage() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!password) {
       setError('Password is required');
       return;
     }
-    
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
-    
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      await resetPassword(token, password, confirmPassword);
+      await resetPassword(token.trim(), password, confirmPassword);
       setStep(4);
-    } catch (error) {
-      if (error.response && error.response.data) {
-        setError(error.response.data.detail || 'Failed to reset password');
-      } else {
-        setError('Network error, please try again later');
-      }
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to reset password'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="flex justify-center">
-            <div className="h-12 w-12 rounded-full bg-cvsu-green flex items-center justify-center">
-              <KeyIcon className="h-6 w-6 text-white" aria-hidden="true" />
+    <AuthShell
+      title={step === 4 ? 'Password updated' : 'Reset your password'}
+      subtitle={step === 4 ? 'You can now sign in with your new password.' : 'Use your email or reset token to recover access.'}
+      switchText="Remembered your password?"
+      switchTo="/login"
+      switchLabel="Back to login"
+      badgeText="Password recovery"
+    >
+      {step < 4 && (
+        <div className="mb-6 grid grid-cols-3 gap-2">
+          {steps.map((label, index) => {
+            const isActive = step === index + 1;
+            const isDone = step > index + 1;
+
+            return (
+              <div
+                key={label}
+                className={`rounded-md border px-2 py-2 text-center text-xs font-semibold ${
+                  isActive || isDone
+                    ? 'border-cvsu-green bg-cvsu-green/10 text-cvsu-green'
+                    : 'border-slate-200 bg-slate-50 text-slate-500'
+                }`}
+              >
+                {label}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex gap-3">
+            <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
+            <p className="text-sm font-medium text-red-800">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {notice && step < 4 && (
+        <div className="mb-5 rounded-lg border border-cvsu-green/20 bg-cvsu-green/10 p-4">
+          <p className="text-sm font-medium text-cvsu-green">{notice}</p>
+        </div>
+      )}
+
+      {step === 1 && (
+        <form className="space-y-5" onSubmit={handleRequestReset}>
+          <div>
+            <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
+              Email address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="form-input mt-1"
+              placeholder="Enter your email address"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {loading ? 'Checking...' : 'Continue'}
+            {!loading && <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStep(2)}
+            className="w-full text-center text-sm font-semibold text-cvsu-green hover:text-cvsu-green/80"
+          >
+            I already have a reset token
+          </button>
+        </form>
+      )}
+
+      {step === 2 && (
+        <form className="space-y-5" onSubmit={handleVerifyToken}>
+          <div>
+            <label htmlFor="token" className="block text-sm font-semibold text-slate-700">
+              Reset token
+            </label>
+            <textarea
+              id="token"
+              name="token"
+              required
+              rows={4}
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="form-input mt-1 resize-none"
+              placeholder="Paste your reset token"
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              Tokens may be longer than a short code in this local setup.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {loading ? 'Verifying...' : 'Verify token'}
+            {!loading && <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStep(1)}
+            className="flex w-full items-center justify-center text-sm font-semibold text-slate-600 hover:text-cvsu-green"
+          >
+            <ArrowLeftIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Use a different email
+          </button>
+        </form>
+      )}
+
+      {step === 3 && (
+        <form className="space-y-5" onSubmit={handleResetPassword}>
+          <div>
+            <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+              New password
+            </label>
+            <div className="relative mt-1">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="form-input pr-11"
+                placeholder="Create a new password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-700"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+              </button>
             </div>
           </div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">Reset your password</h2>
-          {step < 4 && (
-            <p className="mt-2 text-center text-sm text-gray-600">
-              Follow the steps to reset your CVSU-Carmona document verification system password
-            </p>
-          )}
-        </div>
 
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10">
-            {error && (
-              <div className="mb-4 rounded-md bg-red-50 p-4">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 1: Email form */}
-            {step === 1 && (
-              <form className="space-y-6" onSubmit={handleRequestReset}>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Email address
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-cvsu-green focus:outline-none focus:ring-cvsu-green sm:text-sm"
-                      placeholder="alumni@example.com"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex w-full justify-center rounded-md border border-transparent bg-cvsu-green px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2 disabled:opacity-75"
-                  >
-                    {loading ? 'Sending...' : 'Send Reset Link'}
-                  </button>
-                </div>
-
-                <div className="text-sm text-center">
-                  <Link to="/login" className="font-medium text-cvsu-green hover:text-cvsu-green/90">
-                    Back to login
-                  </Link>
-                </div>
-              </form>
-            )}
-
-            {/* Step 2: Token form */}
-            {step === 2 && (
-              <form className="space-y-6" onSubmit={handleVerifyToken}>
-                <div>
-                  <div className="rounded-md bg-blue-50 p-4 mb-6">
-                    <div className="flex">
-                      <div className="ml-3">
-                        <p className="text-sm text-blue-700">
-                          A password reset token has been sent to <strong>{email}</strong>. Please check your email and enter the token below.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <label htmlFor="token" className="block text-sm font-medium text-gray-700">
-                    Reset Token
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="token"
-                      name="token"
-                      type="text"
-                      required
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-cvsu-green focus:outline-none focus:ring-cvsu-green sm:text-sm"
-                      placeholder="Enter the 6-digit code"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex w-full justify-center rounded-md border border-transparent bg-cvsu-green px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2 disabled:opacity-75"
-                  >
-                    {loading ? 'Verifying...' : 'Verify Token'}
-                  </button>
-                </div>
-
-                <div className="text-sm text-center">
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="font-medium text-cvsu-green hover:text-cvsu-green/90"
-                  >
-                    Use a different email
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Step 3: New Password form */}
-            {step === 3 && (
-              <form className="space-y-6" onSubmit={handleResetPassword}>
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    New Password
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      autoComplete="new-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-cvsu-green focus:outline-none focus:ring-cvsu-green sm:text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                    Confirm New Password
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      autoComplete="new-password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-cvsu-green focus:outline-none focus:ring-cvsu-green sm:text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex w-full justify-center rounded-md border border-transparent bg-cvsu-green px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2 disabled:opacity-75"
-                  >
-                    {loading ? 'Resetting...' : 'Reset Password'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Step 4: Success message */}
-            {step === 4 && (
-              <div className="text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                  <CheckCircleIcon className="h-6 w-6 text-green-600" aria-hidden="true" />
-                </div>
-                <h3 className="mt-2 text-lg font-medium text-gray-900">Password reset successful</h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  Your password has been successfully reset. You can now use your new password to log into your account.
-                </p>
-                <div className="mt-6">
-                  <Link
-                    to="/login"
-                    className="inline-flex w-full justify-center rounded-md border border-transparent bg-cvsu-green px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cvsu-green/90 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2"
-                  >
-                    Go to Login
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {/* Password requirements - Show in steps 1-3 */}
-            {step < 4 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700">Password requirements:</h3>
-                <ul className="mt-2 text-xs text-gray-500 list-disc list-inside space-y-1">
-                  <li>At least 6 characters</li>
-                </ul>
-              </div>
-            )}
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-semibold text-slate-700">
+              Confirm new password
+            </label>
+            <div className="relative mt-1">
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="form-input pr-11"
+                placeholder="Re-enter your new password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((current) => !current)}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-700"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Password must have at least 6 characters.</p>
           </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {loading ? 'Updating...' : 'Reset password'}
+            {!loading && <KeyIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
+          </button>
+        </form>
+      )}
+
+      {step === 4 && (
+        <div className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <CheckCircleIcon className="h-6 w-6 text-green-600" aria-hidden="true" />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-slate-600">
+            Your password has been reset successfully.
+          </p>
+          <Link to="/login" className="btn-primary mt-6 w-full">
+            Go to login
+          </Link>
         </div>
-      </div>
-    </div>
+      )}
+    </AuthShell>
   );
-} 
+}

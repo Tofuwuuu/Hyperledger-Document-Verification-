@@ -1,237 +1,240 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline';
 import { authService } from '../services/api';
+import AuthShell from './auth/AuthShell';
 
-const AccountRecoveryPage = () => {
+const getErrorMessage = (err, fallback) => {
+  if (err.status === 404 || err.response?.status === 404) {
+    return 'No account found with this email address.';
+  }
+
+  if (err.status === 400 || err.response?.status === 400) {
+    return 'Security questions are not configured for this account. Use password reset instead.';
+  }
+
+  return err.response?.data?.detail || err.message || fallback;
+};
+
+export default function AccountRecoveryPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState('email'); // email, questions, success
+  const [step, setStep] = useState('email');
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Handle email submission
+
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (!email) {
-      setError('Please enter your email address');
+
+    if (!email.trim()) {
+      setError('Please enter your email address.');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      // Get security questions for this email
-      const response = await authService.getSecurityQuestions(email);
-      
-      if (response.questions && response.questions.length > 0) {
+      const response = await authService.getSecurityQuestions(email.trim());
+
+      if (response.questions?.length >= 2) {
         setQuestions(response.questions);
-        // Initialize answers array with empty strings
         setAnswers(new Array(response.questions.length).fill(''));
         setStep('questions');
       } else {
-        setError('No security questions found for this email. Please try password reset instead.');
+        setError('No security questions were found for this account. Use password reset instead.');
       }
     } catch (err) {
-      if (err.status === 404) {
-        setError('No account found with this email address');
-      } else if (err.status === 400) {
-        setError('Security questions are not set up for this account. Please use password reset instead.');
-      } else {
-        setError(err.message || 'An error occurred. Please try again later.');
-      }
+      setError(getErrorMessage(err, 'Could not load security questions. Please try again later.'));
     } finally {
       setLoading(false);
     }
   };
-  
-  // Handle answer change
+
   const handleAnswerChange = (index, value) => {
-    const newAnswers = [...answers];
-    newAnswers[index] = value;
-    setAnswers(newAnswers);
+    const nextAnswers = [...answers];
+    nextAnswers[index] = value;
+    setAnswers(nextAnswers);
   };
-  
-  // Handle questions submission
+
   const handleQuestionsSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    // Check if at least 2 answers are provided
-    const answeredCount = answers.filter(a => a.trim().length > 0).length;
+
+    const answeredCount = answers.filter((answer) => answer.trim().length > 0).length;
     if (answeredCount < 2) {
-      setError('Please answer at least 2 security questions');
+      setError('Please answer at least 2 security questions.');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      // Format answers for API
-      const answersData = questions.map((q, index) => ({
-        question_idx: q.index,
-        answer: answers[index]
-      })).filter(a => a.answer.trim().length > 0);
-      
+      const answersData = questions
+        .map((question, index) => ({
+          question_idx: question.index,
+          answer: answers[index],
+        }))
+        .filter((answer) => answer.answer.trim().length > 0);
+
       const response = await authService.verifySecurityQuestions({
-        email,
-        answers: answersData
+        email: email.trim(),
+        answers: answersData,
       });
-      
+
       if (response.status === 'success' && response.reset_token) {
-        // Redirect to password reset page with token
-        navigate(`/reset-password?token=${response.reset_token}`);
+        navigate(`/reset-password?token=${encodeURIComponent(response.reset_token)}`);
       } else {
         setStep('success');
       }
     } catch (err) {
-      if (err.status === 401) {
+      if (err.status === 401 || err.response?.status === 401) {
         setError('The answers provided do not match our records. Please try again.');
       } else {
-        setError(err.message || 'An error occurred. Please try again later.');
+        setError(getErrorMessage(err, 'Could not verify your answers. Please try again later.'));
       }
     } finally {
       setLoading(false);
     }
   };
-  
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="text-center text-3xl font-extrabold text-gray-900">
-          Account Recovery
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Recover your account using security questions
-        </p>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {error && (
-            <div className="rounded-md bg-red-50 p-4 mb-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Error</h3>
-                  <div className="mt-2 text-sm text-red-700">
-                    <p>{error}</p>
-                  </div>
-                </div>
-              </div>
+  return (
+    <AuthShell
+      title="Recover your account"
+      subtitle="Answer your security questions to verify your identity."
+      switchText="Want the standard reset flow?"
+      switchTo="/reset-password"
+      switchLabel="Use password reset"
+      badgeText="Security question recovery"
+    >
+      {error && (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex gap-3">
+            <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-red-800">{error}</p>
+              {error.includes('password reset') && (
+                <Link to="/reset-password" className="mt-2 inline-flex text-sm font-semibold text-red-700 underline">
+                  Continue with password reset
+                </Link>
+              )}
             </div>
-          )}
-          
-          {step === 'email' && (
-            <form onSubmit={handleEmailSubmit}>
-              <div className="mb-4">
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email Address
+          </div>
+        </div>
+      )}
+
+      {step === 'email' && (
+        <form className="space-y-5" onSubmit={handleEmailSubmit}>
+          <div>
+            <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
+              Email address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="form-input mt-1"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              We will only show the questions saved on your account.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={loading}
+          >
+            {loading ? 'Checking...' : 'Continue'}
+            {!loading && <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
+          </button>
+
+          <Link
+            to="/login"
+            className="flex w-full items-center justify-center text-sm font-semibold text-slate-600 hover:text-cvsu-green"
+          >
+            <ArrowLeftIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Back to login
+          </Link>
+        </form>
+      )}
+
+      {step === 'questions' && (
+        <form className="space-y-5" onSubmit={handleQuestionsSubmit}>
+          <div className="rounded-lg border border-cvsu-green/20 bg-cvsu-green/10 p-4">
+            <div className="flex gap-3">
+              <QuestionMarkCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-cvsu-green" aria-hidden="true" />
+              <p className="text-sm font-medium text-cvsu-green">
+                Answer at least 2 questions for {email}.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {questions.map((question, index) => (
+              <div key={question.index}>
+                <label htmlFor={`question-${index}`} className="block text-sm font-semibold text-slate-700">
+                  {question.question}
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-cvsu-green focus:border-cvsu-green sm:text-sm"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id={`question-${index}`}
+                  type="text"
+                  className="form-input mt-1"
+                  value={answers[index]}
+                  onChange={(e) => handleAnswerChange(index, e.target.value)}
+                  placeholder="Enter your answer"
                 />
-                <p className="mt-2 text-sm text-gray-500">
-                  Enter the email address associated with your account
-                </p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <button
-                  type="submit"
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cvsu-green hover:bg-cvsu-green-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
-                  disabled={loading}
-                >
-                  {loading ? 'Processing...' : 'Continue'}
-                </button>
-              </div>
-              
-              <div className="mt-4 text-center">
-                <Link to="/reset-password" className="font-medium text-cvsu-green hover:text-green-700">
-                  Try password reset instead
-                </Link>
-              </div>
-            </form>
-          )}
-          
-          {step === 'questions' && (
-            <form onSubmit={handleQuestionsSubmit}>
-              <div className="space-y-4">
-                <p className="text-sm text-gray-700 mb-4">
-                  Please answer at least 2 of your security questions to verify your identity:
-                </p>
-                
-                {questions.map((question, index) => (
-                  <div key={index} className="mb-4">
-                    <label htmlFor={`question-${index}`} className="block text-sm font-medium text-gray-700">
-                      {question.question}
-                    </label>
-                    <input
-                      id={`question-${index}`}
-                      type="text"
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-cvsu-green focus:border-cvsu-green sm:text-sm"
-                      value={answers[index]}
-                      onChange={(e) => handleAnswerChange(index, e.target.value)}
-                    />
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-6 flex items-center justify-between">
-                <button
-                  type="button"
-                  className="text-sm font-medium text-cvsu-green hover:text-green-700"
-                  onClick={() => setStep('email')}
-                  disabled={loading}
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  className="flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cvsu-green hover:bg-cvsu-green-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
-                  disabled={loading}
-                >
-                  {loading ? 'Verifying...' : 'Verify Answers'}
-                </button>
-              </div>
-            </form>
-          )}
-          
-          {step === 'success' && (
-            <div className="text-center">
-              <div className="rounded-md bg-green-50 p-4 mb-4">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Success</h3>
-                    <div className="mt-2 text-sm text-green-700">
-                      <p>Your identity has been verified. You will be redirected to reset your password.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <button
-                type="button"
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cvsu-green hover:bg-cvsu-green-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cvsu-green"
-                onClick={() => navigate('/login')}
-              >
-                Return to login
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+            ))}
+          </div>
 
-export default AccountRecoveryPage; 
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              className="flex items-center justify-center text-sm font-semibold text-slate-600 hover:text-cvsu-green"
+              onClick={() => setStep('email')}
+              disabled={loading}
+            >
+              <ArrowLeftIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              Back
+            </button>
+            <button
+              type="submit"
+              className="btn-primary justify-center disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={loading}
+            >
+              {loading ? 'Verifying...' : 'Verify answers'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === 'success' && (
+        <div className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <CheckCircleIcon className="h-6 w-6 text-green-600" aria-hidden="true" />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-slate-600">
+            Your identity was verified. Continue to reset your password.
+          </p>
+          <button type="button" className="btn-primary mt-6 w-full" onClick={() => navigate('/reset-password')}>
+            Continue
+          </button>
+        </div>
+      )}
+    </AuthShell>
+  );
+}
