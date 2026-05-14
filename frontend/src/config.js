@@ -1,4 +1,4 @@
-function normalizeApiOrigin(value) {
+export function normalizeApiOrigin(value) {
   if (!value) return '';
   let v = value.trim();
   v = v.endsWith('/') ? v.slice(0, -1) : v;
@@ -7,8 +7,9 @@ function normalizeApiOrigin(value) {
   return v;
 }
 
-// Local-only build: prefer IPv4 loopback to avoid Docker/WSL localhost (::1) collisions.
-export const API_ORIGIN = 'http://127.0.0.1:8000';
+export const API_ORIGIN = normalizeApiOrigin(
+  import.meta.env.VITE_API_URL || import.meta.env.VITE_API_ORIGIN || 'http://localhost:8000'
+);
 
 export const API_PREFIX = '/api/v1';
 

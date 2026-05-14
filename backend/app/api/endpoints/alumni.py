@@ -59,6 +59,12 @@ def _get_object_id(value: str) -> ObjectId | None:
         return None
 
 
+def _uploads_dir() -> Path:
+    uploads_dir = Path(__file__).resolve().parents[3] / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    return uploads_dir
+
+
 @router.get("/alumni/health")
 async def alumni_health() -> dict[str, str]:
     return {"status": "ok", "message": "Alumni profile API is available"}
@@ -280,10 +286,8 @@ async def upload_alumni_profile_picture(alumni_id: str, profile_picture: UploadF
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
-    uploads_dir = Path(__file__).resolve().parents[3] / "uploads"
-    uploads_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{alumni_id}_{Path(profile_picture.filename).name}".replace(' ', '_')
-    saved_path = uploads_dir / filename
+    saved_path = _uploads_dir() / filename
 
     try:
         contents = await profile_picture.read()

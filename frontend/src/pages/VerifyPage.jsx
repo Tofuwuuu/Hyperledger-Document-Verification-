@@ -200,7 +200,7 @@ export default function VerifyPage() {
                       <div className="mt-4">
                         <div className="-mx-2 -my-1.5 flex">
                           <Link
-                            to="/contact"
+                            to="/about"
                             className="rounded-md bg-red-50 px-2 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
                           >
                             Contact Support

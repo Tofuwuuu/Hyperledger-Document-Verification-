@@ -251,7 +251,7 @@ export default function NotificationsPage() {
                     {notification.document_id && (
                       <div className="mt-2">
                         <a 
-                          href={`/dashboard/documents/${notification.document_id}`}
+                          href={`/alumni/documents/${notification.document_id}`}
                           className="text-sm text-cvsu-green hover:underline"
                         >
                           View related document

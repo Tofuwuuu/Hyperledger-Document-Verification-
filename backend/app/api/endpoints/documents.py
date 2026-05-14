@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -29,6 +30,10 @@ def _uploads_dir() -> Path:
     uploads_dir = Path(__file__).resolve().parents[3] / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     return uploads_dir
+
+
+def _backend_root() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 
 def _hex_digest(raw: bytes) -> str:
@@ -80,11 +85,57 @@ def _serialize_document(document: dict[str, Any]) -> dict[str, Any]:
     if "_id" in result:
         result["_id"] = str(result["_id"])
         result["id"] = result["_id"]
+        result["preview_url"] = f"/api/v1/documents/{result['_id']}/preview"
+        result["download_url"] = f"/api/v1/documents/{result['_id']}/download"
     if "user_id" in result and not isinstance(result["user_id"], str):
         result["user_id"] = str(result["user_id"])
     if "alumni_profile_id" in result and result["alumni_profile_id"] is not None and not isinstance(result["alumni_profile_id"], str):
         result["alumni_profile_id"] = str(result["alumni_profile_id"])
     return result
+
+
+def _safe_upload_extension(original_filename: str | None) -> str:
+    suffix = Path(original_filename or "").suffix.lower()
+    if not suffix:
+        return ""
+    extension = suffix[1:]
+    if not extension.isalnum() or len(extension) > 10:
+        return ""
+    return suffix
+
+
+def _document_access_allowed(document: dict[str, Any], current_user: dict[str, Any]) -> bool:
+    if current_user.get("is_admin"):
+        return True
+    return str(document.get("user_id")) == str(current_user.get("sub"))
+
+
+async def _get_authorized_document(document_id: str, current_user: dict[str, Any]) -> dict[str, Any]:
+    object_id = _object_id(document_id)
+    if object_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    client = get_motor_client()
+    document = await documents_collection(client).find_one({"_id": object_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not _document_access_allowed(document, current_user):
+        raise HTTPException(status_code=403, detail="Not allowed to access this document")
+    return document
+
+
+def _resolve_document_file(document: dict[str, Any]) -> Path:
+    file_path = document.get("file_path")
+    if not isinstance(file_path, str) or not file_path:
+        raise HTTPException(status_code=404, detail="Document file path is missing")
+
+    uploads_root = _uploads_dir().resolve()
+    full_path = (_backend_root() / file_path).resolve()
+    if not full_path.is_relative_to(uploads_root):
+        raise HTTPException(status_code=400, detail="Document file path is invalid")
+    if not full_path.is_file():
+        raise HTTPException(status_code=404, detail="Document file not found")
+    return full_path
 
 
 @router.post("/documents/upload")
@@ -108,7 +159,7 @@ async def upload_document(
     if not _profile_belongs_to_current_user(profile, current_user):
         raise HTTPException(status_code=403, detail="Not allowed to upload for this alumni profile")
 
-    filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{Path(file.filename).name}".replace(" ", "_")
+    filename = f"{uuid4().hex}{_safe_upload_extension(file.filename)}"
     relative_path = f"uploads/{filename}"
     saved_path = _uploads_dir() / filename
 
@@ -173,16 +224,33 @@ async def search_documents(verification_status: str | None = None, current_user:
 
 @router.get("/documents/{document_id}")
 async def get_document(document_id: str, current_user: dict = Depends(_require_auth)) -> dict:
-    object_id = _object_id(document_id)
-    if object_id is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    client = get_motor_client()
-    doc = await documents_collection(client).find_one({"_id": object_id})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    if not current_user.get("is_admin") and str(doc.get("user_id")) != str(current_user.get("sub")):
-        raise HTTPException(status_code=403, detail="Not allowed to view this document")
+    doc = await _get_authorized_document(document_id, current_user)
     return _serialize_document(doc)
+
+
+@router.get("/documents/{document_id}/preview")
+@router.head("/documents/{document_id}/preview")
+async def preview_document(document_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
+    doc = await _get_authorized_document(document_id, current_user)
+    full_path = _resolve_document_file(doc)
+    return FileResponse(
+        full_path,
+        media_type=doc.get("mime_type") or "application/octet-stream",
+        filename=doc.get("file_name") or full_path.name,
+        content_disposition_type="inline",
+    )
+
+
+@router.get("/documents/{document_id}/download")
+async def download_document(document_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
+    doc = await _get_authorized_document(document_id, current_user)
+    full_path = _resolve_document_file(doc)
+    return FileResponse(
+        full_path,
+        media_type=doc.get("mime_type") or "application/octet-stream",
+        filename=doc.get("file_name") or full_path.name,
+        content_disposition_type="attachment",
+    )
 
 
 @router.delete("/documents/{document_id}")

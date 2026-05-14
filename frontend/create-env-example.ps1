@@ -1,7 +1,7 @@
 # Create .env.example file for frontend
 $envContent = @"
 # API Connection
-VITE_API_URL=http://127.0.0.1:8000/api/v1
+VITE_API_URL=http://localhost:8000/api/v1
 
 # Features
 VITE_POLLING_INTERVAL=5000

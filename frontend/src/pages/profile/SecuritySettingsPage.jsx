@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import DashboardLayout from '../../layouts/DashboardLayout';
 import MFASetup from '../../components/MFASetup';
 import SecurityQuestionsSetup from '../../components/SecurityQuestionsSetup';
 import { useAuth } from '../../context/AuthContext';
+import { changePassword } from '../../services/authService';
 
 const SecuritySettingsPage = () => {
-  const { currentUser, logout } = useAuth();
+  const { logout } = useAuth();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     current_password: '',
@@ -35,7 +35,7 @@ const SecuritySettingsPage = () => {
     setIsSubmitting(true);
     
     try {
-      await authService.changePassword(passwordData);
+      await changePassword(passwordData);
       setPasswordSuccess('Password changed successfully');
       setPasswordData({
         current_password: '',
@@ -59,9 +59,8 @@ const SecuritySettingsPage = () => {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-4xl mx-auto mt-8">
-        <h1 className="text-2xl font-bold mb-6">Security Settings</h1>
+    <div className="max-w-4xl mx-auto mt-8">
+      <h1 className="text-2xl font-bold mb-6">Security Settings</h1>
         
         <div className="grid grid-cols-1 gap-6">
           <div className="bg-white shadow rounded-lg p-6">
@@ -182,9 +181,8 @@ const SecuritySettingsPage = () => {
               </div>
             </div>
           </div>
-        </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 };
 

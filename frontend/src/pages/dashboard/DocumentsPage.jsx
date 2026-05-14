@@ -23,6 +23,12 @@ import { Link } from 'react-router-dom';
 import { calculateDocumentHash } from '../../services/document';
 import { sha256 } from 'js-sha256';
 
+const truncateString = (value, maxLength = 20) => {
+  const text = String(value || '');
+  if (text.length <= maxLength) return text || 'N/A';
+  return `${text.slice(0, maxLength)}...`;
+};
+
 export default function DocumentsPage() {
   const { currentUser } = useAuth();
   const [alumniProfile, setAlumniProfile] = useState(null);
@@ -168,11 +174,17 @@ export default function DocumentsPage() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  const viewDocument = (document) => {
-    // Open document in new tab
-    if (document.file_path) {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      window.open(`${baseUrl}/${document.file_path}`, '_blank');
+  const viewDocument = async (document) => {
+    const documentId = document?._id || document?.id;
+    if (!documentId) return;
+
+    try {
+      const response = await documentService.previewDocument(documentId);
+      const previewUrl = URL.createObjectURL(response.data);
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+    } catch (error) {
+      console.error('Error opening document preview:', error);
     }
   };
 

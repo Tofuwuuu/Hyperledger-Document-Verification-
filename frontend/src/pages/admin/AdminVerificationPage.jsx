@@ -13,9 +13,6 @@ import {
   XCircleIcon
 } from '@heroicons/react/24/outline';
 import { adminVerificationService } from '../../services/api';
-import { API_ORIGIN } from '../../config';
-
-const API_BASE_URL = API_ORIGIN.replace(/\/$/, '');
 
 const FILTERS = [
   { id: 'pending', label: 'Pending' },
@@ -49,15 +46,6 @@ function formatStatus(status) {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-function getFileUrl(url) {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
-    return url.replace('/api/v1/uploads/', '/uploads/');
-  }
-  const cleanPath = url.replace(/^\//, '').replace(/^api\/v1\/uploads\//, 'uploads/');
-  return `${API_BASE_URL}/${cleanPath}`;
-}
-
 function formatDate(dateString) {
   if (!dateString) return 'Not available';
   const date = new Date(dateString);
@@ -83,6 +71,7 @@ export default function AdminVerificationPage() {
   const [processingAction, setProcessingAction] = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState(null);
   const [previewState, setPreviewState] = useState({ loading: false, available: false, reason: '' });
+  const [previewObjectUrl, setPreviewObjectUrl] = useState('');
 
   useEffect(() => {
     fetchVerificationRequests();
@@ -191,14 +180,35 @@ export default function AdminVerificationPage() {
     }
   };
 
-  const selectedFileUrl = getFileUrl(selectedRequest?.fileUrl);
-  const selectedPreviewUrl = getFileUrl(selectedRequest?.documentPreviewUrl || selectedRequest?.fileUrl);
+  const selectedDocumentId = selectedRequest?.documentId || selectedRequest?.id;
   const selectedStatus = normalizeStatus(selectedRequest?.status);
   const selectedMimeType = String(selectedRequest?.mimeType || '').toLowerCase();
-  const isSelectedPdf = selectedMimeType.includes('pdf') || selectedFileUrl.toLowerCase().includes('.pdf');
+  const isSelectedPdf = selectedMimeType.includes('pdf') || String(selectedRequest?.fileName || '').toLowerCase().endsWith('.pdf');
+
+  const openSelectedFile = async () => {
+    if (!selectedDocumentId) return;
+
+    try {
+      const response = await adminVerificationService.downloadDocument(selectedDocumentId);
+      const fileUrl = URL.createObjectURL(response.data);
+      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000);
+    } catch (err) {
+      console.error('Error opening document:', err);
+      setPreviewState({
+        loading: false,
+        available: false,
+        reason: 'The document could not be opened through the authenticated download endpoint.'
+      });
+    }
+  };
 
   useEffect(() => {
-    if (!selectedRequest || !selectedPreviewUrl || selectedRequest.fileExists === false) {
+    if (!selectedRequest || !selectedDocumentId || selectedRequest.fileExists === false) {
+      setPreviewObjectUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return '';
+      });
       setPreviewState({
         loading: false,
         available: false,
@@ -210,22 +220,18 @@ export default function AdminVerificationPage() {
     }
 
     let cancelled = false;
+    let objectUrl = '';
     setPreviewState({ loading: true, available: false, reason: '' });
+    setPreviewObjectUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return '';
+    });
 
-    fetch(selectedPreviewUrl, { method: 'HEAD' })
+    adminVerificationService.previewDocument(selectedDocumentId)
       .then((response) => {
         if (cancelled) return;
-        const contentType = response.headers.get('content-type') || '';
-        if (!response.ok || contentType.includes('application/json')) {
-          setPreviewState({
-            loading: false,
-            available: false,
-            reason: response.status === 404
-              ? 'The preview URL returned 404 Not Found.'
-              : 'The server did not return a previewable file.'
-          });
-          return;
-        }
+        objectUrl = URL.createObjectURL(response.data);
+        setPreviewObjectUrl(objectUrl);
         setPreviewState({ loading: false, available: true, reason: '' });
       })
       .catch(() => {
@@ -240,8 +246,9 @@ export default function AdminVerificationPage() {
 
     return () => {
       cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [selectedPreviewUrl, selectedRequest]);
+  }, [selectedDocumentId, selectedRequest]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -414,16 +421,15 @@ export default function AdminVerificationPage() {
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-slate-700">Document Preview</h3>
-                    {selectedFileUrl && (
-                      <a
-                        href={selectedFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    {selectedDocumentId && (
+                      <button
+                        type="button"
+                        onClick={openSelectedFile}
                         className="inline-flex items-center gap-1 text-sm font-semibold text-cvsu-green hover:text-cvsu-green/80"
                       >
                         <EyeIcon className="h-4 w-4" />
                         Open file
-                      </a>
+                      </button>
                     )}
                   </div>
                   <div className="h-72 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
@@ -439,23 +445,22 @@ export default function AdminVerificationPage() {
                         <p className="mt-1 max-w-sm text-sm text-slate-500">
                           {previewState.reason || 'The uploaded file could not be previewed.'}
                         </p>
-                        {selectedFileUrl && (
-                          <a
-                            href={selectedFileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {selectedDocumentId && (
+                          <button
+                            type="button"
+                            onClick={openSelectedFile}
                             className="mt-4 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                           >
                             <EyeIcon className="mr-2 h-4 w-4" />
                             Try opening file
-                          </a>
+                          </button>
                         )}
                       </div>
-                    ) : isSelectedPdf && selectedFileUrl ? (
-                      <iframe title="Document preview" src={selectedFileUrl} className="h-full w-full bg-white" />
+                    ) : isSelectedPdf && previewObjectUrl ? (
+                      <iframe title="Document preview" src={previewObjectUrl} className="h-full w-full bg-white" />
                     ) : (
                       <img
-                        src={selectedPreviewUrl || FALLBACK_PREVIEW}
+                        src={previewObjectUrl || FALLBACK_PREVIEW}
                         alt="Document preview"
                         className="h-full w-full object-contain"
                         onError={(event) => {

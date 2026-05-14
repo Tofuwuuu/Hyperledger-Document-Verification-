@@ -105,7 +105,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://backend:8000
+      - VITE_API_URL=${VITE_API_URL:-http://backend:8000}
       - VITE_BLOCKCHAIN_ENABLED=true
     depends_on:
       - backend

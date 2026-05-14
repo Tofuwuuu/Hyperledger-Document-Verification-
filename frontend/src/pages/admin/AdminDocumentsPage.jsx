@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { 
   DocumentIcon, 
@@ -9,7 +8,6 @@ import {
   XCircleIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { API_URL } from '../../config';
 import { adminVerificationService, api, adminDocumentService } from '../../services/api';
 import { getDocumentTypeLabel } from '../../constants/documentTypes';
 
@@ -20,6 +18,21 @@ export default function AdminDocumentsPage() {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'verified', 'rejected'
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  const openDocumentPreview = async (document) => {
+    const documentId = document?._id || document?.id;
+    if (!documentId) return;
+
+    try {
+      const response = await adminVerificationService.previewDocument(documentId);
+      const previewUrl = URL.createObjectURL(response.data);
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+    } catch (error) {
+      console.error('Error opening document preview:', error);
+      setError('Failed to open document preview. Please try again.');
+    }
+  };
   
   useEffect(() => {
     fetchDocuments();
@@ -293,14 +306,13 @@ export default function AdminDocumentsPage() {
                         <p className="text-sm text-gray-500">Document Preview</p>
                         <div className="mt-2 border rounded p-2 flex items-center justify-center h-48 bg-gray-100">
                           {selectedDocument.file_path ? (
-                            <a 
-                              href={`${API_URL}/${selectedDocument.file_path}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => openDocumentPreview(selectedDocument)}
                               className="text-blue-600 hover:text-blue-800"
                             >
                               View Document
-                            </a>
+                            </button>
                           ) : (
                             <p className="text-sm text-gray-500">No preview available</p>
                           )}

@@ -71,5 +71,5 @@ export const buildAlumniProfileData = (profileData = {}) => {
   return {
     ...alumniProfileSchema,
     ...profileData
-  };he
+  };
 };

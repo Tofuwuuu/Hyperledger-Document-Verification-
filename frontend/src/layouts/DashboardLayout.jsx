@@ -34,63 +34,13 @@ function isUnavailableEndpointStatus(status) {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, logout, isAdmin, loadUserData, forceRefreshUserData } = useAuth();
+  const { currentUser, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
   const isAdminUser = isAdmin();
-  const [verificationFixed, setVerificationFixed] = useState(false);
-  
-  // Get user verification status - more robust check using multiple sources
-  const [isVerified, setIsVerified] = useState(true);
-
-  // IMMEDIATE CHECK: Force verification status check when component mounts
-  useEffect(() => {
-    // Always set verification to true and update all storage
-          setIsVerified(true);
-    setVerificationFixed(true);
-          
-          // Force update localStorage to ensure consistency
-    try {
-          const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-            localStorage.setItem('user', JSON.stringify({
-              ...storedUser,
-              is_verified: true
-            }));
-          
-          // Also update sessionStorage
-          sessionStorage.setItem('user_verified', 'true');
-      } catch (error) {
-      console.error('Error updating verification status in storage:', error);
-    }
-  }, []);
-
-  // Function to get the correct verification status - simplified to always return true
-  useEffect(() => {
-          setIsVerified(true);
-  }, [currentUser, isAdminUser]);
-
-  // Additional verification check - also simplified
-  useEffect(() => {
-    // Always verify the user
-            setIsVerified(true);
-            setVerificationFixed(true);
-    
-    // Force verification in storage
-    try {
-              sessionStorage.setItem('user_verified', 'true');
-              
-              const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-              localStorage.setItem('user', JSON.stringify({
-                ...storedUser,
-                is_verified: true
-              }));
-      } catch (error) {
-      console.error('Error setting verification status:', error);
-      }
-  }, []);
+  const isVerified = isAdminUser || Boolean(currentUser?.is_verified);
 
   const handleLogout = () => {
     logout();
@@ -390,7 +340,7 @@ export default function DashboardLayout() {
           );
         }
         return true;
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setNotifications([]);
           setUnreadCount(0);
@@ -459,7 +409,7 @@ export default function DashboardLayout() {
           ? {...n, is_read: true, read: true}
           : n)
       );
-    } catch (error) {
+    } catch {
       setUnreadCount(prev => Math.max(0, prev - 1));
       setNotifications(prev =>
         prev.map(n => (n.notification_id === notificationId || n._id === notificationId || n.id === notificationId)
@@ -499,7 +449,7 @@ export default function DashboardLayout() {
       // Update local state
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({...n, is_read: true, read: true})));
-    } catch (error) {
+    } catch {
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({...n, is_read: true, read: true})));
     }
@@ -730,7 +680,7 @@ export default function DashboardLayout() {
                           ))}
                           <div className="px-4 py-2 text-center">
                             <Link 
-                              to="/dashboard/notifications"
+                              to={isAdminUser ? "/admin/notifications" : "/alumni/notifications"}
                               className="text-xs font-medium text-cvsu-green hover:text-cvsu-green/80"
                             >
                               View all notifications
@@ -769,7 +719,7 @@ export default function DashboardLayout() {
                       <Menu.Item>
                         {({ active }) => (
                           <Link
-                            to="/admin/profile"
+                            to={isAdminUser ? "/admin/profile" : "/alumni/profile"}
                             className={classNames(
                               active ? 'bg-gray-100' : '',
                               'block px-4 py-2 text-sm text-gray-700'
@@ -782,7 +732,7 @@ export default function DashboardLayout() {
                       <Menu.Item>
                         {({ active }) => (
                           <Link
-                            to="/admin/documents"
+                            to={isAdminUser ? "/admin/admin-documents" : "/alumni/documents"}
                             className={classNames(
                               active ? 'bg-gray-100' : '',
                               'block px-4 py-2 text-sm text-gray-700'

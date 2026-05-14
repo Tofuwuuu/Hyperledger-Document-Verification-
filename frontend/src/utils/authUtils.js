@@ -110,12 +110,12 @@ export const isUserAdmin = (user) => {
 };
 
 /**
- * Checks if a user is verified (always returns true to bypass verification)
+ * Checks if a user is verified.
  * @param {Object} user - User object
- * @returns {boolean} - Whether the user is verified (always true)
+ * @returns {boolean} - Whether the user is verified
  */
 export const isUserVerified = (user) => {
-  return true; // Always return true to bypass verification checks
+  return Boolean(user?.is_admin || user?.is_verified);
 };
 
 /**

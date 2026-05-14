@@ -223,7 +223,7 @@ export default function DocumentUploadPage() {
       fetchDocuments(alumniProfile._id);
       
       // Refresh recent activity by navigating with refresh state
-      navigate('/dashboard', { 
+      navigate('/alumni', { 
         state: { 
           refreshActivity: true,
           documentUploaded: true,

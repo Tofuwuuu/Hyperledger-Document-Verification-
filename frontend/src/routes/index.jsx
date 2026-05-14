@@ -1,6 +1,10 @@
 import VerificationPage from "../pages/dashboard/VerificationPage";
 
-{
-  path: "verification",
-  element: <VerificationPage />,
-}, 
+const routes = [
+  {
+    path: "verification",
+    element: <VerificationPage />,
+  },
+];
+
+export default routes;

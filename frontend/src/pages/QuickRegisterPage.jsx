@@ -136,7 +136,7 @@ const QuickRegisterPage = () => {
           </p>
           <div className="mt-6 flex justify-center space-x-4">
             <button
-              onClick={() => navigate('/dashboard/registrations')}
+              onClick={() => navigate('/alumni/registrations')}
               className="bg-cvsu-green hover:bg-green-700 text-white font-medium py-2 px-4 rounded"
             >
               View My Registrations

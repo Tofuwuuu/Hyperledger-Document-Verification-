@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Suspense, lazy, useState, useEffect } from 'react';
+import { Suspense, lazy } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -91,10 +91,7 @@ const ProtectedRoute = ({ children }) => {
 // VerifiedRoute component for routes that require account verification
 const VerifiedRoute = ({ children }) => {
   const { currentUser, loading, isAuthenticated, isAdmin } = useAuth();
-  
-  // TEMPORARY FIX: Bypass verification check
-  const isVerified = true;
-  
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -106,6 +103,8 @@ const VerifiedRoute = ({ children }) => {
     
     return <Navigate to="/login" replace />;
   }
+
+  const isVerified = isAdmin() || Boolean(currentUser?.is_verified);
 
   // Admins can access all routes, regular users need to be verified
   if (!isVerified) {

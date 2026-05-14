@@ -682,7 +682,9 @@ def _iso_or_now(value: Any) -> str:
 
 def _serialize_verification_document(document: dict[str, Any], user: dict[str, Any] | None, profile: dict[str, Any] | None) -> dict[str, Any]:
     file_path = document.get("file_path")
-    file_url = f"/{str(file_path).lstrip('/')}" if isinstance(file_path, str) and file_path else ""
+    document_id = str(document.get("_id"))
+    preview_url = f"/api/v1/documents/{document_id}/preview"
+    download_url = f"/api/v1/documents/{document_id}/download"
     file_exists = False
     if isinstance(file_path, str) and file_path:
         try:
@@ -693,21 +695,21 @@ def _serialize_verification_document(document: dict[str, Any], user: dict[str, A
             file_exists = False
     status = document.get("verification_status") or document.get("status") or "pending"
     return {
-        "id": str(document.get("_id")),
+        "id": document_id,
         "documentType": document.get("document_type") or "Document",
         "studentName": (user or {}).get("full_name") or (profile or {}).get("full_name") or "Unknown Student",
         "status": status,
         "program": (profile or {}).get("course") or (profile or {}).get("department") or "N/A",
         "submissionDate": _iso_or_now(document.get("uploaded_at") or document.get("created_at")),
         "studentId": (profile or {}).get("student_id") or "N/A",
-        "documentPreviewUrl": file_url,
-        "fileUrl": file_url,
+        "documentPreviewUrl": preview_url,
+        "fileUrl": download_url,
         "filePath": file_path or "",
         "fileName": document.get("file_name") or "",
         "fileExists": file_exists,
         "mimeType": document.get("mime_type") or "",
         "notes": document.get("admin_notes"),
-        "documentId": str(document.get("_id")),
+        "documentId": document_id,
     }
 
 
