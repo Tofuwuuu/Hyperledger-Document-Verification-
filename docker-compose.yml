@@ -98,12 +98,14 @@ services:
   # ==================== CVSU Alumni Frontend Service ====================
   
   frontend:
+    profiles:
+      - docker-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: cvsu_alumni_frontend
     ports:
-      - "3000:3000"
+      - "5173:5173"
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://backend:8000}
       - VITE_BLOCKCHAIN_ENABLED=true

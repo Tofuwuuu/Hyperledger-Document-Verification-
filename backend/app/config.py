@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     mongodb_uri: str | None = None
 
     # CORS settings
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     # Used later for JWT/auth; included now so the service starts cleanly.
     secret_key: str = "change_me"
