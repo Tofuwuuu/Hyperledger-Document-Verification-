@@ -17,6 +17,7 @@ from app.db.collections import alumni_profiles_collection, documents_collection,
 from app.db.session import get_motor_client
 from app.services.blockchain_manager import get_blockchain_manager
 from app.utils.auth import get_current_user
+from app.utils.mongo_ids import find_one_by_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -91,12 +92,22 @@ def _serialize_admin_user(user_doc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def _load_profile_for_user_id(profiles, user_id: ObjectId) -> dict[str, Any] | None:
+async def _load_profile_for_user_id(profiles, user_id: Any) -> dict[str, Any] | None:
     projection = {"full_name": 1, "email": 1, "student_id": 1, "graduation_year": 1}
-    profile = await profiles.find_one({"user_id": user_id}, projection)
-    if profile is None:
-        profile = await profiles.find_one({"user_id": str(user_id)}, projection)
-    return profile
+    if user_id in (None, ""):
+        return None
+
+    candidates: list[Any] = [user_id, str(user_id)]
+    try:
+        candidates.append(ObjectId(str(user_id)))
+    except Exception:
+        pass
+
+    for candidate in candidates:
+        profile = await profiles.find_one({"user_id": candidate}, projection)
+        if profile is not None:
+            return profile
+    return None
 
 
 def _serialize_pending_verification_user(
@@ -171,8 +182,11 @@ def _document_file_hash(document: dict[str, Any]) -> str | None:
 
 async def _load_current_admin(current_user: dict[str, Any]) -> dict[str, Any]:
     user_id = str(current_user.get("sub", ""))
-    object_id = _object_id_or_404(user_id)
-    user = await users_collection(get_motor_client()).find_one({"_id": object_id, "is_admin": True})
+    if not user_id:
+        raise HTTPException(status_code=404, detail="Admin profile not found")
+
+    users = users_collection(get_motor_client())
+    user = await find_one_by_id(users, user_id, {"is_admin": True})
     if not user:
         raise HTTPException(status_code=404, detail="Admin profile not found")
     return user
@@ -352,18 +366,18 @@ async def verify_pending_user(
     payload: VerificationActionPayload,
     current_user: dict = Depends(_require_admin),
 ) -> dict:
-    object_id = _object_id_or_404(user_id)
     client = get_motor_client()
     users = users_collection(client)
     profiles = alumni_profiles_collection(client)
 
-    user = await users.find_one({"_id": object_id})
+    user = await find_one_by_id(users, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    user_key = user["_id"]
     now = datetime.now(timezone.utc)
     await users.update_one(
-        {"_id": object_id},
+        {"_id": user_key},
         {
             "$set": {
                 "is_verified": True,
@@ -375,8 +389,8 @@ async def verify_pending_user(
             }
         },
     )
-    updated = await users.find_one({"_id": object_id})
-    profile = await _load_profile_for_user_id(profiles, object_id)
+    updated = await users.find_one({"_id": user_key})
+    profile = await _load_profile_for_user_id(profiles, user_key)
     return {
         "success": True,
         "message": f"User {(updated or {}).get('email') or user_id} verified successfully",
@@ -390,18 +404,18 @@ async def reject_pending_user(
     payload: VerificationActionPayload,
     current_user: dict = Depends(_require_admin),
 ) -> dict:
-    object_id = _object_id_or_404(user_id)
     client = get_motor_client()
     users = users_collection(client)
     profiles = alumni_profiles_collection(client)
 
-    user = await users.find_one({"_id": object_id})
+    user = await find_one_by_id(users, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    user_key = user["_id"]
     now = datetime.now(timezone.utc)
     await users.update_one(
-        {"_id": object_id},
+        {"_id": user_key},
         {
             "$set": {
                 "is_active": False,
@@ -415,8 +429,8 @@ async def reject_pending_user(
             }
         },
     )
-    updated = await users.find_one({"_id": object_id})
-    profile = await _load_profile_for_user_id(profiles, object_id)
+    updated = await users.find_one({"_id": user_key})
+    profile = await _load_profile_for_user_id(profiles, user_key)
     return {
         "success": True,
         "message": f"User {(updated or {}).get('email') or user_id} rejected successfully",

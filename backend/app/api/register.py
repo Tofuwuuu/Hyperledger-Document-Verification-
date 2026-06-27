@@ -12,6 +12,7 @@ from app.config import settings
 from app.db.collections import alumni_profiles_collection, users_collection
 from app.db.session import get_motor_client
 from app.utils.auth import create_access_token, decode_access_token, get_current_user
+from app.utils.mongo_ids import find_one_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +98,7 @@ def _safe_user_payload(user_doc: dict) -> dict:
 
 
 async def _load_user_by_subject(client, subject: str) -> dict | None:
-    try:
-        return await users_collection(client).find_one({"_id": ObjectId(subject)})
-    except Exception:
-        return None
+    return await find_one_by_id(users_collection(client), subject)
 
 
 async def _require_admin_user(current_user: dict) -> dict:

@@ -1,12 +1,12 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from bson import ObjectId
 import bcrypt
 
 from app.schemas.auth import ChangePasswordRequest, ChangePasswordResponse
 from app.db.session import get_motor_client
 from app.db.collections import users_collection
 from app.api.register import get_current_user
+from app.utils.mongo_ids import find_one_by_id
 
 router = APIRouter()
 
@@ -16,9 +16,8 @@ async def change_password(payload: ChangePasswordRequest, current_user: dict = D
     client = get_motor_client()
     col = users_collection(client)
     user_id = current_user.get("sub")
-    try:
-        user = await col.find_one({"_id": ObjectId(user_id)})
-    except Exception:
+    user = await find_one_by_id(col, str(user_id))
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
     stored = user.get("password_hash") or user.get("hashed_password")
     if not stored:

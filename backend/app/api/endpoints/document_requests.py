@@ -219,6 +219,8 @@ async def _verify_document_release_integrity(document: dict[str, Any]) -> tuple[
     computed_hash = _document_hash(content)
 
     verification = await get_blockchain_manager().verify_document(str(document["_id"]), computed_hash)
+    if not verification.get("success") and _mongo_hash_matches_verified_document(document, computed_hash):
+        return computed_hash, full_path
     if not verification.get("success"):
         raise HTTPException(
             status_code=502,

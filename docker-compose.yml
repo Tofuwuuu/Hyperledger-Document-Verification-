@@ -78,10 +78,12 @@ services:
     container_name: cvsu_alumni_backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
     environment:
       - MONGODB_URL=mongodb://mongodb:27017/cvsu_alumni
-      - BLOCKCHAIN_ENABLED=true
-      - USE_REAL_BLOCKCHAIN=true
+      - BLOCKCHAIN_ENABLED=false
+      - USE_REAL_BLOCKCHAIN=false
       - CHAINCODE_NAME=final-smart-contract
       - FABRIC_GATEWAY_URL=http://fabric-gateway:3001
       - ENV=development

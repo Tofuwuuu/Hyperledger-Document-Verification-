@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -15,6 +14,7 @@ from app.constants.document_types import is_supported_document_type, normalize_d
 from app.db.collections import alumni_profiles_collection, documents_collection, users_collection, get_default_db
 from app.db.session import get_motor_client
 from app.utils.auth import get_current_user
+from app.utils.documents import build_document_upload_paths, safe_upload_extension
 
 router = APIRouter()
 
@@ -95,13 +95,26 @@ def _serialize_document(document: dict[str, Any]) -> dict[str, Any]:
 
 
 def _safe_upload_extension(original_filename: str | None) -> str:
-    suffix = Path(original_filename or "").suffix.lower()
-    if not suffix:
-        return ""
-    extension = suffix[1:]
-    if not extension.isalnum() or len(extension) > 10:
-        return ""
-    return suffix
+    return safe_upload_extension(original_filename)
+
+
+def _save_uploaded_document_file(
+    *,
+    profile: dict[str, Any],
+    user: dict[str, Any] | None,
+    document_type: str,
+    original_filename: str | None,
+    content: bytes,
+) -> tuple[str, str]:
+    saved_path, relative_path = build_document_upload_paths(
+        _backend_root(),
+        profile=profile,
+        user=user,
+        document_type=document_type,
+        original_filename=original_filename,
+    )
+    saved_path.write_bytes(content)
+    return relative_path, saved_path.name
 
 
 def _document_access_allowed(document: dict[str, Any], current_user: dict[str, Any]) -> bool:
@@ -159,12 +172,14 @@ async def upload_document(
     if not _profile_belongs_to_current_user(profile, current_user):
         raise HTTPException(status_code=403, detail="Not allowed to upload for this alumni profile")
 
-    filename = f"{uuid4().hex}{_safe_upload_extension(file.filename)}"
-    relative_path = f"uploads/{filename}"
-    saved_path = _uploads_dir() / filename
-
     content = await file.read()
-    saved_path.write_bytes(content)
+    relative_path, _stored_filename = _save_uploaded_document_file(
+        profile=profile,
+        user=user,
+        document_type=normalized_document_type,
+        original_filename=file.filename,
+        content=content,
+    )
     file_hash = _hex_digest(content)
 
     now = datetime.now(timezone.utc)

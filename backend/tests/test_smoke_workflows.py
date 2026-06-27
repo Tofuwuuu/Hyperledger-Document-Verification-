@@ -272,7 +272,7 @@ def test_document_smoke_profile_upload_admin_approval_public_verification_reques
     assert upload_response.status_code == 200
     document_id = upload_response.json()["document_id"]
     stored_path = upload_response.json()["file_path"]
-    assert "original" not in stored_path
+    assert stored_path.startswith("uploads/smoke/diploma/")
 
     approval_response = client.post(
         f"/api/v1/admin/verifications/{document_id}/approve",
