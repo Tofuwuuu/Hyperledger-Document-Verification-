@@ -755,13 +755,18 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-2xl border border-cvsu-green/20 bg-cvsu-green shadow-sm">
-        <div className="px-6 py-7 sm:px-8">
+      <section className="relative overflow-hidden rounded-2xl border border-emerald-300/50 bg-cvsu-green shadow-[0_22px_50px_rgba(47,125,109,0.22)]">
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,#1f6f60_0%,#38a389_44%,#4eb99c_72%,#2f7d6d_100%)]" />
+        <div className="absolute inset-0 opacity-30 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.16)_0px,rgba(255,255,255,0.16)_1px,transparent_1px,transparent_18px)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-white/50" />
+        <div className="relative px-6 py-7 sm:px-8">
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-cvsu-yellow">Admin Dashboard</p>
-              <h1 className="mt-2 text-3xl font-extrabold text-white">Welcome back, {currentUser?.full_name || 'Admin'}.</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85">
+              <p className="inline-flex rounded-full bg-cvsu-yellow/95 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-950 shadow-sm">
+                Admin Dashboard
+              </p>
+              <h1 className="mt-4 text-3xl font-extrabold text-white drop-shadow-sm">Welcome back, {currentUser?.full_name || 'Admin'}.</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-950/90">
                 Monitor verification queues, alumni records, document releases, and system activity from one console.
               </p>
             </div>
@@ -769,26 +774,26 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={fetchDashboardData}
-                className="inline-flex items-center justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-cvsu-green shadow-sm hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-md border border-white/60 bg-white/95 px-4 py-2 text-sm font-semibold text-cvsu-green-dark shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
               >
                 <ArrowPathIcon className="mr-2 h-4 w-4" />
                 Refresh
               </button>
               <Link
                 to="/admin/verifications"
-                className="inline-flex items-center justify-center rounded-md bg-cvsu-yellow px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm hover:bg-yellow-300"
+                className="inline-flex items-center justify-center rounded-md bg-cvsu-yellow px-4 py-2 text-sm font-semibold text-emerald-950 shadow-[0_10px_24px_rgba(255,193,7,0.28)] transition hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-lg"
               >
                 Review queue
                 <ArrowRightIcon className="ml-2 h-4 w-4" />
               </Link>
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap gap-3 text-xs font-medium text-white/85">
-            <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1">
+          <div className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-white">
+            <span className="inline-flex items-center rounded-full border border-white/25 bg-emerald-950/20 px-3 py-1.5 shadow-sm backdrop-blur">
               <ClockIcon className="mr-1.5 h-4 w-4" />
               {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Auto-refreshes every 60 seconds'}
             </span>
-            <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1">
+            <span className="inline-flex items-center rounded-full border border-white/25 bg-white/20 px-3 py-1.5 shadow-sm backdrop-blur">
               {stats.pendingVerifications} pending verification{stats.pendingVerifications === 1 ? '' : 's'}
             </span>
           </div>

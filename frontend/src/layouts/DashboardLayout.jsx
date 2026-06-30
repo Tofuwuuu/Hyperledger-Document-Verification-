@@ -198,7 +198,7 @@ export default function DashboardLayout() {
     const isAccessible = item.alwaysAccessible || isVerified || isAdminUser;
     const itemClasses = classNames(
       item.current
-        ? 'bg-cvsu-green text-white shadow-sm'
+        ? 'bg-[linear-gradient(135deg,#2f7d6d,#38a389_58%,#46b89c)] text-white shadow-[0_10px_22px_rgba(47,125,109,0.24)] ring-1 ring-white/20'
         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
       'group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-semibold transition'
     );
