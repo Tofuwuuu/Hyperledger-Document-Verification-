@@ -42,7 +42,8 @@ docker exec peer0.org1.example.com peer channel list
 
 ## Notes
 
-- This deploys Fabric itself. Your backend currently uses a Python mock unless you also implement a Fabric client path (Python SDK is commented out). The most robust integration approach is adding a small **Node Fabric Gateway** service that your FastAPI backend calls over HTTP.
+- `network-up.ps1` deletes and regenerates `organizations/`. That directory is gitignored, including private keys. Run the script on a new clone before the gateway can sign.
+- The FastAPI app uses an in-memory mock ledger unless `USE_REAL_BLOCKCHAIN=true`. Real calls go to the Node service in `fabric-gateway/`, which uses `@hyperledger/fabric-gateway`. See [docs/local-setup.md](../docs/local-setup.md).
 
 ## Chaincode: Final Smart Contract
 

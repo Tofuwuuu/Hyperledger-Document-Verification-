@@ -1,12 +1,15 @@
-# React + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 18 + Vite client for the CVSU alumni document verification app.
 
-Currently, two official plugins are available:
+Routes live in `src/App.jsx`. The API base URL is `VITE_API_URL` (`src/config.js`). Public document check is `/verify`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+cp .env.example .env
+npm install --legacy-peer-deps
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Dev server: http://localhost:5173. The API is expected at http://localhost:8000 unless `VITE_API_URL` says otherwise.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+See the [repository README](../README.md) for Compose, Fabric, and the rest of the stack. `vercel.json` is the Vite SPA build config only.

@@ -458,7 +458,6 @@ export const authService = {
         // For CORS and network errors, provide a more useful message
         if (error.message.includes('Network Error')) {
           error.corsError = true;
-          console.error('CORS or network error detected. Consider using a testing email (@google.com or @test.com) to bypass backend registration.');
         }
       }
       throw error;

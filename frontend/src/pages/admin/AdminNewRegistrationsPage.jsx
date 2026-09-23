@@ -82,33 +82,8 @@ export default function AdminNewRegistrationsPage() {
   };
   
   const isProfileIncomplete = (user) => {
-    // Check for missing essential profile fields with debugging
-    console.log('Checking completion for user:', user.email, user);
-    
-    // Essential fields might be named differently in the database vs the API response
     const hasFullName = !!user.full_name;
     const hasStudentId = !!user.student_id;
-    console.log(`Profile check for ${user.email}:`, {
-      hasFullName,
-      hasStudentId
-    });
-    
-    // Add specific field debugging for this user
-    if (user.email === "rodericksalise812@gmail.com") {
-      console.log("DETAILED CHECK FOR ROD:", {
-        "full_name": user.full_name,
-        "full_name type": typeof user.full_name,
-        "student_id": user.student_id,
-        "student_id type": typeof user.student_id,
-        "department": user.department,
-        "department type": typeof user.department,
-        "graduation_year": user.graduation_year,
-        "graduation_year type": typeof user.graduation_year,
-        "year_graduated": user.year_graduated,
-        "year_graduated type": typeof user.year_graduated
-      });
-    }
-    
     return !hasFullName || !hasStudentId;
   };
   
