@@ -2,7 +2,15 @@
 
 Alumni profiles and tamper-checking for Cavite State University (CVSU) Carmona documents, with SHA-256 hashes recorded on a Hyperledger Fabric ledger.
 
-This is a student capstone (Mark / [Tofuwuuu](https://github.com/Tofuwuuu)). It is a local full-stack app, not a hosted product. There is no live demo URL in this repository.
+This is a student capstone (Mark / [Tofuwuuu](https://github.com/Tofuwuuu)) for hiring managers evaluating Hyperledger and full-stack capstone work.
+
+## Status / Demo
+
+**Live UI:** [https://hyperledger-document-verification.vercel.app/](https://hyperledger-document-verification.vercel.app/) returned HTTP 200 on 2026-09-23. The body is the Vite production shell: `index.html`, title "CVSU Document Verification | Blockchain", and hashed `/assets` JS and CSS. `frontend/vercel.json` rewrites every path to `/index.html`, so `/verify` and `/api/v1` on that host are the same static page. FastAPI, MongoDB, and Hyperledger Fabric are not part of this deploy.
+
+The built client calls `https://api-production-b4b1b.up.railway.app`. Probed the same day, that host returns Railway "Application not found" (HTTP 404). Login, upload, and hash checks on the live page have no API behind them.
+
+The API, MongoDB, and ledger run locally with Docker Compose. Compose starts the API with `USE_REAL_BLOCKCHAIN=false`, so approval uses the in-memory mock ledger in `backend/app/blockchain/fabric.py`. A real peer means bringing up the Fabric network in `fabric-network/` and setting `USE_REAL_BLOCKCHAIN=true` (see `backend/.env.example`).
 
 ## What it does
 
@@ -48,7 +56,7 @@ Public verify and admin approval both go through `BlockchainManager` (`backend/a
 | Network | Hyperledger Fabric via Docker, brought up by the PowerShell scripts in `fabric-network/` |
 | Data | MongoDB (app data) and the Fabric ledger (hashes) |
 
-`frontend/vercel.json` only sets the Vite SPA install, build, and rewrite. This repo does not document a working deployment.
+`frontend/vercel.json` sets the Vite SPA install (`npm install --legacy-peer-deps`), build (`npm run build`), `dist` output, and a rewrite of every path to `/index.html`. That config is what the live UI above serves. The API, MongoDB, and Fabric network stay on Compose/local, with `USE_REAL_BLOCKCHAIN=false` unless you opt into the gateway.
 
 ## Prerequisites
 
