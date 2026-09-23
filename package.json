@@ -1,15 +1,16 @@
 {
   "name": "cvsu-alumni-system",
   "version": "1.0.0",
-  "description": "CVSU Alumni System with Blockchain Document Verification",
+  "description": "CVSU Carmona alumni profiles with Hyperledger Fabric document verification",
   "private": true,
   "scripts": {
-    "frontend": "cd frontend && npm run dev",
-    "backend": "cd backend && python run.py",
+    "frontend": "npm --prefix frontend run dev",
+    "backend": "python backend/run.py",
+    "gateway": "npm --prefix fabric-gateway start",
     "start": "concurrently \"npm run backend\" \"npm run frontend\"",
-    "install-all": "npm install && cd frontend && npm install --legacy-peer-deps && cd ../backend && pip install -r requirements.txt"
+    "install-all": "npm install && npm --prefix frontend install --legacy-peer-deps && npm --prefix fabric-gateway install && python -m pip install -r backend/requirements.txt"
   },
   "dependencies": {
     "concurrently": "^8.2.0"
   }
-} 
+}

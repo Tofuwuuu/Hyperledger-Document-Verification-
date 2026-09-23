@@ -2,9 +2,9 @@
 
 **Project:** CVSU Carmona Alumni Profile with Blockchain Document Verification  
 **Role context:** Full-stack implementation (frontend, backend API, database, blockchain integration)  
-**Live demo:** [Frontend on Render](https://alumni-frontend-4r7o.onrender.com) · API (local): `http://localhost:8000`
+**Local API:** `http://localhost:8000` when the backend is running
 
-This document describes **how the system was implemented** — architecture, modules, data flow, and key technical decisions. Use it as portfolio or resume support material.
+This document describes **how the system was implemented** — architecture, modules, data flow, and key technical decisions. Use it as portfolio or resume support material. This repository does not include a verified public demo. An older README linked a Render frontend; that host returns 404.
 
 ---
 
@@ -59,14 +59,14 @@ Services are orchestrated with **Docker Compose**:
 
 | Service | Port | Purpose |
 |---|---:|---|
-| `frontend` | 5173 | React SPA (Vite dev / production build) |
+| `frontend` | 5173 | React SPA. Compose profile `docker-frontend` only |
 | `backend` | 8000 | FastAPI REST API |
 | `mongodb` | 27017 | Primary data store |
 | `fabric-gateway` | 3001 | Hyperledger Fabric chaincode bridge |
 | `mongo-express` | 8081 | MongoDB admin UI (dev) |
-| `blockchain-explorer` | 8080 | Static blockchain explorer mock |
+| `blockchain-explorer` | 8080 | nginx mount of `./blockchain-explorer`, which is not in the repo |
 
-Production frontend is deployed on **Render**; backend runs locally or in Docker depending on environment.
+`frontend/vercel.json` is a Vite SPA build config. Nothing in this repo is a working hosted deployment.
 
 ---
 
@@ -192,10 +192,12 @@ POST /documents/upload  →  File saved to uploads/
 Admin reviews in verification queue
         │
         ├── Approve → POST /admin/verifications/{id}/approve
-        │              Optional: POST /verification/blockchain/store
-        │              Hash written to Fabric ledger
+        │              Calls StoreDocument via BlockchainManager
+        │              On gateway failure, MongoDB still records approval
+        │              with a mongo-fallback transaction id
         │
-        └── Reject  → POST /documents/{id}/reject
+        └── Reject  → POST /admin/verifications/{id}/reject
+                       (documents router also has POST /documents/{id}/reject)
 ```
 
 **File handling:**
@@ -398,21 +400,22 @@ Key environment variables (backend / Docker Compose):
 
 | Variable | Purpose |
 |---|---|
-| `MONGODB_URL` | MongoDB connection string |
+| `MONGODB_URL` or `MONGODB_URI` | MongoDB connection string (`backend/app/config.py`) |
 | `SECRET_KEY` | JWT signing secret |
 | `CORS_ORIGINS` | Allowed frontend origins |
-| `BLOCKCHAIN_ENABLED` | Enable blockchain features |
-| `USE_REAL_BLOCKCHAIN` | Use Fabric vs mock ledger |
+| `USE_REAL_BLOCKCHAIN` | `true` calls Fabric Gateway; otherwise the in-memory mock |
 | `FABRIC_GATEWAY_URL` | Fabric Gateway service URL |
 | `CHAINCODE_NAME` | Smart contract name |
 | `CHANNEL_NAME` | Fabric channel name |
 
-Frontend:
+`BLOCKCHAIN_ENABLED` is set in `docker-compose.yml` and is not read by the Python app. Compose sets `USE_REAL_BLOCKCHAIN=false`.
+
+Frontend variables the client reads:
 
 | Variable | Purpose |
 |---|---|
-| `VITE_API_URL` | Backend API base URL |
-| `VITE_BLOCKCHAIN_ENABLED` | Show blockchain UI features |
+| `VITE_API_URL` (or `VITE_API_ORIGIN`) | Backend API origin |
+| `VITE_POLLING_INTERVAL` | Polling period in milliseconds |
 
 ---
 
@@ -434,8 +437,7 @@ Frontend:
 - MongoDB schema design with async Motor driver
 - File upload handling and SHA-256 document hashing
 - Hyperledger Fabric integration via gateway pattern
-- Docker Compose multi-service orchestration
-- Cloud deployment (Render)
+- Docker Compose multi-service local setup
 
 ### Example resume bullets
 
@@ -445,8 +447,8 @@ Adapt these with your specific contributions:
 - *Implemented blockchain-backed document verification using Hyperledger Fabric — SHA-256 hashes stored on-chain via a Node.js Fabric Gateway, with public verification page for tamper detection.*
 - *Designed document lifecycle workflow: upload → admin review → blockchain proof → public hash verification, with audit trail in MongoDB.*
 - *Developed event management module with QR-based registration and attendance check-in for alumni gatherings.*
-- *Containerized the full stack (frontend, backend, MongoDB, Fabric gateway) with Docker Compose for reproducible local and deployment environments.*
-- *Deployed frontend to Render; documented API contracts and conducted frontend-backend schema audit to resolve integration gaps.*
+- *Containerized MongoDB, the API, and the Fabric gateway with Docker Compose for local development. The frontend image is an optional Compose profile.*
+- *Documented API contracts and a frontend-backend schema audit to resolve integration gaps.*
 
 ### Portfolio talking points
 
@@ -463,16 +465,15 @@ When presenting this project:
 ## 10. Project Structure Reference
 
 ```text
-FINAL/
+.
 ├── frontend/              # React + Vite SPA
 ├── backend/               # FastAPI application
 │   ├── app/               # Application code
 │   ├── tests/             # Smoke and workflow tests
-│   ├── uploads/           # Document file storage
+│   ├── uploads/           # Document file storage (gitignored)
 │   └── run.py             # Uvicorn entry point
 ├── fabric-gateway/        # Node.js Hyperledger Fabric bridge
-├── fabric-network/        # Fabric network crypto and config
-├── blockchain-explorer/   # Static explorer UI
+├── fabric-network/        # Fabric config, chaincode, PowerShell scripts
 ├── docs/                  # Project documentation
 ├── docker-compose.yml     # Multi-service orchestration
 └── package.json           # Root scripts (start frontend + backend)
