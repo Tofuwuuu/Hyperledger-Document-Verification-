@@ -6,11 +6,11 @@ This is a student capstone (Mark / [Tofuwuuu](https://github.com/Tofuwuuu)) for 
 
 ## Status / Demo
 
-**Live UI:** [https://hyperledger-document-verification.vercel.app/](https://hyperledger-document-verification.vercel.app/) returned HTTP 200 on 2026-09-23. The body is the Vite production shell: `index.html`, title "CVSU Document Verification | Blockchain", and hashed `/assets` JS and CSS. `frontend/vercel.json` rewrites every path to `/index.html`, so `/verify` and `/api/v1` on that host are the same static page. FastAPI, MongoDB, and Hyperledger Fabric are not part of this deploy.
+The full stack (React UI, FastAPI, MongoDB, and Hyperledger Fabric) runs locally with Docker Compose. There is no public live demo.
 
-The built client calls `https://api-production-b4b1b.up.railway.app`. Probed the same day, that host returns Railway "Application not found" (HTTP 404). Login, upload, and hash checks on the live page have no API behind them.
+An earlier public URL, [https://hyperledger-document-verification.vercel.app/](https://hyperledger-document-verification.vercel.app/), is only the Vite production shell: `index.html`, title "CVSU Document Verification | Blockchain", and hashed `/assets` JS and CSS. Probed on 2026-09-23 it returned HTTP 200. `frontend/vercel.json` rewrites every path to `/index.html`, so `/verify` and `/api/v1` on that host are the same static page. The built client calls `https://api-production-b4b1b.up.railway.app`. Probed the same day, that host returns Railway "Application not found" (HTTP 404). Login, upload, and hash checks on that page have no API behind them. That shell was removed from the portfolio. The screenshots below are captures of the local app.
 
-The API, MongoDB, and ledger run locally with Docker Compose. Compose starts the API with `USE_REAL_BLOCKCHAIN=false`, so approval uses the in-memory mock ledger in `backend/app/blockchain/fabric.py`. A real peer means bringing up the Fabric network in `fabric-network/` and setting `USE_REAL_BLOCKCHAIN=true` (see `backend/.env.example`).
+Compose starts the API with `USE_REAL_BLOCKCHAIN=false`, so approval uses the in-memory mock ledger in `backend/app/blockchain/fabric.py`. A real peer means bringing up the Fabric network in `fabric-network/` and setting `USE_REAL_BLOCKCHAIN=true` (see `backend/.env.example`).
 
 ## What it does
 
@@ -56,7 +56,7 @@ Public verify and admin approval both go through `BlockchainManager` (`backend/a
 | Network | Hyperledger Fabric via Docker, brought up by the PowerShell scripts in `fabric-network/` |
 | Data | MongoDB (app data) and the Fabric ledger (hashes) |
 
-`frontend/vercel.json` sets the Vite SPA install (`npm install --legacy-peer-deps`), build (`npm run build`), `dist` output, and a rewrite of every path to `/index.html`. That config is what the live UI above serves. The API, MongoDB, and Fabric network stay on Compose/local, with `USE_REAL_BLOCKCHAIN=false` unless you opt into the gateway.
+`frontend/vercel.json` sets the Vite SPA install (`npm install --legacy-peer-deps`), build (`npm run build`), `dist` output, and a rewrite of every path to `/index.html`. That config is the static shell described above. The API, MongoDB, and Fabric network stay on Compose/local, with `USE_REAL_BLOCKCHAIN=false` unless you opt into the gateway.
 
 ## Prerequisites
 
@@ -103,15 +103,31 @@ docker-compose.yml  MongoDB, API, gateway, optional frontend
 
 ## Screenshots
 
-No screenshots are checked in. Useful captures for a portfolio:
+Real captures of this app's UI, checked in under `docs/screenshots/`. The full stack runs locally with Docker Compose. There is no public live demo. Compose uses the in-memory mock ledger unless you set `USE_REAL_BLOCKCHAIN=true` and start Fabric ([docs/local-setup.md](docs/local-setup.md)).
 
-| Screen | Route |
-| --- | --- |
-| Public hash check | `/verify` |
-| Alumni home | `/alumni` |
-| Admin review queue | `/admin/verifications` |
+### Login (`/login`)
 
-Put images in `docs/screenshots/` and link them here when you have them.
+![Login page with email and password fields](docs/screenshots/login.png)
+
+### Alumni dashboard (`/alumni`)
+
+![Alumni dashboard with profile summary and quick actions](docs/screenshots/student-dashboard.png)
+
+### Upload document (`/alumni/documents/upload`)
+
+![Upload document form for file, document type, and description](docs/screenshots/upload-document.png)
+
+### My documents (`/alumni/documents`)
+
+![My documents list](docs/screenshots/my-document.png)
+
+### Admin dashboard (`/admin`)
+
+![Admin dashboard with summary cards and quick actions](docs/screenshots/admin-dashboard.png)
+
+### Admin document verification (`/admin/verifications`)
+
+![Admin document verification with a file preview and approve or reject actions](docs/screenshots/admin-document-verification.png)
 
 ## Documentation
 
