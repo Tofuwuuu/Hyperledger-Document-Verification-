@@ -325,6 +325,10 @@ def _enable_mfa(client, email):
     return secret
 
 
+def _next_code(secret, steps=1):
+    return totp.code_at(secret, time.time() + steps * totp.STEP_SECONDS)
+
+
 def test_mfa_setup_does_not_return_current_code(env):
     client, _fake = env
     _register(client, "mfa@example.com")
@@ -355,12 +359,14 @@ def test_mfa_pending_token_cannot_access_protected_routes(env):
         assert wrong.status_code == 401
         assert wrong.json()["detail"] == "That code didn't work. Check your app and try again."
 
-    ok = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": pending, "code": totp.code_at(secret)})
+    # The enable step used the current code, so sign in with the next one (inside the drift window).
+    next_code = _next_code(secret)
+    ok = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": pending, "code": next_code})
     assert ok.status_code == 200, ok.text
     access = ok.json()["access_token"]
     assert client.get("/api/v1/auth/me", headers=_bearer(access)).status_code == 200
     # An access token is not accepted where a pending token is expected.
-    swapped = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": access, "code": totp.code_at(secret)})
+    swapped = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": access, "code": next_code})
     assert swapped.status_code == 401
 
 
@@ -570,3 +576,214 @@ def test_unverified_user_cannot_upload_or_request(env):
     assert request.status_code == 403
     registration = client.post("/api/v1/registrations", headers=_bearer(token), json={"event_id": str(ObjectId())})
     assert registration.status_code == 403
+
+
+# 15. Security follow-ups ----------------------------------------------------
+
+def _seed_security_questions(fake, email):
+    import bcrypt
+
+    def h(answer):
+        return bcrypt.hashpw(answer.encode(), bcrypt.gensalt(4)).decode()
+
+    return _add_user(
+        fake,
+        email=email,
+        security_questions=[
+            {"question": "First pet?", "answer_hash": h("rex")},
+            {"question": "Home town?", "answer_hash": h("cavite")},
+        ],
+    )
+
+
+def test_security_questions_count_each_question_once(env, monkeypatch):
+    client, fake = env
+    monkeypatch.setattr(settings, "password_reset_enabled", True)
+    _seed_security_questions(fake, "sq@example.com")
+    path = "/api/v1/auth/verify-security-questions"
+    repeated = client.post(
+        path,
+        json={"email": "sq@example.com", "answers": [{"question_idx": 0, "answer": "rex"}, {"question_idx": 0, "answer": "rex"}]},
+    )
+    assert repeated.status_code == 401
+    assert "reset_token" not in repeated.text
+    both = client.post(
+        path,
+        json={"email": "sq@example.com", "answers": [{"question_idx": 0, "answer": "Rex"}, {"question_idx": 1, "answer": "cavite"}]},
+    )
+    assert both.status_code == 200, both.text
+    assert both.json()["reset_token"]
+
+
+def test_security_questions_unknown_email_looks_like_wrong_answers(env, monkeypatch):
+    client, fake = env
+    monkeypatch.setattr(settings, "password_reset_enabled", True)
+    _seed_security_questions(fake, "sq@example.com")
+    _add_user(fake, email="noquestions@example.com")
+    answers = [{"question_idx": 0, "answer": "nope"}, {"question_idx": 1, "answer": "nope"}]
+    path = "/api/v1/auth/verify-security-questions"
+    known = client.post(path, json={"email": "sq@example.com", "answers": answers})
+    unknown = client.post(path, json={"email": "nobody@example.com", "answers": answers})
+    assert known.status_code == unknown.status_code == 401
+    assert known.json() == unknown.json()
+    reset_rate_limits()
+    missing = client.get("/api/v1/auth/security-questions/nobody@example.com")
+    unconfigured = client.get("/api/v1/auth/security-questions/noquestions@example.com")
+    assert missing.status_code == unconfigured.status_code == 400
+    assert missing.json() == unconfigured.json()
+
+
+def _scope(peer, forwarded=None):
+    headers = [(b"x-forwarded-for", forwarded.encode())] if forwarded else []
+    return {"type": "http", "client": (peer, 1234), "headers": headers}
+
+
+def test_client_ip_ignores_forwarded_header_by_default(monkeypatch):
+    from starlette.requests import Request
+
+    from app.utils.rate_limit import client_ip
+
+    monkeypatch.setattr(settings, "trusted_proxies", "")
+    assert client_ip(Request(_scope("10.0.0.5", "1.2.3.4"))) == "10.0.0.5"
+
+
+def test_client_ip_reads_forwarded_header_only_from_trusted_proxy(monkeypatch):
+    from starlette.requests import Request
+
+    from app.utils.rate_limit import client_ip
+
+    monkeypatch.setattr(settings, "trusted_proxies", "10.0.0.0/8")
+    # From the proxy: the rightmost untrusted hop is the client. A spoofed left entry is ignored.
+    assert client_ip(Request(_scope("10.0.0.5", "6.6.6.6, 1.2.3.4"))) == "1.2.3.4"
+    assert client_ip(Request(_scope("10.0.0.5", "1.2.3.4, 10.0.0.9"))) == "1.2.3.4"
+    # From anyone else: the header is ignored.
+    assert client_ip(Request(_scope("8.8.8.8", "1.2.3.4"))) == "8.8.8.8"
+    # Garbage header falls back to the peer.
+    assert client_ip(Request(_scope("10.0.0.5", "not-an-ip"))) == "10.0.0.5"
+
+
+def test_rate_limit_is_per_client_behind_trusted_proxy(env, monkeypatch):
+    _client, _fake = env
+    monkeypatch.setattr(settings, "trusted_proxies", "10.0.0.5")
+    client = TestClient(app, client=("10.0.0.5", 50000))
+    _register(client, "brute@example.com")
+    body = {"email": "brute@example.com", "password": "WrongPassword1!"}
+    for _ in range(10):
+        client.post("/api/v1/auth/login", json=body, headers={"X-Forwarded-For": "1.1.1.1"})
+    assert client.post("/api/v1/auth/login", json=body, headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 429
+    # A different visitor behind the same proxy is not locked out.
+    assert client.post("/api/v1/auth/login", json=body, headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 401
+
+
+def _claims(token):
+    return json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
+
+
+def test_refresh_keeps_auth_time_and_caps_session(env):
+    client, fake = env
+    _register(client, "refresh@example.com")
+    token = _token(client, "refresh@example.com")
+    first = _claims(token)
+    refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": token})
+    assert refreshed.status_code == 200, refreshed.text
+    second = _claims(refreshed.json()["access_token"])
+    assert second["auth_time"] == first["auth_time"]
+
+    # Signed in almost 12 hours ago: the refreshed token can't outlive the cap.
+    user = fake.db["users"].docs[0]
+    near_cap = int(time.time()) - settings.session_max_hours * 3600 + 120
+    old = create_access_token(user, auth_time=near_cap, expires_minutes=60)
+    capped = client.post("/api/v1/auth/refresh", json={"refresh_token": old})
+    assert capped.status_code == 200
+    assert _claims(capped.json()["access_token"])["exp"] <= near_cap + settings.session_max_hours * 3600
+
+    # Past the cap: refresh is refused even with an unexpired token.
+    from app.utils.auth import TOKEN_TYPE_ACCESS, create_token
+
+    expired_session = create_token(
+        user, token_type=TOKEN_TYPE_ACCESS, expires_minutes=60, auth_time=int(time.time()) - 13 * 3600
+    )
+    assert client.get("/api/v1/auth/me", headers=_bearer(expired_session)).status_code == 200
+    refused = client.post("/api/v1/auth/refresh", json={"refresh_token": expired_session})
+    assert refused.status_code == 401
+    assert refused.json()["detail"] == "Session has ended. Sign in again."
+
+
+def test_mfa_code_cannot_be_reused(env):
+    client, _fake = env
+    _register(client, "replay@example.com")
+    secret = _enable_mfa(client, "replay@example.com")
+    code = _next_code(secret)
+    pending = _login(client, "replay@example.com").json()["mfa_token"]
+    assert client.post("/api/v1/auth/mfa/verify", json={"mfa_token": pending, "code": code}).status_code == 200
+    pending = _login(client, "replay@example.com").json()["mfa_token"]
+    again = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": pending, "code": code})
+    assert again.status_code == 401
+    # An older step than the last accepted one is refused too.
+    older = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": pending, "code": totp.code_at(secret)})
+    assert older.status_code == 401
+
+
+def test_matching_step_refuses_old_steps():
+    secret = totp.generate_secret()
+    now = 1_700_000_000
+    step = totp.current_step(now)
+    code = totp.code_at(secret, now)
+    assert totp.matching_step(secret, code, for_time=now) == step
+    assert totp.matching_step(secret, code, for_time=now, after_step=step) is None
+    assert totp.matching_step(secret, code, for_time=now, after_step=step - 1) == step
+
+
+def test_mfa_disable_requires_current_code(env, monkeypatch):
+    client, fake = env
+    uid = _register(client, "off@example.com")
+    secret = _enable_mfa(client, "off@example.com")
+    pending = _login(client, "off@example.com").json()["mfa_token"]
+    access = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": pending, "code": _next_code(secret)}).json()[
+        "access_token"
+    ]
+    # A minute later on the server clock, so a fresh code exists.
+    real_time = time.time
+
+    class _Later:
+        @staticmethod
+        def time():
+            return real_time() + 2 * totp.STEP_SECONDS
+
+    monkeypatch.setattr(totp, "time", _Later)
+    path = "/api/v1/auth/mfa/disable"
+    assert client.post(path, json={}, headers=_bearer(access)).status_code == 422
+    wrong = "000000" if _next_code(secret, 2) != "000000" else "111111"
+    bad = client.post(path, json={"code": wrong}, headers=_bearer(access))
+    assert bad.status_code == 400
+    assert bad.json()["detail"] == "That code didn't work. Check your app and try again."
+    # The code already used to sign in doesn't work either.
+    assert client.post(path, json={"code": _next_code(secret)}, headers=_bearer(access)).status_code == 400
+    assert _user(fake, uid)["mfa_enabled"] is True
+    ok = client.post(path, json={"code": _next_code(secret, 2)}, headers=_bearer(access))
+    assert ok.status_code == 200, ok.text
+    stored = _user(fake, uid)
+    assert stored["mfa_enabled"] is False and stored["mfa_secret"] is None
+
+
+def test_mfa_setup_returns_secret_and_uri_and_enables_only_after_correct_code(env):
+    client, fake = env
+    uid = _register(client, "setup@example.com")
+    token = _token(client, "setup@example.com")
+    body = client.post("/api/v1/auth/mfa/setup", json={"type": "totp"}, headers=_bearer(token)).json()
+    secret = body["secret"]
+    assert body["otpauth_uri"] == body["otpauth_url"]
+    assert body["otpauth_uri"].startswith("otpauth://totp/") and f"secret={secret}" in body["otpauth_uri"]
+    assert body["is_enabled"] is False and body["has_pending_setup"] is True
+    assert _user(fake, uid).get("mfa_enabled") in (None, False)
+
+    wrong = "000000" if totp.code_at(secret) != "000000" else "111111"
+    bad = client.post("/api/v1/auth/mfa/enable", json={"verification_code": wrong}, headers=_bearer(token))
+    assert bad.status_code == 400
+    assert _user(fake, uid).get("mfa_enabled") in (None, False)
+    assert _login(client, "setup@example.com").json().get("mfa_required") is None
+
+    ok = client.post("/api/v1/auth/mfa/enable", json={"verification_code": totp.code_at(secret)}, headers=_bearer(token))
+    assert ok.status_code == 200 and ok.json()["is_enabled"] is True
+    assert _user(fake, uid)["mfa_secret"] == secret
+    assert _login(client, "setup@example.com").json()["mfa_required"] is True

@@ -53,8 +53,18 @@ def _encode(payload: dict[str, Any]) -> str:
     return f"{header_part}.{payload_part}.{signature}"
 
 
-def create_token(user: dict[str, Any], *, token_type: str, expires_minutes: int) -> str:
+def create_token(
+    user: dict[str, Any],
+    *,
+    token_type: str,
+    expires_minutes: int,
+    auth_time: int | None = None,
+    not_after: int | None = None,
+) -> str:
     now = datetime.now(timezone.utc)
+    exp = int((now + timedelta(minutes=expires_minutes)).timestamp())
+    if not_after is not None:
+        exp = min(exp, int(not_after))
     payload = {
         "sub": str(user.get("_id", "")),
         "email": user.get("email"),
@@ -64,16 +74,30 @@ def create_token(user: dict[str, Any], *, token_type: str, expires_minutes: int)
         "type": token_type,
         "ver": int(user.get("token_version", 0) or 0),
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=expires_minutes)).timestamp()),
+        # When the user actually signed in. Refreshes carry it forward unchanged.
+        "auth_time": int(auth_time if auth_time is not None else now.timestamp()),
+        "exp": exp,
     }
     return _encode(payload)
 
 
-def create_access_token(user: dict[str, Any], expires_minutes: int | None = None) -> str:
+def session_deadline(auth_time: int) -> int:
+    return int(auth_time) + settings.session_max_hours * 3600
+
+
+def create_access_token(
+    user: dict[str, Any],
+    expires_minutes: int | None = None,
+    *,
+    auth_time: int | None = None,
+) -> str:
+    """Access token. With `auth_time` (a refresh), expiry never passes the session cap."""
     return create_token(
         user,
         token_type=TOKEN_TYPE_ACCESS,
         expires_minutes=expires_minutes or settings.access_token_minutes,
+        auth_time=auth_time,
+        not_after=session_deadline(auth_time) if auth_time is not None else None,
     )
 
 

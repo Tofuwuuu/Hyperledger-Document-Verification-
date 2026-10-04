@@ -539,43 +539,49 @@ export const authService = {
     }
   },
 
-  // MFA methods
+  // MFA methods. These rethrow so the setup screen can show the right message.
   getMFAStatus: async () => {
     try {
       const response = await api.get('/auth/mfa/status');
       return response.data;
     } catch (error) {
-      return handleApiError(error, 'getMFAStatus');
+      handleApiError(error, 'getMFAStatus');
+      throw error;
     }
   },
-  
-  setupMFA: async (type = 'email') => {
+
+  // Returns the secret and otpauth URI. MFA stays off until enableMFA gets a correct code.
+  setupMFA: async () => {
     try {
-      const response = await api.post('/auth/mfa/setup', { type });
+      const response = await api.post('/auth/mfa/setup', { type: 'totp' });
       return response.data;
     } catch (error) {
-      return handleApiError(error, 'setupMFA');
+      handleApiError(error, 'setupMFA');
+      throw error;
     }
   },
-  
+
   enableMFA: async (verificationCode) => {
     try {
       const response = await api.post('/auth/mfa/enable', { verification_code: verificationCode });
       return response.data;
     } catch (error) {
-      return handleApiError(error, 'enableMFA');
+      handleApiError(error, 'enableMFA');
+      throw error;
     }
   },
-  
-  disableMFA: async () => {
+
+  // Turning MFA off needs a current code from the authenticator app.
+  disableMFA: async (code) => {
     try {
-      const response = await api.post('/auth/mfa/disable');
+      const response = await api.post('/auth/mfa/disable', { code });
       return response.data;
     } catch (error) {
-      return handleApiError(error, 'disableMFA');
+      handleApiError(error, 'disableMFA');
+      throw error;
     }
   },
-  
+
   // Security questions
   setSecurityQuestions: async (questionsData) => {
     try {

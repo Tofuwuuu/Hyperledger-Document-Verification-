@@ -38,6 +38,7 @@ const AccountRecoveryPage = lazy(() => import('./pages/AccountRecoveryPage'));
 const QuickRegisterPage = lazy(() => import('./pages/QuickRegisterPage'));
 const ProfileEditPage = lazy(() => import('./pages/profile/ProfileEditPage'));
 const SecuritySettingsPage = lazy(() => import('./pages/profile/SecuritySettingsPage'));
+const TwoStepLoginPreviewPage = lazy(() => import('./pages/TwoStepLoginPreviewPage'));
 
 // Event pages
 const EventsPage = lazy(() => import('./pages/EventsPage'));
@@ -163,6 +164,7 @@ function App() {
               <Route path="events" element={<EventsPage />} />
               <Route path="events/:eventId" element={<EventDetailPage />} />
               <Route path="quick-register/:eventId/:token" element={<QuickRegisterPage />} />
+              <Route path="preview/two-step-login" element={<TwoStepLoginPreviewPage />} />
             </Route>
 
             {/* Redirect /dashboard to /alumni or /admin based on user role */}
