@@ -177,6 +177,35 @@ async def get_alumni_by_id(alumni_id: str, current_user: dict = Depends(get_curr
     return _serialize_document(document, private=_can_see_private(current_user, document))
 
 
+STUDENT_ID_IN_USE = "That student ID is already in use."
+
+
+async def _ensure_student_id_available(client: Any, student_id: Any, owner_id: Any) -> None:
+    """A student ID may belong to one account only.
+
+    Raises 409 with a FastAPI-style detail (loc ends in "student_id") when
+    another account's profile or user record already has this student ID.
+    Blank values are not checked.
+    """
+    value = student_id.strip() if isinstance(student_id, str) else ""
+    if not value:
+        return
+    owner = str(owner_id)
+    async for doc in alumni_profiles_collection(client).find({"student_id": value}, {"user_id": 1}):
+        if str(doc.get("user_id") or doc.get("_id")) != owner:
+            break
+    else:
+        async for doc in _users_collection(client).find({"student_id": value}, {"_id": 1}):
+            if str(doc.get("_id")) != owner:
+                break
+        else:
+            return
+    raise HTTPException(
+        status_code=409,
+        detail=[{"loc": ["body", "student_id"], "type": "student_id_in_use", "msg": STUDENT_ID_IN_USE}],
+    )
+
+
 @router.post("/alumni")
 async def create_alumni_profile(payload: AlumniProfileCreate, current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
     """Fill in profile fields on a user record.
@@ -203,6 +232,7 @@ async def create_alumni_profile(payload: AlumniProfileCreate, current_user: dict
     document["updated_at"] = datetime.now(timezone.utc)
 
     try:
+        await _ensure_student_id_available(client, document.get("student_id"), object_id)
         await collection.update_one({"_id": object_id}, {"$set": document})
         updated_document = await collection.find_one({"_id": object_id})
     except PyMongoError as exc:
@@ -267,6 +297,8 @@ async def update_alumni_profile(
 
         if not existing_profile:
             update_data["user_id"] = owner_id
+
+        await _ensure_student_id_available(client, update_data.get("student_id"), owner_id)
 
         await profiles.update_one(profile_filter, {"$set": update_data}, upsert=True)
     except PyMongoError as exc:

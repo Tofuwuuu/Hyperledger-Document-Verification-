@@ -34,6 +34,7 @@ export default function ProfilePage() {
     isUploading,
     loading,
     missingRequiredCount,
+    photoError,
     previewUrl,
     profile,
     profileFacts,
@@ -113,6 +114,7 @@ export default function ProfilePage() {
               handleSocialMediaChange={handleSocialMediaChange}
               isEditing={isEditing}
               isUploading={isUploading}
+              photoError={photoError}
               previewUrl={previewUrl}
               profile={profile}
               profileInitials={profileInitials}

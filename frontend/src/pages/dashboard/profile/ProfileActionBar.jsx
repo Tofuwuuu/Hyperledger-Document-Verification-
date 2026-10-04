@@ -10,33 +10,37 @@ const STATUS_TONES = {
   info: 'text-gray-700',
 };
 
-// The single form-level line shown directly above the Save button.
+const SIGN_IN_WORDS = 'Sign in again';
+
+// The single form-level line shown directly above the Save button: left
+// aligned, full width of the bar, balanced wrapping.
 function FormStatusLine({ status, signInAgain }) {
   if (!status) return null;
+  const linkAt = status.action === 'signin' ? status.text.indexOf(SIGN_IN_WORDS) : -1;
   return (
     <p
       role={status.tone === 'error' ? 'alert' : 'status'}
-      className={`mb-2 flex items-center justify-end gap-1.5 text-right text-sm font-medium transition-opacity duration-500 ${STATUS_TONES[status.tone] || STATUS_TONES.info} ${status.fading ? 'opacity-0' : 'opacity-100'}`}
+      className={`mb-2 flex w-full items-start gap-1.5 text-left text-sm font-medium [text-wrap:balance] transition-opacity duration-500 ${STATUS_TONES[status.tone] || STATUS_TONES.info} ${status.fading ? 'opacity-0' : 'opacity-100'}`}
     >
-      {status.tone === 'success' && <CheckCircleIcon className="h-4 w-4 shrink-0" aria-hidden="true" />}
-      <span>
-        {status.text}
-        {status.action === 'signin' && (
-          <>
-            {' '}
-            <a
-              href="/login?redirect=%2Falumni%2Fprofile"
-              onClick={(event) => {
-                event.preventDefault();
-                signInAgain();
-              }}
-              className="font-semibold underline underline-offset-2 hover:text-red-700"
-            >
-              Sign in again
-            </a>
-          </>
-        )}
-      </span>
+      {status.tone === 'success' && <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+      {linkAt === -1 ? (
+        <span>{status.text}</span>
+      ) : (
+        <span>
+          {status.text.slice(0, linkAt)}
+          <a
+            href="/login?redirect=%2Falumni%2Fprofile"
+            onClick={(event) => {
+              event.preventDefault();
+              signInAgain();
+            }}
+            className="font-semibold underline underline-offset-2 hover:text-red-700"
+          >
+            {SIGN_IN_WORDS}
+          </a>
+          {status.text.slice(linkAt + SIGN_IN_WORDS.length)}
+        </span>
+      )}
     </p>
   );
 }
@@ -72,11 +76,11 @@ export default function ProfileActionBar({
             </p>
           )}
           {!errorMessage && (
-            <p className="text-sm text-gray-500">
+            <p className="hidden text-sm text-gray-500 sm:block">
               Make changes to your profile and save when done
             </p>
           )}
-          <div className="flex space-x-3">
+          <div className="ml-auto flex space-x-3">
             <button
               type="button"
               onClick={cancelEditing}
