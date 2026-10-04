@@ -16,6 +16,7 @@ export default function PersonalInfoTab({
   handleSocialMediaChange,
   isEditing,
   isUploading,
+  photoError,
   previewUrl,
   profile,
   profileInitials,
@@ -65,28 +66,31 @@ export default function PersonalInfoTab({
                 </div>
               </div>
               {isEditing && (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
-                  <div className="flex flex-wrap text-sm text-slate-600">
-                    <label
-                      htmlFor="profile-picture-upload"
-                      className="relative cursor-pointer font-semibold text-cvsu-green hover:text-cvsu-green/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-cvsu-green focus-within:ring-offset-2"
-                    >
-                      <span>Upload a file</span>
-                      <input id="profile-picture-upload" name="profile-picture-upload" type="file" accept="image/*" className="sr-only" onChange={handleProfilePictureChange} />
-                    </label>
-                    <p className="pl-1">to update your photo</p>
+                <div>
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap text-sm text-slate-600">
+                      <label
+                        htmlFor="profile-picture-upload"
+                        className="relative cursor-pointer font-semibold text-cvsu-green hover:text-cvsu-green/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-cvsu-green focus-within:ring-offset-2"
+                      >
+                        <span>Upload a file</span>
+                        <input id="profile-picture-upload" name="profile-picture-upload" type="file" accept="image/jpeg,image/png" className="sr-only" onChange={handleProfilePictureChange} aria-describedby={photoError ? 'profile_picture-error' : undefined} />
+                      </label>
+                      <p className="pl-1">to update your photo</p>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">JPG or PNG up to 10 MB</p>
+                    {profilePicture && (
+                      <button
+                        type="button"
+                        disabled={isUploading}
+                        onClick={() => uploadProfilePicture()}
+                        className="mt-3 inline-flex items-center rounded-md border border-transparent bg-cvsu-green/10 px-3 py-1.5 text-xs font-semibold text-cvsu-green hover:bg-cvsu-green/20 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2"
+                      >
+                        {isUploading ? 'Uploading...' : 'Upload Image'}
+                      </button>
+                    )}
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
-                  {profilePicture && (
-                    <button
-                      type="button"
-                      disabled={isUploading}
-                      onClick={uploadProfilePicture}
-                      className="mt-3 inline-flex items-center rounded-md border border-transparent bg-cvsu-green/10 px-3 py-1.5 text-xs font-semibold text-cvsu-green hover:bg-cvsu-green/20 focus:outline-none focus:ring-2 focus:ring-cvsu-green focus:ring-offset-2"
-                    >
-                      {isUploading ? 'Uploading...' : 'Upload Image'}
-                    </button>
-                  )}
+                  <FieldError name="profile_picture" errors={{ profile_picture: photoError }} />
                 </div>
               )}
             </div>

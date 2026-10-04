@@ -313,3 +313,47 @@ def test_document_smoke_profile_upload_admin_approval_public_verification_reques
     )
     assert download_response.status_code == 200
     assert download_response.content == file_bytes
+
+
+def test_student_id_must_be_unique_across_accounts(monkeypatch, tmp_path):
+    fake_client = _patch_test_environment(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    users = fake_client.db["users"]
+    first_id, second_id = ObjectId(), ObjectId()
+    for user_id, email in ((first_id, "first@example.com"), (second_id, "second@example.com")):
+        users.docs.append(
+            {"_id": user_id, "full_name": email, "email": email, "password_hash": "unused",
+             "is_admin": False, "is_verified": True, "is_active": True}
+        )
+    first_user, second_user = users.docs[0], users.docs[1]
+
+    def save(user_id, user, student_id, simple=False):
+        path = f"/api/v1/alumni/{user_id}/simple" if simple else f"/api/v1/alumni/{user_id}"
+        return client.put(path, headers=_auth_header(user), json={"user_id": str(user_id), "student_id": student_id})
+
+    assert save(first_id, first_user, "2016-00123").status_code == 200
+    # Saving your own student ID again is fine.
+    assert save(first_id, first_user, "2016-00123").status_code == 200
+
+    # Another account can't take it (either update endpoint), even with extra spaces.
+    for simple in (False, True):
+        response = save(second_id, second_user, " 2016-00123 ", simple=simple)
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail[0]["loc"] == ["body", "student_id"]
+        assert detail[0]["msg"] == "That student ID is already in use."
+
+    # Legacy records that keep student_id on the user document count too.
+    users.docs[0]["student_id"] = "2015-00077"
+    create = client.post(
+        "/api/v1/alumni",
+        headers=_auth_header(second_user),
+        json={"user_id": str(second_id), "student_id": "2015-00077"},
+    )
+    assert create.status_code == 409
+
+    # A different student ID still saves, and blank is never treated as taken.
+    assert save(second_id, second_user, "2016-00999").status_code == 200
+    assert save(first_id, first_user, "").status_code == 200
+    assert save(second_id, second_user, "").status_code == 200

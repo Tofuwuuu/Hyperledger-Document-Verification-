@@ -6,9 +6,8 @@ import {
   EnvelopeIcon,
   IdentificationIcon,
 } from '@heroicons/react/24/outline';
-import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/useAuth';
-import { saveProfileDraft, readProfileDraft, clearProfileDraft } from '../../../utils/profileDraft';
+import { saveProfileDraft, readProfileDraft, clearProfileDraft, discardOtherProfileDrafts } from '../../../utils/profileDraft';
 import api, { alumniService, referenceService } from '../../../services/api';
 import { buildDashboardProfileData } from '../../../utils/dashboard-profile-schema';
 import {
@@ -24,8 +23,10 @@ import {
   firstErroredField,
   isValidatedField,
   mapServerErrors,
+  photoErrorForStatus,
   tabForField,
   validateField,
+  validatePhoto,
   validateProfile,
 } from './profileValidation';
 
@@ -51,7 +52,11 @@ export default function useAlumniProfile() {
   // One line above the Save button: { tone: 'error' | 'success' | 'info', text, action?, fading? }
   const [formStatus, setFormStatus] = useState(null);
   const [pendingFocusField, setPendingFocusField] = useState(null);
+  const [focusRestoredChange, setFocusRestoredChange] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   const statusTimersRef = useRef([]);
+  // Values the server rejected, so leaving an unchanged field keeps its server error.
+  const serverRejectedRef = useRef({});
   const [courses, setCourses] = useState([]);
   const [, setCompletionPercentage] = useState(0);
   const [, setMissingFields] = useState(0);
@@ -89,6 +94,20 @@ export default function useAlumniProfile() {
     }
     setPendingFocusField(null);
   }, [pendingFocusField, activeTab]);
+
+  // After a draft is restored, bring the first kept change on this tab into view.
+  useEffect(() => {
+    if (!focusRestoredChange || !initialProfile) return;
+    const fields = Array.from(document.querySelectorAll('input[name], select[name], textarea[name]'));
+    const changed = fields.find((field) => (
+      String(profile[field.name] ?? '') !== String(initialProfile[field.name] ?? '')
+    ));
+    if (changed) {
+      changed.scrollIntoView({ block: 'center' });
+      changed.focus({ preventScroll: true });
+    }
+    setFocusRestoredChange(false);
+  }, [focusRestoredChange, initialProfile, profile]);
 
   // Update the useEffect for the profile picture to also check localStorage
   useEffect(() => {
@@ -305,11 +324,15 @@ export default function useAlumniProfile() {
   // Unsaved edits kept from a session-expiry sign-in come back in edit mode.
   const restoreDraft = useCallback(() => {
     const userId = currentUser?.id || currentUser?._id;
+    if (!userId) return;
+    discardOtherProfileDrafts(userId);
     const draft = readProfileDraft(userId);
     if (!draft) return;
+    setActiveTab('personal');
     setProfile(buildDashboardProfileData(draft));
     setIsEditing(true);
     setFormStatus({ tone: 'info', text: FORM_MESSAGES.welcomeBack });
+    setFocusRestoredChange(true);
   }, [currentUser]);
 
   useEffect(() => {
@@ -334,7 +357,10 @@ export default function useAlumniProfile() {
   const handleFieldBlur = (e) => {
     const { name, value } = e.target;
     if (!isValidatedField(name)) return;
-    const message = validateField(name, value);
+    const serverRejected = Object.prototype.hasOwnProperty.call(serverRejectedRef.current, name)
+      && serverRejectedRef.current[name] === value;
+    if (!serverRejected) delete serverRejectedRef.current[name];
+    const message = validateField(name, value) || (serverRejected ? validationErrors[name] : '');
     const nextErrors = { ...validationErrors };
     if (message) nextErrors[name] = message;
     else delete nextErrors[name];
@@ -378,6 +404,14 @@ export default function useAlumniProfile() {
   const handleProfilePictureChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const problem = validatePhoto(file);
+    setPhotoError(problem);
+    if (problem) {
+      setProfilePicture(null);
+      e.target.value = '';
+      return;
+    }
     
     setProfilePicture(file);
     
@@ -389,57 +423,41 @@ export default function useAlumniProfile() {
     reader.readAsDataURL(file);
   };
 
-  // Now update the uploadProfilePicture function to store in localStorage
+  // Upload the chosen photo; errors show under the upload box.
   const uploadProfilePicture = async (alumniId = profile.id) => {
-    if (!profilePicture || !alumniId) {
-      console.error('Cannot upload: missing profile picture or profile ID');
+    if (!profilePicture) return;
+    if (!alumniId) {
+      setPhotoError(photoErrorForStatus());
       return;
     }
-    
-    if (!profile.user_id) {
-      console.error('Cannot upload: missing user_id for localStorage');
-      setErrorMessage('Missing user ID for storage. Please try again.');
-      return;
-    }
-    
-    
+
     setIsUploading(true);
+    setPhotoError('');
     try {
-      // First, store the image in localStorage
-      const base64Image = await storeImageInLocalStorage(profile.user_id, profilePicture);
-      
-      // Use the Base64 data directly as the image source
-      setPreviewUrl(base64Image);
-      
-      // Now try to also save it via the API if available
-      try {
-        const response = await alumniService.uploadProfilePicture(alumniId, profilePicture);
-        
-        // Update the profile state with the path from the API response
-        if (response && response.data && response.data.profile_picture) {
-          setProfile(prevProfile => ({
-            ...prevProfile,
-            profile_picture: response.data.profile_picture
-          }));
-          
-          if (initialProfile) {
-            setInitialProfile(prevInitialProfile => ({
-              ...prevInitialProfile,
-              profile_picture: response.data.profile_picture
-            }));
-          }
+      const response = await alumniService.uploadProfilePicture(alumniId, profilePicture);
+      const picturePath = response?.data?.profile_picture || response?.data?.path;
+      if (picturePath) {
+        setProfile(prevProfile => ({ ...prevProfile, profile_picture: picturePath }));
+        if (initialProfile) {
+          setInitialProfile(prevInitialProfile => ({ ...prevInitialProfile, profile_picture: picturePath }));
         }
-      } catch (apiError) {
-        console.error('Could not save to API, but image is saved in localStorage:', apiError);
-        // It's okay if this fails as we already have the image in localStorage
       }
-      
+
+      // Keep a local copy for faster display; not fatal if storage is full.
+      if (profile.user_id) {
+        try {
+          const base64Image = await storeImageInLocalStorage(profile.user_id, profilePicture);
+          setPreviewUrl(base64Image);
+        } catch (storageError) {
+          console.error('Could not keep a local copy of the photo:', storageError);
+        }
+      }
+
       setSuccessMessage('Profile picture updated successfully!');
-      // Reset the file input
       setProfilePicture(null);
     } catch (error) {
-      console.error('Error processing profile picture:', error);
-      setErrorMessage('Failed to save profile picture. Image may be too large (max ~5MB). Please try a smaller image file.');
+      console.error('Error uploading profile picture:', error);
+      setPhotoError(photoErrorForStatus(error.response?.status));
     } finally {
       setIsUploading(false);
     }
@@ -450,6 +468,7 @@ export default function useAlumniProfile() {
     setSuccessMessage('');
     setErrorMessage('');
     setValidationErrors({});
+    setPhotoError('');
     showStatus(null);
   };
 
@@ -458,6 +477,7 @@ export default function useAlumniProfile() {
     setSuccessMessage('');
     setErrorMessage('');
     setValidationErrors({});
+    setPhotoError('');
     showStatus(null);
     // Cancel discards edits, including any kept from an expired session.
     clearProfileDraft(currentUser?.id || currentUser?._id);
@@ -593,7 +613,7 @@ export default function useAlumniProfile() {
           console.error('Error with simple update endpoint:', directError);
           // A rejected session or invalid fields won't succeed on the other endpoint either.
           const status = directError.response?.status;
-          if (status === 401 || status === 422) throw directError;
+          if (status === 401 || status === 409 || status === 422) throw directError;
           // Fall back to the service method
           response = await alumniService.updateProfile(profileData);
         }
@@ -657,17 +677,8 @@ export default function useAlumniProfile() {
       if (profilePicture) {
         // Check if we have an alumni ID now
         const alumniId = response?.data?.id || response?.data?._id || profileData.id;
-        if (alumniId) {
-          try {
-            await uploadProfilePicture(alumniId);
-          } catch (uploadError) {
-            console.error('Error uploading profile picture:', uploadError);
-            toast.warning('Profile saved but picture upload failed. You can try uploading it again.');
-          }
-        } else {
-          console.error('Cannot upload profile picture without alumni ID');
-          toast.warning('Profile saved but picture upload failed (missing ID).');
-        }
+        // Errors show under the upload box (uploadProfilePicture handles them).
+        await uploadProfilePicture(alumniId);
       }
       
     } catch (error) {
@@ -697,8 +708,11 @@ export default function useAlumniProfile() {
         // Session ended (12h cap): keep the edits for after sign-in.
         saveProfileDraft(currentUser?.id || currentUser?._id || profile.user_id, profile);
         showStatus({ tone: 'error', text: FORM_MESSAGES.signedOut, action: 'signin' });
-      } else if (status === 422 || (detail && typeof detail === 'object')) {
+      } else if (status === 409 || status === 422 || (detail && typeof detail === 'object')) {
         const { fieldErrors, unmatched } = mapServerErrors(detail, profile);
+        serverRejectedRef.current = Object.fromEntries(
+          Object.keys(fieldErrors).map((name) => [name, String(profile[name] ?? '')]),
+        );
         const fieldCount = Object.keys(fieldErrors).length;
         setValidationErrors(fieldErrors);
         showStatus({
@@ -739,11 +753,13 @@ export default function useAlumniProfile() {
   
 
   // Helper function to determine input class based on validation state
+  // Errored fields get one solid red border, focused or not (no green focus
+  // classes competing with the red ones).
   const getInputClass = (fieldName) => {
-    const baseClass = "block w-full rounded-lg border-gray-300 bg-white shadow-sm transition focus:border-cvsu-green focus:ring-cvsu-green sm:text-sm";
-    return validationErrors[fieldName] 
-      ? `${baseClass} border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500` 
-      : baseClass;
+    if (validationErrors[fieldName]) {
+      return "block w-full rounded-lg border-red-600 bg-white shadow-sm transition text-red-900 placeholder-red-300 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 sm:text-sm";
+    }
+    return "block w-full rounded-lg border-gray-300 bg-white shadow-sm transition focus:border-cvsu-green focus:ring-cvsu-green sm:text-sm";
   };
 
   const getDisplayValue = (value, fallback = 'Not provided') => {
@@ -873,6 +889,7 @@ export default function useAlumniProfile() {
     isUploading,
     loading,
     missingRequiredCount,
+    photoError,
     previewUrl,
     profile,
     profileFacts,
