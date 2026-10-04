@@ -23,6 +23,7 @@ export default function ProfileHeader({
   profileFacts,
   profileInitials,
   requiredFields,
+  savedStatus,
   setActiveTab,
   startEditing,
   statusText,
@@ -69,6 +70,21 @@ export default function ProfileHeader({
               </div>
             </div>
           </div>
+          {/* Always mounted so screen readers announce "Profile saved." politely. */}
+          <p
+            role="status"
+            aria-live="polite"
+            className={savedStatus
+              ? `order-last flex items-center gap-1.5 text-sm font-medium text-emerald-700 transition-opacity duration-500 lg:order-none lg:ml-auto ${savedStatus.fading ? 'opacity-0' : 'opacity-100'}`
+              : 'sr-only'}
+          >
+            {savedStatus && (
+              <>
+                <CheckCircleIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {savedStatus.text}
+              </>
+            )}
+          </p>
           {!isEditing && (
             <button
               type="button"

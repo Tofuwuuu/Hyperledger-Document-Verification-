@@ -10,7 +10,7 @@ export const FIELD_MESSAGES = {
   graduation_year_min: 'Enter a year from 1948 on.',
   graduation_year_future: "Enter a year that's already passed.",
   // Server-only rejections (no client rule failed).
-  student_id_in_use: 'That student ID is already in use.',
+  student_id_in_use: 'That student ID is already used by another account.',
   server_rejected: "This couldn't be saved. Check it and try again.",
 };
 
