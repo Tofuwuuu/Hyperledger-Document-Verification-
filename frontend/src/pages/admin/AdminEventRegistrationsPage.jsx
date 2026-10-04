@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
@@ -54,7 +54,7 @@ const AdminEventRegistrationsPage = () => {
     return stats;
   };
 
-  const fetchRegistrations = async () => {
+  const fetchRegistrations = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -91,11 +91,12 @@ const AdminEventRegistrationsPage = () => {
         cancelled: 0
       });
     }
-  };
+  }, []);
+
 
   useEffect(() => {
     fetchRegistrations();
-  }, []);
+  }, [fetchRegistrations]);
 
   const handleCheckIn = async (registrationId) => {
     try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   UsersIcon, 
@@ -11,7 +11,7 @@ import {
   ClockIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { toast } from 'react-toastify';
 import pollingService from '../../services/polling';
 import { API_ORIGIN } from '../../config';
@@ -35,253 +35,7 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  useEffect(() => {
-    // Start polling as admin
-    pollingService.stopPolling(); // Stop any existing polling
-    pollingService.startPolling('admin'); // Start with admin role
-    
-    // Add listener for document request notifications specifically
-    const unsubscribe = pollingService.on('document_requested', (data) => {
-      // Update UI or fetch latest data
-      fetchDashboardData(); // Refresh dashboard data when new document request comes in
-      
-      // Build a more informative toast message
-      let toastMessage = data.message;
-      
-      // Check for alumni info in the notification data
-      if (data.data) {
-        const alumniName = data.data.alumni_name;
-        const studentId = data.data.student_id;
-        const documentType = data.data.document_type;
-        
-        if (alumniName && documentType) {
-          toastMessage = `New ${documentType} request from ${alumniName}`;
-          if (studentId && studentId !== "N/A") {
-            toastMessage += ` (${studentId})`;
-          }
-        }
-      }
-      
-      // Show toast notification
-      toast.info(toastMessage, {
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-    });
-    
-    // Add generic message listener too
-    const messageUnsubscribe = pollingService.on('message', () => {});
-    
-    return () => {
-      unsubscribe && unsubscribe();
-      messageUnsubscribe && messageUnsubscribe();
-      pollingService.stopPolling();
-    };
-  }, []);
-
-  // Add auto-refresh functionality
-  useEffect(() => {
-    // Initial fetch
-    fetchDashboardData();
-    
-    // Setup auto-refresh interval - every 60 seconds
-    const refreshInterval = setInterval(() => {
-      fetchDashboardData();
-    }, 60000); // 60 seconds
-    
-    // Clear interval on component unmount
-    return () => {
-      clearInterval(refreshInterval);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isAdminUser) {
-      // This is kept for backward compatibility
-      // The initial fetch and subsequent refreshes are now handled by the auto-refresh useEffect above
-    } else {
-      // For regular users, we don't need to fetch admin stats
-      // but we should still fetch their activity
-      setLoading(true);
-      fetchUserActivity();
-    }
-    
-    // Check if coming from verification page with refresh flag
-    if (location.state?.refreshActivity) {
-      // Show toast notification for verification
-      if (location.state?.verifiedUser) {
-        toast.success(`User ${location.state.verifiedUser} verified successfully`);
-      }
-      
-      // Show toast notification for document upload
-      if (location.state?.documentUploaded) {
-        toast.success(`Document "${location.state.documentTitle || 'New document'}" uploaded successfully`);
-      }
-      
-      // Explicitly fetch the latest activity data
-      if (isAdminUser) {
-        fetchRecentActivity();
-      } else {
-        fetchUserActivity();
-      }
-      
-      // Clear the state to prevent repeated refreshes
-      history.replaceState({}, document.title);
-    }
-  }, [location, isAdminUser]);
-
-  // Function to pre-process activity data from backend
-  const processActivityData = (activities) => {
-    return activities.map(activity => {
-      const processed = { ...activity };
-      
-      // Try to parse data field if it's a string
-      if (typeof processed.data === 'string') {
-        try {
-          processed.data = JSON.parse(processed.data);
-        } catch {
-          // Keep as is if parsing fails
-        }
-      }
-      
-      // Try to extract additional info from the data field
-      if (processed.data) {
-        // Move relevant fields to the top level for easier access
-        if (processed.data.user_name && !processed.user_name) {
-          processed.user_name = processed.data.user_name;
-        }
-        if (processed.data.full_name && !processed.full_name) {
-          processed.full_name = processed.data.full_name;
-        }
-        if (processed.data.email && !processed.email) {
-          processed.email = processed.data.email;
-        }
-        if (processed.data.document_type && !processed.document_type) {
-          processed.document_type = processed.data.document_type;
-        }
-      }
-      
-      // Check 'user' field
-      if (typeof processed.user === 'string') {
-        try {
-          processed.user = JSON.parse(processed.user);
-          if (processed.user && processed.user.full_name && !processed.user_name) {
-            processed.user_name = processed.user.full_name;
-          }
-        } catch {
-          // If user field is a string but not JSON, it might be a name
-          if (!processed.user_name) {
-            processed.user_name = processed.user;
-          }
-        }
-      }
-      
-      return processed;
-    });
-  };
-
-  // Function to fetch regular user activity
-  const fetchUserActivity = async () => {
-    try {
-      // Get the API URL
-      let baseUrl = API_ORIGIN;
-      // Remove trailing slash if present
-      baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      // Add /api/v1 only if it's not already included
-      const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
-      
-      // Add a timestamp parameter to prevent caching
-      const timestamp = new Date().getTime();
-      
-      // Use the documents/activities endpoint which is guaranteed to exist
-      const response = await fetch(`${apiUrl}/documents/activities?_t=${timestamp}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) {
-        // If specific endpoint fails, try the general activity endpoint as fallback
-        const fallbackResponse = await fetch(`${apiUrl}/admin/dashboard/recent-activity`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (fallbackResponse.ok) {
-          const data = await fallbackResponse.json();
-          // Process the data to extract user information
-          const processedData = processActivityData(data);
-          setRecentActivity(processedData);
-        } else {
-          console.error('Failed to fetch user activity:', response.status);
-          setRecentActivity([]);
-        }
-      } else {
-        const data = await response.json();
-        // Process the data to extract user information
-        const processedData = processActivityData(data);
-        setRecentActivity(processedData);
-      }
-    } catch (err) {
-      console.error('Error fetching user activity:', err);
-      setRecentActivity([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Function to fetch only recent activity (for updates)
-  const fetchRecentActivity = async () => {
-    try {
-      
-      // Get the API URL
-      let baseUrl = API_ORIGIN;
-      // Remove trailing slash if present
-      baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      // Add /api/v1 only if it's not already included
-      const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
-      
-      // Add a timestamp parameter to prevent caching
-      const timestamp = new Date().getTime();
-      
-      const url = `${apiUrl}/admin/dashboard/recent-activity?_t=${timestamp}`;
-      
-      // Fetch recent activity
-      const activityResponse = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (!activityResponse.ok) {
-        if (isUnavailableEndpointStatus(activityResponse.status)) {
-          setRecentActivity([]);
-          return;
-        }
-        throw new Error(`Failed to fetch recent activity: ${activityResponse.status}`);
-      }
-      
-      const activityData = await activityResponse.json();
-      
-      // Process the data to extract user information
-      const processedData = processActivityData(activityData);
-      
-      setRecentActivity(processedData);
-    } catch (err) {
-      console.error('Error fetching recent activity:', err);
-    }
-  };
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -379,7 +133,256 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    // Start polling as admin
+    pollingService.stopPolling(); // Stop any existing polling
+    pollingService.startPolling('admin'); // Start with admin role
+    
+    // Add listener for document request notifications specifically
+    const unsubscribe = pollingService.on('document_requested', (data) => {
+      // Update UI or fetch latest data
+      fetchDashboardData(); // Refresh dashboard data when new document request comes in
+      
+      // Build a more informative toast message
+      let toastMessage = data.message;
+      
+      // Check for alumni info in the notification data
+      if (data.data) {
+        const alumniName = data.data.alumni_name;
+        const studentId = data.data.student_id;
+        const documentType = data.data.document_type;
+        
+        if (alumniName && documentType) {
+          toastMessage = `New ${documentType} request from ${alumniName}`;
+          if (studentId && studentId !== "N/A") {
+            toastMessage += ` (${studentId})`;
+          }
+        }
+      }
+      
+      // Show toast notification
+      toast.info(toastMessage, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+    });
+    
+    // Add generic message listener too
+    const messageUnsubscribe = pollingService.on('message', () => {});
+    
+    return () => {
+      unsubscribe && unsubscribe();
+      messageUnsubscribe && messageUnsubscribe();
+      pollingService.stopPolling();
+    };
+  }, [fetchDashboardData]);
+
+  // Add auto-refresh functionality
+  useEffect(() => {
+    // Initial fetch
+    fetchDashboardData();
+    
+    // Setup auto-refresh interval - every 60 seconds
+    const refreshInterval = setInterval(() => {
+      fetchDashboardData();
+    }, 60000); // 60 seconds
+    
+    // Clear interval on component unmount
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [fetchDashboardData]);
+
+  const fetchRecentActivity = useCallback(async () => {
+    try {
+      
+      // Get the API URL
+      let baseUrl = API_ORIGIN;
+      // Remove trailing slash if present
+      baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      // Add /api/v1 only if it's not already included
+      const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      
+      // Add a timestamp parameter to prevent caching
+      const timestamp = new Date().getTime();
+      
+      const url = `${apiUrl}/admin/dashboard/recent-activity?_t=${timestamp}`;
+      
+      // Fetch recent activity
+      const activityResponse = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!activityResponse.ok) {
+        if (isUnavailableEndpointStatus(activityResponse.status)) {
+          setRecentActivity([]);
+          return;
+        }
+        throw new Error(`Failed to fetch recent activity: ${activityResponse.status}`);
+      }
+      
+      const activityData = await activityResponse.json();
+      
+      // Process the data to extract user information
+      const processedData = processActivityData(activityData);
+      
+      setRecentActivity(processedData);
+    } catch (err) {
+      console.error('Error fetching recent activity:', err);
+    }
+  }, []);
+
+  const fetchUserActivity = useCallback(async () => {
+    try {
+      // Get the API URL
+      let baseUrl = API_ORIGIN;
+      // Remove trailing slash if present
+      baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      // Add /api/v1 only if it's not already included
+      const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+      
+      // Add a timestamp parameter to prevent caching
+      const timestamp = new Date().getTime();
+      
+      // Use the documents/activities endpoint which is guaranteed to exist
+      const response = await fetch(`${apiUrl}/documents/activities?_t=${timestamp}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        // If specific endpoint fails, try the general activity endpoint as fallback
+        const fallbackResponse = await fetch(`${apiUrl}/admin/dashboard/recent-activity`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (fallbackResponse.ok) {
+          const data = await fallbackResponse.json();
+          // Process the data to extract user information
+          const processedData = processActivityData(data);
+          setRecentActivity(processedData);
+        } else {
+          console.error('Failed to fetch user activity:', response.status);
+          setRecentActivity([]);
+        }
+      } else {
+        const data = await response.json();
+        // Process the data to extract user information
+        const processedData = processActivityData(data);
+        setRecentActivity(processedData);
+      }
+    } catch (err) {
+      console.error('Error fetching user activity:', err);
+      setRecentActivity([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdminUser) {
+      // This is kept for backward compatibility
+      // The initial fetch and subsequent refreshes are now handled by the auto-refresh useEffect above
+    } else {
+      // For regular users, we don't need to fetch admin stats
+      // but we should still fetch their activity
+      setLoading(true);
+      fetchUserActivity();
+    }
+    
+    // Check if coming from verification page with refresh flag
+    if (location.state?.refreshActivity) {
+      // Show toast notification for verification
+      if (location.state?.verifiedUser) {
+        toast.success(`User ${location.state.verifiedUser} verified successfully`);
+      }
+      
+      // Show toast notification for document upload
+      if (location.state?.documentUploaded) {
+        toast.success(`Document "${location.state.documentTitle || 'New document'}" uploaded successfully`);
+      }
+      
+      // Explicitly fetch the latest activity data
+      if (isAdminUser) {
+        fetchRecentActivity();
+      } else {
+        fetchUserActivity();
+      }
+      
+      // Clear the state to prevent repeated refreshes
+      history.replaceState({}, document.title);
+    }
+  }, [location, isAdminUser, fetchRecentActivity, fetchUserActivity]);
+
+  // Function to pre-process activity data from backend
+  const processActivityData = (activities) => {
+    return activities.map(activity => {
+      const processed = { ...activity };
+      
+      // Try to parse data field if it's a string
+      if (typeof processed.data === 'string') {
+        try {
+          processed.data = JSON.parse(processed.data);
+        } catch {
+          // Keep as is if parsing fails
+        }
+      }
+      
+      // Try to extract additional info from the data field
+      if (processed.data) {
+        // Move relevant fields to the top level for easier access
+        if (processed.data.user_name && !processed.user_name) {
+          processed.user_name = processed.data.user_name;
+        }
+        if (processed.data.full_name && !processed.full_name) {
+          processed.full_name = processed.data.full_name;
+        }
+        if (processed.data.email && !processed.email) {
+          processed.email = processed.data.email;
+        }
+        if (processed.data.document_type && !processed.document_type) {
+          processed.document_type = processed.data.document_type;
+        }
+      }
+      
+      // Check 'user' field
+      if (typeof processed.user === 'string') {
+        try {
+          processed.user = JSON.parse(processed.user);
+          if (processed.user && processed.user.full_name && !processed.user_name) {
+            processed.user_name = processed.user.full_name;
+          }
+        } catch {
+          // If user field is a string but not JSON, it might be a name
+          if (!processed.user_name) {
+            processed.user_name = processed.user;
+          }
+        }
+      }
+      
+      return processed;
+    });
   };
+
+  // Function to fetch regular user activity
+
+  // Function to fetch only recent activity (for updates)
+
 
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };

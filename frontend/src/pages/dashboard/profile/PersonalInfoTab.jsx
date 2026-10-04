@@ -10,6 +10,7 @@ import { philippineRegions } from './profileOptions';
 export default function PersonalInfoTab({
   addSocialMedia,
   getInputClass,
+  handleFieldBlur,
   handleInputChange,
   handleProfilePictureChange,
   handleSocialMediaChange,
@@ -122,6 +123,9 @@ export default function PersonalInfoTab({
                 id="student_id"
                 value={profile.student_id}
                 onChange={handleInputChange}
+                onBlur={handleFieldBlur}
+                aria-invalid={validationErrors.student_id ? 'true' : undefined}
+                aria-describedby={validationErrors.student_id ? 'student_id-error' : undefined}
                 className={getInputClass('student_id')}
               />
             ) : (
@@ -141,6 +145,9 @@ export default function PersonalInfoTab({
                 id="email"
                 value={profile.email}
                 onChange={handleInputChange}
+                onBlur={handleFieldBlur}
+                aria-invalid={validationErrors.email ? 'true' : undefined}
+                aria-describedby={validationErrors.email ? 'email-error' : undefined}
                 className={getInputClass('email')}
               />
             ) : (

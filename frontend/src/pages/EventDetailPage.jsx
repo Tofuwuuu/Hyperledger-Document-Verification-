@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import { getEventById, registerForEvent, checkUserEventRegistration, cancelRegistration } from '../services/eventService';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import MeetingScheduler from '../components/MeetingScheduler';
 import MeetingList from '../components/MeetingList';
 import JitsiMeeting from '../components/JitsiMeeting';
@@ -25,7 +25,7 @@ const EventDetailPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Define fetchEventDetails outside useEffect so it can be called from other functions
-  const fetchEventDetails = async () => {
+  const fetchEventDetails = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getEventById(eventId);
@@ -53,15 +53,16 @@ const EventDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId, isAuthenticated, currentUser]);
+
 
   useEffect(() => {
     if (eventId && isAuthenticated) {
       fetchEventDetails();
     }
     
-    // Add currentUser as dependency to re-check registration when user logs in/out
-  }, [eventId, isAuthenticated, currentUser]);
+    // fetchEventDetails changes with currentUser, so registration is re-checked on log in/out
+  }, [eventId, isAuthenticated, fetchEventDetails]);
 
   const handleRegister = async () => {
     if (!isAuthenticated) {

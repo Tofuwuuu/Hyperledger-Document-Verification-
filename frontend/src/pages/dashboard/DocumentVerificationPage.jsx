@@ -9,7 +9,7 @@ import {
   CubeTransparentIcon
 } from '@heroicons/react/24/outline';
 import { documentService, verificationService } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import documentVerificationService from '../../services/document';
 
 export default function DocumentVerificationPage() {

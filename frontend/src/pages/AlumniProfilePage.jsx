@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { CalendarIcon, MapPinIcon, BriefcaseIcon, AcademicCapIcon, DocumentIcon } from '@heroicons/react/24/outline';
 import { alumniService, documentService, authService, api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { buildAlumniProfileData } from '../utils/alumni-profile-schema';
 import { API_ORIGIN } from '../config';
 
@@ -27,6 +27,36 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
   }));
   const [isSaving, setIsSaving] = useState(false);
   
+  const fetchAlumniProfile = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await alumniService.getProfile(profileId);
+      setAlumni(response.data);
+      
+      // Populate form data for editing
+      if (isAdmin) {
+        setFormData({
+          ...buildAlumniProfileData({
+            ...response.data,
+            graduation_year: response.data.graduation_year ? String(response.data.graduation_year) : '',
+            birthday: response.data.birthday ? new Date(response.data.birthday).toISOString().split('T')[0] : '',
+          }),
+          temp_password: '',
+        });
+      }
+      
+      // Fetch documents if there are verified documents
+      if (response.data.verified_documents && response.data.verified_documents.length > 0) {
+        fetchVerifiedDocuments(response.data._id);
+      }
+    } catch (error) {
+      console.error('Error fetching alumni profile:', error);
+      setError('Failed to load alumni profile');
+    } finally {
+      setLoading(false);
+    }
+  }, [profileId, isAdmin]);
+
   useEffect(() => {
     if (!isNew && profileId) {
       fetchAlumniProfile();
@@ -34,7 +64,7 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
       // If we're creating a new alumni profile but have a userId, fetch that user's data
       fetchUserData(userIdFromQuery);
     }
-  }, [profileId, isNew, userIdFromQuery]);
+  }, [profileId, isNew, userIdFromQuery, fetchAlumniProfile]);
   
   const fetchUserData = async (userId) => {
     setLoading(true);
@@ -65,35 +95,6 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
     }
   };
   
-  const fetchAlumniProfile = async () => {
-    setLoading(true);
-    try {
-      const response = await alumniService.getProfile(profileId);
-      setAlumni(response.data);
-      
-      // Populate form data for editing
-      if (isAdmin) {
-        setFormData({
-          ...buildAlumniProfileData({
-            ...response.data,
-            graduation_year: response.data.graduation_year ? String(response.data.graduation_year) : '',
-            birthday: response.data.birthday ? new Date(response.data.birthday).toISOString().split('T')[0] : '',
-          }),
-          temp_password: '',
-        });
-      }
-      
-      // Fetch documents if there are verified documents
-      if (response.data.verified_documents && response.data.verified_documents.length > 0) {
-        fetchVerifiedDocuments(response.data._id);
-      }
-    } catch (error) {
-      console.error('Error fetching alumni profile:', error);
-      setError('Failed to load alumni profile');
-    } finally {
-      setLoading(false);
-    }
-  };
   
   const fetchVerifiedDocuments = async (alumniId) => {
     try {

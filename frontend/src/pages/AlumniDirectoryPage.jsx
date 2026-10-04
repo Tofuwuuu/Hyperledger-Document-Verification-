@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AcademicCapIcon,
@@ -24,12 +24,14 @@ export default function AlumniDirectoryPage() {
   const [featuredAlumni, setFeaturedAlumni] = useState([]);
   const limit = 12;
 
+  // The search box only fetches on Search/Enter, not per keystroke, so the
+  // latest term is read through a ref instead of being an effect dependency.
+  const searchTermRef = useRef(searchTerm);
   useEffect(() => {
-    fetchAlumni();
-    fetchFeaturedAlumni();
-  }, [page, selectedProgram, selectedYear, selectedDepartment]);
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
 
-  const fetchAlumni = async () => {
+  const fetchAlumni = useCallback(async () => {
     setLoading(true);
     try {
       const params = {
@@ -37,7 +39,8 @@ export default function AlumniDirectoryPage() {
         offset: page * limit,
       };
 
-      if (searchTerm) params.name = searchTerm;
+      const name = searchTermRef.current;
+      if (name) params.name = name;
       if (selectedProgram) params.course = selectedProgram;
       if (selectedYear) params.graduation_year = parseInt(selectedYear);
       if (selectedDepartment) params.department = selectedDepartment;
@@ -50,7 +53,13 @@ export default function AlumniDirectoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, selectedProgram, selectedYear, selectedDepartment]);
+
+  useEffect(() => {
+    fetchAlumni();
+    fetchFeaturedAlumni();
+  }, [fetchAlumni]);
+
 
   const fetchFeaturedAlumni = async () => {
     try {

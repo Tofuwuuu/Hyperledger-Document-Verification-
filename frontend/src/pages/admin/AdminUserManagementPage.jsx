@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { adminUserService } from '../../services/api';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
@@ -37,28 +37,7 @@ export default function AdminUserManagementPage() {
   // Request cancellation refs
   const abortControllersRef = useRef({});
   
-  useEffect(() => {
-    // Create abort controllers for our API requests
-    abortControllersRef.current.users = new AbortController();
-    abortControllersRef.current.roles = new AbortController();
-    
-    fetchUsers();
-    fetchRoles();
-    
-    // Clean up function - cancel any in-flight requests when component unmounts
-    return () => {
-      Object.values(abortControllersRef.current).forEach(controller => {
-        if (controller) controller.abort();
-      });
-    };
-  }, [refresh, pagination.page, pagination.limit]); // Add pagination as dependencies
-  
-  // Function to trigger a refresh
-  const triggerRefresh = () => {
-    setRefresh(prev => prev + 1);
-  };
-  
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -103,7 +82,33 @@ export default function AdminUserManagementPage() {
     } finally {
       setLoading(false);
     }
+  }, [pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    // The ref always holds this same object (only its keys change), so the
+    // cleanup below still aborts whatever controllers are current at that time.
+    const controllers = abortControllersRef.current;
+
+    // Create abort controllers for our API requests
+    controllers.users = new AbortController();
+    controllers.roles = new AbortController();
+    
+    fetchUsers();
+    fetchRoles();
+    
+    // Clean up function - cancel any in-flight requests when component unmounts
+    return () => {
+      Object.values(controllers).forEach(controller => {
+        if (controller) controller.abort();
+      });
+    };
+  }, [refresh, fetchUsers]); // fetchUsers changes with pagination.page/limit
+  
+  // Function to trigger a refresh
+  const triggerRefresh = () => {
+    setRefresh(prev => prev + 1);
   };
+  
   
   const fetchRoles = async () => {
     try {

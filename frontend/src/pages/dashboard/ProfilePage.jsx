@@ -19,11 +19,13 @@ export default function ProfilePage() {
     completionTone,
     courseOptions,
     errorMessage,
+    formStatus,
     getCourseOptionLabel,
     getCourseOptionValue,
     getDisplayValue,
     getFieldValue,
     getInputClass,
+    handleFieldBlur,
     handleInputChange,
     handleProfilePictureChange,
     handleSocialMediaChange,
@@ -42,6 +44,7 @@ export default function ProfilePage() {
     saveProfile,
     setActiveTab,
     setProfile,
+    signInAgain,
     startEditing,
     statusText,
     successMessage,
@@ -104,6 +107,7 @@ export default function ProfilePage() {
             <PersonalInfoTab
               addSocialMedia={addSocialMedia}
               getInputClass={getInputClass}
+              handleFieldBlur={handleFieldBlur}
               handleInputChange={handleInputChange}
               handleProfilePictureChange={handleProfilePictureChange}
               handleSocialMediaChange={handleSocialMediaChange}
@@ -127,6 +131,7 @@ export default function ProfilePage() {
               getCourseOptionValue={getCourseOptionValue}
               getFieldValue={getFieldValue}
               getInputClass={getInputClass}
+              handleFieldBlur={handleFieldBlur}
               handleInputChange={handleInputChange}
               isEditing={isEditing}
               profile={profile}
@@ -171,12 +176,15 @@ export default function ProfilePage() {
       </div>
 
       {/* Add sticky action bar at the bottom */}
-      {isEditing && (
+      {(isEditing || formStatus?.tone === 'success') && (
         <ProfileActionBar
           cancelEditing={cancelEditing}
           errorMessage={errorMessage}
+          formStatus={formStatus}
           loading={loading}
           saveProfile={saveProfile}
+          showActions={isEditing}
+          signInAgain={signInAgain}
         />
       )}
       

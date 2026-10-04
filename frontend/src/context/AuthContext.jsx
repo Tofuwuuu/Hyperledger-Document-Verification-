@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { AuthContext } from './authContextInstance';
 import axios from 'axios';
 import { 
   validateToken, 
@@ -118,13 +119,6 @@ const authService = {
   // directLogin removed (no longer needed)
 };
 
-// Create the auth context
-const AuthContext = createContext();
-
-// Hook to use the auth context
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
 
 // Provider component
 export const AuthProvider = ({ children }) => {

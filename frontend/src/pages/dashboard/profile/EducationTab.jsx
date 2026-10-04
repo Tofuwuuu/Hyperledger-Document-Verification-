@@ -8,6 +8,7 @@ export default function EducationTab({
   getCourseOptionValue,
   getFieldValue,
   getInputClass,
+  handleFieldBlur,
   handleInputChange,
   isEditing,
   profile,
@@ -98,6 +99,9 @@ export default function EducationTab({
                 max={new Date().getFullYear()}
                 value={getFieldValue(profile.graduation_year)}
                 onChange={handleInputChange}
+                onBlur={handleFieldBlur}
+                aria-invalid={validationErrors.graduation_year ? 'true' : undefined}
+                aria-describedby={validationErrors.graduation_year ? 'graduation_year-error' : undefined}
                 className={getInputClass('graduation_year')}
               />
             ) : (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { roleService } from '../../services/api';
 import { PlusIcon, PencilIcon, TrashIcon, ShieldCheckIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
@@ -37,28 +37,7 @@ export default function AdminRoleManagementPage() {
   // Request cancellation refs
   const abortControllersRef = useRef({});
   
-  useEffect(() => {
-    // Create abort controllers for our API requests
-    abortControllersRef.current.roles = new AbortController();
-    abortControllersRef.current.permissions = new AbortController();
-    
-    fetchRoles();
-    fetchPermissions();
-    
-    // Clean up function - cancel any in-flight requests when component unmounts
-    return () => {
-      Object.values(abortControllersRef.current).forEach(controller => {
-        if (controller) controller.abort();
-      });
-    };
-  }, [refresh, pagination.page, pagination.limit]); // Add pagination as dependencies
-  
-  // Function to trigger a refresh
-  const triggerRefresh = () => {
-    setRefresh(prev => prev + 1);
-  };
-  
-  const fetchRoles = async () => {
+  const fetchRoles = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -105,14 +84,38 @@ export default function AdminRoleManagementPage() {
         }
         
         // Set empty roles array to prevent UI errors
-        if (roles.length === 0) {
-          setRoles([]);
-        }
+        setRoles(prev => (prev.length === 0 ? [] : prev));
       }
     } finally {
       setLoading(false);
     }
+  }, [pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    // The ref always holds this same object (only its keys change), so the
+    // cleanup below still aborts whatever controllers are current at that time.
+    const controllers = abortControllersRef.current;
+
+    // Create abort controllers for our API requests
+    controllers.roles = new AbortController();
+    controllers.permissions = new AbortController();
+    
+    fetchRoles();
+    fetchPermissions();
+    
+    // Clean up function - cancel any in-flight requests when component unmounts
+    return () => {
+      Object.values(controllers).forEach(controller => {
+        if (controller) controller.abort();
+      });
+    };
+  }, [refresh, fetchRoles]); // fetchRoles changes with pagination.page/limit
+  
+  // Function to trigger a refresh
+  const triggerRefresh = () => {
+    setRefresh(prev => prev + 1);
   };
+  
   
   const fetchPermissions = async () => {
     try {

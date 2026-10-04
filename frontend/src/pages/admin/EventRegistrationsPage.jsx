@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
@@ -24,7 +24,7 @@ const EventRegistrationsPage = () => {
     cancelled: 0
   });
 
-  const fetchEventDetails = async () => {
+  const fetchEventDetails = useCallback(async () => {
     try {
       const eventData = await getEventById(eventId);
       
@@ -82,13 +82,14 @@ const EventRegistrationsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
+
 
   useEffect(() => {
     if (eventId) {
       fetchEventDetails();
     }
-  }, [eventId]);
+  }, [eventId, fetchEventDetails]);
 
   const handleCheckIn = async (registrationId) => {
     try {

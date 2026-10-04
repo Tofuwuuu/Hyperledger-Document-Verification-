@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import meetingService from '../services/meetingService';
 import meetingConfig from '../services/meetingConfig';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJoin, onLeave, meetingId, isAdmin: explicitIsAdmin }) => {
   const [loading, setLoading] = useState(true);
@@ -65,6 +65,12 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
     };
   }, [roomName, displayName, user, isAdmin]);
   
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+    }
+  }, []);
+
   // Initialize component
   useEffect(() => {
     setLoading(false);
@@ -74,12 +80,10 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
       checkRoomExists(roomName);
     }
     
-    return () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
-    };
-  }, [roomName]);
+    // The reconnect timer can be (re)scheduled after this effect runs, so the
+    // cleanup reads the ref at cleanup time on purpose.
+    return clearReconnectTimer;
+  }, [roomName, clearReconnectTimer]);
   
   // Function to check if a Jitsi room already exists
   const checkRoomExists = async (room) => {

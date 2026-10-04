@@ -7,7 +7,7 @@ import {
   IdentificationIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { alumniService } from '../../services/api';
 
 const initialForm = {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { documentRequestService } from '../services/api';
 import { toast as toastify } from 'react-toastify';
 
@@ -10,7 +10,7 @@ const DocumentRequestForm = ({ onRequestCreated }) => {
   const [typesError, setTypesError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchAvailableTypes = async () => {
+  const fetchAvailableTypes = useCallback(async () => {
     setIsLoadingTypes(true);
     setTypesError('');
 
@@ -18,9 +18,9 @@ const DocumentRequestForm = ({ onRequestCreated }) => {
     if (response.success) {
       const types = Array.isArray(response.data) ? response.data : [];
       setAvailableTypes(types);
-      if (documentType && !types.some((type) => type.id === documentType)) {
-        setDocumentType('');
-      }
+      setDocumentType((current) => (
+        current && !types.some((type) => type.id === current) ? '' : current
+      ));
     } else {
       setAvailableTypes([]);
       setDocumentType('');
@@ -28,11 +28,12 @@ const DocumentRequestForm = ({ onRequestCreated }) => {
     }
 
     setIsLoadingTypes(false);
-  };
+  }, []);
+
 
   useEffect(() => {
     fetchAvailableTypes();
-  }, []);
+  }, [fetchAvailableTypes]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

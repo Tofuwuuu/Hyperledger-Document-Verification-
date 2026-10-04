@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PaperClipIcon, ArrowUpTrayIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { documentService, alumniService } from '../../services/api';
 import { DOCUMENT_TYPE_OPTIONS, getDocumentTypeLabel } from '../../constants/documentTypes';
 import { useNavigate } from 'react-router-dom';
@@ -37,11 +37,7 @@ export default function DocumentUploadPage() {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ];
   
-  useEffect(() => {
-    fetchAlumniProfile();
-  }, [currentUser]);
-  
-  const fetchAlumniProfile = async () => {
+  const fetchAlumniProfile = useCallback(async () => {
     if (!currentUser) {
       setError('User information is not loaded. Please try logging in again.');
       return;
@@ -76,7 +72,12 @@ export default function DocumentUploadPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchAlumniProfile();
+  }, [fetchAlumniProfile]);
+  
   
   const fetchDocuments = async (alumniId) => {
     setLoading(true);
