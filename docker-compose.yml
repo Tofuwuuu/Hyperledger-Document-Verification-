@@ -83,6 +83,11 @@ services:
       - ./backend/uploads:/app/uploads
     environment:
       - MONGODB_URL=mongodb://mongodb:27017/cvsu_alumni
+      # Required. Set SECRET_KEY in your shell or a root .env file before
+      # `docker compose up`. Generate one with:
+      #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY (32+ random characters) before starting the backend}
+      - PASSWORD_RESET_ENABLED=false
       # BLOCKCHAIN_ENABLED is unused by the Python app. USE_REAL_BLOCKCHAIN
       # selects the in-memory mock (false) or fabric-gateway (true).
       - BLOCKCHAIN_ENABLED=false

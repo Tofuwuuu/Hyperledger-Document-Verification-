@@ -99,13 +99,6 @@ export const clearAuthTokens = () => {
  * @returns {boolean} - Whether the user is an admin
  */
 export const isUserAdmin = (user) => {
-  // Check token first
-  const token = localStorage.getItem('token');
-  if (token && token.startsWith('admin_access_token_')) {
-    return true;
-  }
-  
-  // Then check user data
   return user?.is_admin || false;
 };
 

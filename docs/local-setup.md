@@ -9,7 +9,7 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
 
-`backend/.env` is gitignored. The example uses placeholder `SECRET_KEY=change_me`. Do not commit a real secret.
+`backend/.env` is gitignored. `SECRET_KEY` has no default: the backend refuses to start if it is missing, shorter than 32 characters, or `change_me`. Generate one with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Do not commit a real secret.
 
 Backend variables the process actually reads:
 
@@ -40,8 +40,11 @@ Create the external network Compose expects, then start MongoDB, the API, and th
 
 ```bash
 docker network create cvsu_alumni_blockchain_network
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
 docker compose up -d --build
 ```
+
+Compose refuses to start the backend until `SECRET_KEY` is set.
 
 `fabric-gateway` will be up, but chain calls fail until the peer is running. With `USE_REAL_BLOCKCHAIN=false` the API never calls it.
 

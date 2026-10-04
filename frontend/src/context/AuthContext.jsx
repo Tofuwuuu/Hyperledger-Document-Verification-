@@ -221,33 +221,6 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Loading user data from API or local storage');
       
-      // Check for admin or alumni bypass tokens that should use localStorage data instead of API calls
-      if (accessToken.startsWith('admin_access_token_') || 
-          accessToken.startsWith('alumni_access_token_')) {
-        console.log("Using bypass token - skipping API call and using localStorage data");
-        
-        // For bypass tokens, just return the stored user data
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        if (userData && userData.email) {
-          console.log('User data loaded from localStorage:', userData);
-          
-          // Ensure verification is always set for bypass tokens
-          if (!userData.is_verified) {
-            userData.is_verified = true;
-            localStorage.setItem('user', JSON.stringify(userData));
-            console.log('Updated is_verified flag to true for bypass token user');
-          }
-          
-          setCurrentUser(userData);
-          setIsAuthenticated(true);
-          return userData;
-        } else {
-          console.error("No valid user data found in localStorage for bypass token");
-          setCurrentUser(null);
-          setIsAuthenticated(false);
-          return null;
-        }
-      }
       
       // For regular tokens, use API call
       try {
@@ -346,15 +319,6 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      const { accessToken } = getAuthTokens();
-      
-      // Check if we're using admin bypass
-      if (accessToken && accessToken.startsWith('admin_access_token_')) {
-        console.log('Admin bypass token - no need to refresh');
-        await loadUserData();
-        return true;
-      }
-      
       // Normal token refresh for regular users
       const response = await authService.refreshToken();
       
@@ -400,14 +364,6 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       
-      // Check if we're using admin bypass
-      if (accessToken && accessToken.startsWith('admin_access_token_')) {
-        console.log('Using admin bypass token - skipping JWT validation');
-        // Skip validation for admin bypass tokens
-        await loadUserData();
-        setLoading(false);
-        return;
-      }
       
       try {
         const { isValid, isExpired } = validateToken(accessToken);
@@ -542,6 +498,26 @@ export const AuthProvider = ({ children }) => {
     }
   }, [loadUserData]);
 
+  // Second login step for accounts with MFA on.
+  const completeMfaLogin = useCallback(async (mfaToken, code, remember = false) => {
+    const response = await authService.verifyMfa(mfaToken, code, remember);
+    if (response.access_token) {
+      storeAuthTokens({
+        accessToken: response.access_token,
+        refreshToken: response.refresh_token
+      }, remember);
+    }
+    if (response.user) {
+      localStorage.setItem('simple_auth', 'true');
+      setCurrentUser(response.user);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      setIsAuthenticated(true);
+    } else {
+      await loadUserData();
+    }
+    return response;
+  }, [loadUserData]);
+
   const register = async (userData) => {
     try {
       setError(null);
@@ -662,6 +638,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     login,
+    completeMfaLogin,
     register,
     logout,
     refreshToken,

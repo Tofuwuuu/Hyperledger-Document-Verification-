@@ -23,3 +23,10 @@ export const API_PREFIX = '/api/v1';
 export const API_URL = PREVIEW_MODE ? '' : `${API_ORIGIN}${API_PREFIX}`;
 
 export const REPO_URL = 'https://github.com/Tofuwuuu/Hyperledger-Document-Verification-';
+
+// The backend keeps password reset off while the demo has no email sending.
+// Set VITE_PASSWORD_RESET_ENABLED=true only when the server has it on too.
+export const PASSWORD_RESET_ENABLED =
+  String(import.meta.env.VITE_PASSWORD_RESET_ENABLED || '').toLowerCase() === 'true';
+
+export const RESET_UNAVAILABLE_MESSAGE = "Password reset isn't available in the demo.";

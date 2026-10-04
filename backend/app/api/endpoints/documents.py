@@ -13,7 +13,8 @@ from pymongo.errors import PyMongoError
 from app.constants.document_types import is_supported_document_type, normalize_document_type
 from app.db.collections import alumni_profiles_collection, documents_collection, users_collection, get_default_db
 from app.db.session import get_motor_client
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, get_current_verified_user
+from app.utils.uploads import DOCUMENT_KINDS, INLINE_SAFE_MIME_TYPES, read_validated_upload, safe_extension_for_mime
 from app.utils.documents import build_document_upload_paths, safe_upload_extension
 
 router = APIRouter()
@@ -151,6 +152,18 @@ def _resolve_document_file(document: dict[str, Any]) -> Path:
     return full_path
 
 
+def _attachment_response(doc: dict[str, Any], full_path: Path) -> FileResponse:
+    mime = doc.get("mime_type") or ""
+    response = FileResponse(
+        full_path,
+        media_type=mime if mime in INLINE_SAFE_MIME_TYPES else "application/octet-stream",
+        filename=doc.get("file_name") or full_path.name,
+        content_disposition_type="attachment",
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @router.post("/documents/upload")
 async def upload_document(
     alumni_id: str = Form(...),
@@ -158,7 +171,7 @@ async def upload_document(
     title: str = Form(...),
     description: str | None = Form(default=None),
     file: UploadFile = File(...),
-    current_user: dict = Depends(_require_auth),
+    current_user: dict = Depends(get_current_verified_user),
 ) -> dict:
     client = get_motor_client()
     profile, user = await _resolve_profile(client, alumni_id)
@@ -172,12 +185,14 @@ async def upload_document(
     if not _profile_belongs_to_current_user(profile, current_user):
         raise HTTPException(status_code=403, detail="Not allowed to upload for this alumni profile")
 
-    content = await file.read()
+    # Size cap, extension/content-type allowlist, and magic-byte check.
+    content, detected_mime = await read_validated_upload(file, DOCUMENT_KINDS)
+    stem = Path(file.filename or "document").stem or "document"
     relative_path, _stored_filename = _save_uploaded_document_file(
         profile=profile,
         user=user,
         document_type=normalized_document_type,
-        original_filename=file.filename,
+        original_filename=f"{stem}{safe_extension_for_mime(detected_mime)}",
         content=content,
     )
     file_hash = _hex_digest(content)
@@ -191,8 +206,8 @@ async def upload_document(
         "title": title,
         "description": description,
         "file_path": relative_path,
-        "file_name": Path(file.filename).name,
-        "mime_type": file.content_type,
+        "file_name": Path(file.filename or "document").name,
+        "mime_type": detected_mime,
         "file_size": len(content),
         "file_hash": file_hash,
         "status": "pending",
@@ -237,69 +252,7 @@ async def search_documents(verification_status: str | None = None, current_user:
     return [_serialize_document(doc) async for doc in cursor]
 
 
-@router.get("/documents/{document_id}")
-async def get_document(document_id: str, current_user: dict = Depends(_require_auth)) -> dict:
-    doc = await _get_authorized_document(document_id, current_user)
-    return _serialize_document(doc)
-
-
-@router.get("/documents/{document_id}/preview")
-@router.head("/documents/{document_id}/preview")
-async def preview_document(document_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
-    doc = await _get_authorized_document(document_id, current_user)
-    full_path = _resolve_document_file(doc)
-    return FileResponse(
-        full_path,
-        media_type=doc.get("mime_type") or "application/octet-stream",
-        filename=doc.get("file_name") or full_path.name,
-        content_disposition_type="inline",
-    )
-
-
-@router.get("/documents/{document_id}/download")
-async def download_document(document_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
-    doc = await _get_authorized_document(document_id, current_user)
-    full_path = _resolve_document_file(doc)
-    return FileResponse(
-        full_path,
-        media_type=doc.get("mime_type") or "application/octet-stream",
-        filename=doc.get("file_name") or full_path.name,
-        content_disposition_type="attachment",
-    )
-
-
-@router.delete("/documents/{document_id}")
-async def delete_document(document_id: str, current_user: dict = Depends(_require_auth)) -> dict:
-    object_id = _object_id(document_id)
-    if object_id is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    client = get_motor_client()
-    collection = documents_collection(client)
-    doc = await collection.find_one({"_id": object_id})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    if not current_user.get("is_admin") and str(doc.get("user_id")) != str(current_user.get("sub")):
-        raise HTTPException(status_code=403, detail="Not allowed to delete this document")
-
-    file_path = doc.get("file_path")
-    if file_path:
-        full_path = Path(__file__).resolve().parents[3] / file_path
-        if full_path.exists():
-            full_path.unlink()
-
-    await collection.delete_one({"_id": object_id})
-    return {"success": True}
-
-
-@router.get("/documents/pending/all")
-async def get_all_pending_documents(current_user: dict = Depends(_require_auth)) -> list[dict]:
-    if not current_user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    client = get_motor_client()
-    cursor = documents_collection(client).find({"verification_status": "pending"}).sort("created_at", -1)
-    return [_serialize_document(doc) async for doc in cursor]
-
-
+# Registered before /documents/{document_id} so "activities" is not read as an id.
 @router.get("/documents/activities")
 async def get_document_activities(current_user: dict = Depends(_require_auth)) -> list[dict]:
     client = get_motor_client()
@@ -336,6 +289,71 @@ async def get_document_activities(current_user: dict = Depends(_require_auth)) -
             }
         )
     return activities
+
+
+@router.get("/documents/{document_id}")
+async def get_document(document_id: str, current_user: dict = Depends(_require_auth)) -> dict:
+    doc = await _get_authorized_document(document_id, current_user)
+    return _serialize_document(doc)
+
+
+@router.get("/documents/{document_id}/preview")
+@router.head("/documents/{document_id}/preview")
+async def preview_document(document_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
+    doc = await _get_authorized_document(document_id, current_user)
+    full_path = _resolve_document_file(doc)
+    mime = doc.get("mime_type") or ""
+    if mime not in INLINE_SAFE_MIME_TYPES:
+        # Older uploads may carry any client-declared type. Never render those inline.
+        return _attachment_response(doc, full_path)
+    response = FileResponse(
+        full_path,
+        media_type=mime,
+        filename=doc.get("file_name") or full_path.name,
+        content_disposition_type="inline",
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    return response
+
+
+@router.get("/documents/{document_id}/download")
+async def download_document(document_id: str, current_user: dict = Depends(_require_auth)) -> FileResponse:
+    doc = await _get_authorized_document(document_id, current_user)
+    full_path = _resolve_document_file(doc)
+    return _attachment_response(doc, full_path)
+
+
+@router.delete("/documents/{document_id}")
+async def delete_document(document_id: str, current_user: dict = Depends(_require_auth)) -> dict:
+    object_id = _object_id(document_id)
+    if object_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    client = get_motor_client()
+    collection = documents_collection(client)
+    doc = await collection.find_one({"_id": object_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not current_user.get("is_admin") and str(doc.get("user_id")) != str(current_user.get("sub")):
+        raise HTTPException(status_code=403, detail="Not allowed to delete this document")
+
+    file_path = doc.get("file_path")
+    if file_path:
+        full_path = Path(__file__).resolve().parents[3] / file_path
+        if full_path.exists():
+            full_path.unlink()
+
+    await collection.delete_one({"_id": object_id})
+    return {"success": True}
+
+
+@router.get("/documents/pending/all")
+async def get_all_pending_documents(current_user: dict = Depends(_require_auth)) -> list[dict]:
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    client = get_motor_client()
+    cursor = documents_collection(client).find({"verification_status": "pending"}).sort("created_at", -1)
+    return [_serialize_document(doc) async for doc in cursor]
 
 
 @router.post("/documents/{document_id}/reject")
