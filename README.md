@@ -69,9 +69,10 @@ Public verify and admin approval both go through `BlockchainManager` (`backend/a
 
 ## Run locally
 
-App data and the API, without Fabric (mock ledger, which matches the Compose default):
+App data and the API, without Fabric (mock ledger, which matches the Compose default). The API won't start without a secret key, so set one first.
 
 ```bash
+export SECRET_KEY=$(openssl rand -hex 32)
 docker network create cvsu_alumni_blockchain_network   # once; Compose expects this external network
 docker compose up -d --build
 cd frontend && npm install --legacy-peer-deps && npm run dev

@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # which ends every token issued before it.
     access_token_minutes: int = 60
     mfa_pending_token_minutes: int = 5
+    # /auth/refresh can extend a session, but never past this many hours
+    # after the original sign-in.
+    session_max_hours: int = 12
+
+    # Comma-separated proxy IPs or CIDRs (for example your host's load balancer)
+    # whose X-Forwarded-For header is trusted. Empty means trust no proxy and
+    # rate-limit on the direct peer address.
+    trusted_proxies: str = ""
 
     # The demo has no email sending, so password reset is off unless enabled.
     password_reset_enabled: bool = False
@@ -64,6 +72,10 @@ class Settings(BaseSettings):
         if self.mongodb_uri:
             return self.mongodb_uri
         return "mongodb://localhost:27017/cvsu_alumni"
+
+    @property
+    def trusted_proxies_list(self) -> list[str]:
+        return [item.strip() for item in (self.trusted_proxies or "").split(",") if item.strip()]
 
     @property
     def cors_origins_list(self) -> list[str]:

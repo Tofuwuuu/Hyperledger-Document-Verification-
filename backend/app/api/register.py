@@ -22,6 +22,7 @@ from app.utils.auth import (
     create_token,
     get_current_user,
     load_user_for_token,
+    session_deadline,
 )
 from app.utils.rate_limit import (
     LOGIN_LIMIT,
@@ -80,6 +81,10 @@ class MFAEnableRequest(BaseModel):
     verification_code: str = Field(min_length=4, max_length=12)
 
 
+class MFADisableRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=12)
+
+
 class MFAVerifyRequest(BaseModel):
     mfa_token: str = Field(min_length=10, max_length=4096)
     code: str = Field(min_length=6, max_length=12)
@@ -102,7 +107,7 @@ class SecurityAnswerItem(BaseModel):
 
 class VerifySecurityQuestionsRequest(BaseModel):
     email: EmailStr
-    answers: list[SecurityAnswerItem]
+    answers: list[SecurityAnswerItem] = Field(max_length=10)
 
 
 def _normalize_email(email: str) -> str:
@@ -183,6 +188,10 @@ def _mfa_status_payload(user: dict) -> dict:
 
 
 GENERIC_LOGIN_ERROR = "Incorrect email or password."
+BAD_MFA_CODE = "That code didn't work. Check your app and try again."
+SECURITY_ANSWERS_FAILED = "Security answers did not match"
+SECURITY_QUESTIONS_UNAVAILABLE = "Security questions are not configured for this account"
+SESSION_ENDED = "Session has ended. Sign in again."
 RESET_DISABLED_DETAIL = "Password reset isn't available in the demo."
 RESET_REQUESTED_MESSAGE = "If an account exists for that email, reset instructions have been sent."
 RESET_TOKEN_MINUTES = 30
@@ -223,6 +232,24 @@ async def _user_for_reset_token(users, token: str) -> dict:
     if not user or _is_token_expired(user.get("password_reset_expires_at")):
         raise HTTPException(status_code=401, detail="Invalid or expired reset token")
     return user
+
+
+async def _accept_totp(users, user: dict, secret: str | None, code: str) -> bool:
+    """Check a TOTP code and record its time step so it can't be used again.
+
+    A code for the last accepted step (or an older one) is refused. The step is
+    saved with a compare-and-set on the previous value, so two requests racing
+    with the same code can't both succeed.
+    """
+    previous = user.get("mfa_last_step")
+    step = totp.matching_step(secret or "", code, after_step=previous)
+    if step is None:
+        return False
+    result = await users.update_one(
+        {"_id": user["_id"], "mfa_last_step": previous},
+        {"$set": {"mfa_last_step": step, "updated_at": _now_utc()}},
+    )
+    return getattr(result, "matched_count", 0) == 1
 
 
 def _login_success_payload(user: dict) -> dict:
@@ -325,11 +352,12 @@ async def verify_mfa_login(payload: MFAVerifyRequest, request: Request) -> dict:
     secret = user.get("mfa_secret")
     if not user.get("mfa_enabled") or not secret:
         raise HTTPException(status_code=400, detail="MFA is not enabled for this account")
-    if not totp.verify(secret, payload.code):
-        raise HTTPException(status_code=401, detail="That code didn't work. Check your app and try again.")
+    users = users_collection(get_motor_client())
+    if not await _accept_totp(users, user, secret, payload.code):
+        raise HTTPException(status_code=401, detail=BAD_MFA_CODE)
 
     now = datetime.now(timezone.utc)
-    await users_collection(get_motor_client()).update_one(
+    await users.update_one(
         {"_id": user["_id"]}, {"$set": {"last_login_at": now, "updated_at": now}}
     )
     return _login_success_payload(user)
@@ -356,8 +384,13 @@ async def refresh_token(payload: RefreshRequest) -> dict:
         raise HTTPException(status_code=401, detail="No refresh token provided")
 
     # Only a still-valid, unrevoked access token can be exchanged.
-    _claims, user = await load_user_for_token(payload.refresh_token)
-    new_token = create_access_token(user)
+    claims, user = await load_user_for_token(payload.refresh_token)
+    # Refreshing keeps the original sign-in time, so a session ends
+    # session_max_hours after login no matter how often it is refreshed.
+    auth_time = int(claims.get("auth_time") or claims.get("iat") or 0)
+    if int(_now_utc().timestamp()) >= session_deadline(auth_time):
+        raise HTTPException(status_code=401, detail=SESSION_ENDED, headers={"WWW-Authenticate": "Bearer"})
+    new_token = create_access_token(user, auth_time=auth_time)
     return {
         "access_token": new_token,
         "refresh_token": new_token,
@@ -472,6 +505,7 @@ async def setup_mfa(payload: MFASetupRequest, current_user: dict = Depends(get_c
             "message": "Add this account to your authenticator app, then enter the 6-digit code.",
             "secret": secret,
             "otpauth_url": totp.provisioning_uri(secret, str(user.get("email") or "")),
+            "otpauth_uri": totp.provisioning_uri(secret, str(user.get("email") or "")),
         }
     )
     return response
@@ -487,8 +521,11 @@ async def enable_mfa(payload: MFAEnableRequest, current_user: dict = Depends(get
     pending = user.get("mfa_pending_secret")
     if not pending or _is_token_expired(user.get("mfa_setup_expires_at")):
         raise HTTPException(status_code=400, detail="MFA setup expired. Start again.")
-    if not totp.verify(pending, payload.verification_code):
-        raise HTTPException(status_code=400, detail="That code didn't work. Check your app and try again.")
+    if user.get("mfa_enabled"):
+        raise HTTPException(status_code=400, detail="MFA is already enabled")
+    # MFA turns on only after a correct code from the new secret.
+    if not await _accept_totp(users, user, pending, payload.verification_code):
+        raise HTTPException(status_code=400, detail=BAD_MFA_CODE)
 
     await users.update_one(
         {"_id": user["_id"]},
@@ -511,12 +548,20 @@ async def enable_mfa(payload: MFAEnableRequest, current_user: dict = Depends(get
 
 
 @router.post("/auth/mfa/disable")
-async def disable_mfa(current_user: dict = Depends(get_current_user)) -> dict:
+async def disable_mfa(
+    payload: MFADisableRequest, request: Request, current_user: dict = Depends(get_current_user)
+) -> dict:
+    """Turning MFA off needs a current code, so a stolen session alone can't remove it."""
     client = get_motor_client()
     users = users_collection(client)
     user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    check_rate_limit("mfa-user", str(user["_id"]), MFA_VERIFY_LIMIT)
+    if not user.get("mfa_enabled") or not user.get("mfa_secret"):
+        raise HTTPException(status_code=400, detail="MFA is not enabled for this account")
+    if not await _accept_totp(users, user, user.get("mfa_secret"), payload.code):
+        raise HTTPException(status_code=400, detail=BAD_MFA_CODE)
     await users.update_one(
         {"_id": user["_id"]},
         {
@@ -565,11 +610,10 @@ async def get_security_questions(email: str, request: Request):
         return _reset_disabled_response()
     normalized = _normalize_email(email)
     user = await users_collection(get_motor_client()).find_one({"email": normalized}, {"security_questions": 1})
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email")
-    questions = user.get("security_questions") or []
+    questions = (user or {}).get("security_questions") or []
+    # Unknown emails get the same answer as accounts without questions.
     if len(questions) < 2:
-        raise HTTPException(status_code=400, detail="Security questions are not configured for this account")
+        raise HTTPException(status_code=400, detail=SECURITY_QUESTIONS_UNAVAILABLE)
     return {"questions": [{"index": idx, "question": item.get("question")} for idx, item in enumerate(questions)]}
 
 
@@ -578,26 +622,25 @@ async def verify_security_questions(payload: VerifySecurityQuestionsRequest, req
     check_rate_limit("reset", client_ip(request), RESET_LIMIT)
     if not settings.password_reset_enabled:
         return _reset_disabled_response()
+    if len(payload.answers) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 security answers are required")
     normalized = _normalize_email(str(payload.email))
     users = users_collection(get_motor_client())
     user = await users.find_one({"email": normalized}, {"security_questions": 1, "email": 1, "is_admin": 1, "is_verified": 1})
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email")
-    questions = user.get("security_questions") or []
-    if len(payload.answers) < 2:
-        raise HTTPException(status_code=400, detail="At least 2 security answers are required")
-    correct = 0
+    questions = (user or {}).get("security_questions") or []
+    # Each question counts once. Repeating the right answer to one question
+    # can't stand in for a second question.
+    correct_questions: set[int] = set()
     for submitted in payload.answers:
         idx = submitted.question_idx
-        if idx < 0 or idx >= len(questions):
-            continue
-        stored_hash = questions[idx].get("answer_hash")
-        if not stored_hash:
-            continue
-        if _password_matches(submitted.answer.strip().lower(), stored_hash):
-            correct += 1
-    if correct < 2:
-        raise HTTPException(status_code=401, detail="Security answers did not match")
+        stored_hash = questions[idx].get("answer_hash") if 0 <= idx < len(questions) else None
+        # Unknown emails and bad indexes still cost one bcrypt check, so timing
+        # doesn't reveal which emails have accounts.
+        matched = _password_matches(submitted.answer.strip().lower(), stored_hash or _DUMMY_PASSWORD_HASH)
+        if stored_hash and matched:
+            correct_questions.add(idx)
+    if not user or len(correct_questions) < 2:
+        raise HTTPException(status_code=401, detail=SECURITY_ANSWERS_FAILED)
 
     # A one-time reset token (not a JWT), usable only with /auth/reset-password-confirm.
     token = await _issue_reset_token(users, user)
