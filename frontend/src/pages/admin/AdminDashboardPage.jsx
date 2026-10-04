@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import pollingService from '../../services/polling';
+import { API_ORIGIN } from '../../config';
 
 function isUnavailableEndpointStatus(status) {
   return status === 404 || status === 405;
@@ -193,7 +194,7 @@ export default function AdminDashboardPage() {
   const fetchUserActivity = async () => {
     try {
       // Get the API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included
@@ -248,7 +249,7 @@ export default function AdminDashboardPage() {
       console.log('fetchRecentActivity started...');
       
       // Get the API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included
@@ -300,7 +301,7 @@ export default function AdminDashboardPage() {
     
     try {
       // Get base API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included

@@ -11,6 +11,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { requestPasswordReset, verifyResetToken, resetPassword } from '../services/authService';
 import AuthShell from './auth/AuthShell';
+import { PREVIEW_MODE } from '../config';
+import PreviewNotice from '../components/PreviewNotice';
 
 const steps = ['Email', 'Token', 'New password'];
 
@@ -25,6 +27,7 @@ export default function ResetPasswordPage() {
   const [step, setStep] = useState(initialToken ? 3 : 1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [previewBlocked, setPreviewBlocked] = useState(false);
   const [notice, setNotice] = useState(initialToken ? 'Recovery verified. Choose a new password.' : '');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -35,6 +38,10 @@ export default function ResetPasswordPage() {
 
   const handleRequestReset = async (e) => {
     e.preventDefault();
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      return;
+    }
     setError('');
     setNotice('');
 
@@ -65,6 +72,10 @@ export default function ResetPasswordPage() {
 
   const handleVerifyToken = async (e) => {
     e.preventDefault();
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      return;
+    }
     setError('');
     setNotice('');
 
@@ -88,6 +99,10 @@ export default function ResetPasswordPage() {
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      return;
+    }
     setError('');
 
     if (!password) {
@@ -190,6 +205,7 @@ export default function ResetPasswordPage() {
             {loading ? 'Checking...' : 'Continue'}
             {!loading && <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
           </button>
+          {previewBlocked && <PreviewNotice />}
 
           <button
             type="button"
@@ -230,6 +246,7 @@ export default function ResetPasswordPage() {
             {loading ? 'Verifying...' : 'Verify token'}
             {!loading && <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
           </button>
+          {previewBlocked && <PreviewNotice />}
 
           <button
             type="button"
@@ -307,6 +324,7 @@ export default function ResetPasswordPage() {
             {loading ? 'Updating...' : 'Reset password'}
             {!loading && <KeyIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
           </button>
+          {previewBlocked && <PreviewNotice />}
         </form>
       )}
 

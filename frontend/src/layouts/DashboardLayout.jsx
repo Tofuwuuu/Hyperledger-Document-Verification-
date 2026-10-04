@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import pollingService from '../services/polling';
 import cvsuLogo from '../assets/cvsu-logo.png';
+import { API_ORIGIN } from '../config';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -301,7 +302,7 @@ export default function DashboardLayout() {
     const fetchNotifications = async () => {
       try {
         // Get base API URL
-        let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        let baseUrl = API_ORIGIN;
         // Remove trailing slash if present
         baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
         // Add /api/v1 only if it's not already included
@@ -389,7 +390,7 @@ export default function DashboardLayout() {
       }
       
       // Get base API URL
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const baseUrl = API_ORIGIN;
       
       const response = await fetch(`${baseUrl}/api/v1/notifications/${notificationId}/read`, {
         method: 'POST',
@@ -433,7 +434,7 @@ export default function DashboardLayout() {
       }
       
       // Get base API URL
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const baseUrl = API_ORIGIN;
       
       const response = await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
         method: 'POST',

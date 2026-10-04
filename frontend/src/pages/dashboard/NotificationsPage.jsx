@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import pollingService from '../../services/polling';
+import { API_ORIGIN } from '../../config';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -13,7 +14,7 @@ export default function NotificationsPage() {
       try {
         setLoading(true);
         // Parse the API URL
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const baseUrl = API_ORIGIN;
         
         const response = await fetch(`${baseUrl}/api/v1/notifications?include_read=true`, {
           headers: {
@@ -59,7 +60,7 @@ export default function NotificationsPage() {
   const handleMarkAsRead = async (notificationId) => {
     try {
       // Parse the API URL
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const baseUrl = API_ORIGIN;
       
       const response = await fetch(`${baseUrl}/api/v1/notifications/${notificationId}/read`, {
         method: 'POST',
@@ -89,7 +90,7 @@ export default function NotificationsPage() {
   const handleMarkAllAsRead = async () => {
     try {
       // Parse the API URL
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const baseUrl = API_ORIGIN;
       
       const response = await fetch(`${baseUrl}/api/v1/notifications/read-all`, {
         method: 'POST',
@@ -115,7 +116,7 @@ export default function NotificationsPage() {
   const handleDeleteNotification = async (notificationId) => {
     try {
       // Parse the API URL to avoid path duplication
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       

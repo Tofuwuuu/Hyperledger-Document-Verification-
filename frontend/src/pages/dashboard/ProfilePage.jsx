@@ -21,6 +21,7 @@ import { alumniService, referenceService } from '../../services/api';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import { buildDashboardProfileData } from '../../utils/dashboard-profile-schema';
+import { API_ORIGIN } from '../../config';
 
 // Utility function to get the correct image URL
 const getImageUrl = (imagePath) => {
@@ -34,7 +35,7 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const apiUrl = API_ORIGIN;
   const timestamp = new Date().getTime();
   
   // Handle different path formats

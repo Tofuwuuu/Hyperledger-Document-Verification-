@@ -11,6 +11,8 @@ import {
   EyeSlashIcon,
 } from '@heroicons/react/24/outline';
 import AuthShell from './AuthShell';
+import { PREVIEW_MODE } from '../../config';
+import PreviewNotice from '../../components/PreviewNotice';
 
 // Validation schema
 const RegisterSchema = Yup.object().shape({
@@ -34,10 +36,16 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [previewBlocked, setPreviewBlocked] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      setSubmitting(false);
+      return;
+    }
     setGeneralError('');
     setIsLoading(true);
     
@@ -127,7 +135,7 @@ export default function RegisterPage() {
                   password: '', 
                   confirmPassword: '',
                 }}
-                validationSchema={RegisterSchema}
+                validationSchema={PREVIEW_MODE ? undefined : RegisterSchema}
                 onSubmit={handleSubmit}
               >
                 {({ isSubmitting, errors, touched }) => (
@@ -276,6 +284,7 @@ export default function RegisterPage() {
                           </>
                         )}
                       </button>
+                      {previewBlocked && <PreviewNotice />}
                     </div>
                   </Form>
                 )}

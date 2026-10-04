@@ -4,6 +4,7 @@ import { CalendarIcon, MapPinIcon, BriefcaseIcon, AcademicCapIcon, DocumentIcon 
 import { alumniService, documentService, authService, api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { buildAlumniProfileData } from '../utils/alumni-profile-schema';
+import { API_ORIGIN } from '../config';
 
 export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
   const { id, alumniId } = useParams();
@@ -289,7 +290,7 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
   const getProfileImageUrl = (profilePicture) => {
     if (profilePicture) {
       // Parse the API URL to avoid path duplication
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       return `${baseUrl}/${profilePicture}`;

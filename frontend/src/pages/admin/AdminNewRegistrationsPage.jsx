@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { UserIcon, UserPlusIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { API_ORIGIN } from '../../config';
 
 export default function AdminNewRegistrationsPage() {
   const [users, setUsers] = useState([]);
@@ -20,7 +21,7 @@ export default function AdminNewRegistrationsPage() {
     
     try {
       // Get the API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
       

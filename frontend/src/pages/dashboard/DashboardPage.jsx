@@ -12,6 +12,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import { API_ORIGIN } from '../../config';
 
 const journeySteps = [
   {
@@ -92,7 +93,7 @@ export default function DashboardPage() {
       setLoading(true);
       
       // Get the API URL - fixing the URL construction
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const baseUrl = API_ORIGIN;
       const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       const apiUrl = cleanBaseUrl.includes('/api/v1') ? cleanBaseUrl : `${cleanBaseUrl}/api/v1`;
       

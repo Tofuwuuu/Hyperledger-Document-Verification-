@@ -10,6 +10,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { alumniService } from '../services/api';
+import { API_ORIGIN } from '../config';
 
 export default function AlumniDirectoryPage() {
   const [alumni, setAlumni] = useState([]);
@@ -89,7 +90,7 @@ export default function AlumniDirectoryPage() {
 
   const getProfileImageUrl = (profilePicture) => {
     if (profilePicture) {
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       return `${baseUrl}/${profilePicture}`;
     }
