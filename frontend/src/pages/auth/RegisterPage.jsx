@@ -57,7 +57,6 @@ export default function RegisterPage() {
     };
     
     try {
-      console.log('Attempting to register:', userData.email);
       await register(userData);
       setRegistrationSuccess(true);
       setTimeout(() => {

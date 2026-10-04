@@ -49,7 +49,7 @@ const documentVerificationService = {
   },
   
   // Verify document against blockchain
-  verifyDocumentOnBlockchain: async (documentId, fileOrHash, verifier = '') => {
+  verifyDocumentOnBlockchain: async (documentId, fileOrHash) => {
     let hash;
     
     // If a file was provided, calculate its hash

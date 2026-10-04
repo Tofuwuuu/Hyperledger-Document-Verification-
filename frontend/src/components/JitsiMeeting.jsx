@@ -13,8 +13,7 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [displayName, setDisplayName] = useState(initialDisplayName);
-  const [iframeUrl, setIframeUrl] = useState('');
-  const [jitsiAPI, setJitsiAPI] = useState(null);
+  const [, setJitsiAPI] = useState(null);
   const [roomExists, setRoomExists] = useState(false);
   const apiRef = useRef(null);
   const reconnectTimerRef = useRef(null);
@@ -89,10 +88,8 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
       if (meetingService.checkRoomExists) {
         const exists = await meetingService.checkRoomExists(room);
         setRoomExists(exists);
-        console.log(`Room ${room} exists: ${exists}`);
       } else {
         // Fallback - assume room might exist
-        console.log("Room existence check not available in service");
         setRoomExists(false);
       }
     } catch (err) {
@@ -126,15 +123,12 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
         return;
       }
       
-      console.log("MEETING INITIALIZATION - Admin Status:", isAdmin, "typeof:", typeof isAdmin);
-      console.log("Room exists status:", roomExists);
       
       setLoading(true);
       setError(null);
       
       // If the room exists and user is admin, we should redirect to direct join
       if (roomExists && isAdmin) {
-        console.log("Room already exists and user is admin - should use direct join");
         setError("This meeting room already exists. As an admin, you need to join directly to gain host privileges.");
         setLoading(false);
         return;
@@ -155,7 +149,6 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
         
         const effectiveRoomName = roomName || `alumni-meeting-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         
-        console.log("Joining meeting with room name:", effectiveRoomName, "isAdmin:", isAdmin);
         
         // Generate JWT token for secure user role enforcement
         const userId = user?._id || 'guest-' + Math.random().toString(36).substring(2, 10);
@@ -189,7 +182,6 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
           
           // For admin users, we'll try the direct approach first
           if (isAdmin && !roomExists) {
-            console.log("Admin user - using direct approach for room creation");
             // Create a direct URL with admin privileges and JWT if available
             let directAdminUrl = `https://meet.jit.si/${effectiveRoomName}#config.prejoinPageEnabled=false&userInfo.displayName=${encodeURIComponent(displayName)}&userInfo.moderator=true&interfaceConfig.TOOLBAR_ALWAYS_VISIBLE=true`;
             
@@ -213,7 +205,6 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
             
             jitsiContainer.appendChild(iframe);
             
-            console.log("Admin direct iframe created");
             
             // Store api reference for cleanup
             apiRef.current = {
@@ -227,7 +218,6 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
             // Set loading complete after short delay
             setTimeout(() => {
               setLoading(false);
-              console.log("Admin meeting initialized via direct iframe");
             }, 2000);
             
             return; // Exit early for admin path
@@ -240,7 +230,6 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
           script.async = true;
           
           script.onload = () => {
-            console.log("Jitsi API script loaded successfully");
             
             try {
               // Create options with proper moderator configuration
@@ -304,14 +293,12 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
                 options.userInfo.role = 'participant';
               }
               
-              console.log("Creating Jitsi meeting with options:", options);
               
               // Create the API object
               const api = new window.JitsiMeetExternalAPI(domain, options);
               
               // Set up basic event handlers
               api.addEventListener('videoConferenceJoined', () => {
-                console.log("Successfully joined the conference!");
                 setLoading(false);
                 
                 // If admin, explicitly grant moderator rights after joining
@@ -326,7 +313,6 @@ const JitsiMeeting = ({ roomName, displayName: initialDisplayName, onClose, onJo
               });
               
               api.addEventListener('videoConferenceLeft', () => {
-                console.log("Left the conference");
                 handleMeetingClose();
               });
               

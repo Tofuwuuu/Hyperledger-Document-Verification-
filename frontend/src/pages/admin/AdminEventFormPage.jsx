@@ -37,7 +37,6 @@ const AdminEventFormPage = () => {
       
       while (!csrfSuccess && retryCount <= maxRetries) {
         try {
-          console.log(`Fetching CSRF token for event form (attempt ${retryCount + 1}/${maxRetries + 1})`);
           const response = await axios.get(`${API_URL}/auth/csrf-token`, { 
             withCredentials: true,
             headers: {
@@ -48,7 +47,6 @@ const AdminEventFormPage = () => {
           
           if (response.data && response.data.csrf_token) {
             localStorage.setItem('csrf_token', response.data.csrf_token);
-            console.log('CSRF token obtained and stored:', response.data.csrf_token);
             csrfSuccess = true;
           } else {
             console.warn('CSRF token response did not contain token');
@@ -59,7 +57,6 @@ const AdminEventFormPage = () => {
           console.error('Error fetching CSRF token:', error);
           retryCount++;
           if (retryCount <= maxRetries) {
-            console.log(`Retrying CSRF token fetch in 1 second...`);
             await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
           }
         }
@@ -148,7 +145,6 @@ const AdminEventFormPage = () => {
         registration_url: formData.registration_url || null
       };
       
-      let apiCallResult;
       let maxAttempts = 2;
       let attempts = 0;
       let success = false;
@@ -157,11 +153,11 @@ const AdminEventFormPage = () => {
         attempts++;
         try {
           if (isEditMode) {
-            apiCallResult = await updateEvent(eventId, eventData);
+            await updateEvent(eventId, eventData);
             success = true;
             toast.success('Event updated successfully');
           } else {
-            apiCallResult = await createEvent(eventData);
+            await createEvent(eventData);
             success = true;
             toast.success('Event created successfully');
           }
@@ -189,9 +185,8 @@ const AdminEventFormPage = () => {
               
               if (tokenResponse.data?.csrf_token) {
                 localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
-                console.log('New CSRF token obtained for retry');
               }
-            } catch (tokenError) {
+            } catch {
               console.warn('Failed to refresh CSRF token for retry');
             }
           }

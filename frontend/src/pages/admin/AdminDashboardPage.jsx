@@ -143,7 +143,7 @@ export default function AdminDashboardPage() {
       if (typeof processed.data === 'string') {
         try {
           processed.data = JSON.parse(processed.data);
-        } catch (e) {
+        } catch {
           // Keep as is if parsing fails
         }
       }
@@ -172,7 +172,7 @@ export default function AdminDashboardPage() {
           if (processed.user && processed.user.full_name && !processed.user_name) {
             processed.user_name = processed.user.full_name;
           }
-        } catch (e) {
+        } catch {
           // If user field is a string but not JSON, it might be a name
           if (!processed.user_name) {
             processed.user_name = processed.user;
@@ -240,7 +240,6 @@ export default function AdminDashboardPage() {
   // Function to fetch only recent activity (for updates)
   const fetchRecentActivity = async () => {
     try {
-      console.log('fetchRecentActivity started...');
       
       // Get the API URL
       let baseUrl = API_ORIGIN;
@@ -253,7 +252,6 @@ export default function AdminDashboardPage() {
       const timestamp = new Date().getTime();
       
       const url = `${apiUrl}/admin/dashboard/recent-activity?_t=${timestamp}`;
-      console.log('Fetching recent activity from:', url);
       
       // Fetch recent activity
       const activityResponse = await fetch(url, {
@@ -273,17 +271,11 @@ export default function AdminDashboardPage() {
       }
       
       const activityData = await activityResponse.json();
-      console.log('Updated recent activity data received:', activityData);
       
       // Process the data to extract user information
       const processedData = processActivityData(activityData);
       
-      // Check if we have any user verification activities
-      const userVerifications = processedData.filter(item => item.type === 'user_verification');
-      console.log('User verification activities found:', userVerifications.length, userVerifications);
-      
       setRecentActivity(processedData);
-      console.log('State updated with new activity data');
     } catch (err) {
       console.error('Error fetching recent activity:', err);
     }
@@ -301,12 +293,8 @@ export default function AdminDashboardPage() {
       // Add /api/v1 only if it's not already included
       const apiUrl = baseUrl.includes('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
       
-      // Get user info for admin name
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const adminName = user.full_name || 'Admin User';
       const token = localStorage.getItem('token');
       
-      console.log(`Fetching real-time dashboard data from: ${apiUrl}/admin/dashboard/stats`);
       
       // Add timestamp to avoid caching
       const timestamp = new Date().getTime();
@@ -321,12 +309,9 @@ export default function AdminDashboardPage() {
         }
       });
       
-      console.log(`Stats response status: ${statsResponse.status}`);
       
       if (statsResponse.ok) {
-        console.log('Successfully fetched real stats data!');
         const statsData = await statsResponse.json();
-        console.log('Stats data received:', statsData);
         setStats(statsData);
         setLastUpdated(new Date());
       } else {
@@ -350,7 +335,6 @@ export default function AdminDashboardPage() {
       
       // Fetch activity data
       const activityUrl = `${apiUrl}/admin/dashboard/recent-activity?_t=${timestamp}`;
-      console.log(`Fetching real activity from: ${activityUrl}`);
       
       const activityResponse = await fetch(activityUrl, {
         headers: {
@@ -362,7 +346,6 @@ export default function AdminDashboardPage() {
       });
       
       if (activityResponse.ok) {
-        console.log('Successfully fetched real activity data!');
         const activityData = await activityResponse.json();
         
         // Process the activity data to extract user information

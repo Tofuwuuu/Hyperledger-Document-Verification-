@@ -26,18 +26,12 @@ const EventRegistrationsPage = () => {
 
   const fetchEventDetails = async () => {
     try {
-      console.log(`Fetching event details for event ID: ${eventId}`);
       const eventData = await getEventById(eventId);
-      console.log("Event data retrieved:", eventData.title);
       
-      console.log(`Fetching registrations for event ID: ${eventId}`);
       const registrationsData = await getEventRegistrations(eventId);
-      console.log(`Received ${registrationsData.length} registrations for this event`);
       
       if (!registrationsData || registrationsData.length === 0) {
         console.warn(`No registrations found for event ID: ${eventId}`);
-      } else {
-        console.log("First registration:", registrationsData[0]);
       }
       
       // Set registrations data
@@ -51,7 +45,6 @@ const EventRegistrationsPage = () => {
         cancelled: registrationsData.filter(r => r.status === 'cancelled').length
       };
       
-      console.log("Registration statistics:", stats);
       setRegistrationStats(stats);
       
       // Double-check if the event registration_count matches our registration length
@@ -71,9 +64,7 @@ const EventRegistrationsPage = () => {
           setEvent(correctedEventData);
           
           // Attempt to update the event in the database
-          console.log(`Attempting to fix registration count for event ID: ${eventId}`);
           await updateEvent(eventId, { registration_count: registrationsData.length });
-          console.log(`Successfully updated event registration count to ${registrationsData.length}`);
         } catch (updateErr) {
           console.error('Failed to update event registration count:', updateErr);
           // Still use the corrected data locally even if the API update fails

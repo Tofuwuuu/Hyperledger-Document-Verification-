@@ -269,14 +269,17 @@ export default function MFASetup() {
                     </button>
                   ) : (
                     <div className="flex flex-wrap items-center justify-center gap-3">
+                      {/* Two even rows of four groups. A group never breaks across lines. */}
                       <code
                         aria-label={groupSecret(setup?.secret)}
-                        className="flex max-w-full flex-wrap justify-center gap-x-2 gap-y-1 rounded-md bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900"
+                        className="grid grid-cols-4 gap-x-3 gap-y-1 rounded-md bg-slate-50 px-3 py-2 font-mono text-sm tracking-wider text-slate-900"
                       >
                         {groupSecret(setup?.secret)
                           .split(' ')
                           .map((group, i) => (
-                            <span key={i}>{group}</span>
+                            <span key={i} className="whitespace-nowrap">
+                              {group}
+                            </span>
                           ))}
                       </code>
                       <button

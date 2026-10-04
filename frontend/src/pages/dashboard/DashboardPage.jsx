@@ -76,7 +76,6 @@ export default function DashboardPage() {
     
     // Check if coming from document upload page with refresh flag
     if (location.state?.refreshActivity) {
-      console.log('Dashboard detected refreshActivity flag', location.state);
       
       // Show toast notification for document upload
       if (location.state?.documentUploaded) {
@@ -102,7 +101,6 @@ export default function DashboardPage() {
       
       // Ensure properly formed URL for the activities endpoint
       const activitiesUrl = `${apiUrl}/documents/activities?_t=${timestamp}`;
-      console.log('Fetching activities from:', activitiesUrl);
       
       const response = await fetch(activitiesUrl, {
         headers: {
@@ -118,7 +116,6 @@ export default function DashboardPage() {
       
       const data = await response.json();
       setRecentActivity(data);
-      console.log('User activity loaded:', data);
       
     } catch (error) {
       console.error('Error fetching user activity:', error);

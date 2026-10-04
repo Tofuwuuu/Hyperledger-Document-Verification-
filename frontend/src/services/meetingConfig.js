@@ -101,7 +101,6 @@ const meetingConfig = {
   // Generate JWT token for secure room access
   generateJWT: async (roomName, displayName, userId, isHost = false) => {
     try {
-      console.log('Generating JWT token with params:', { roomName, displayName, userId, isHost });
       // Call backend endpoint to generate JWT token
       const response = await fetch('/api/meetings/generate-token', {
         method: 'POST',
@@ -132,7 +131,6 @@ const meetingConfig = {
       }
       
       const data = await response.json();
-      console.log('JWT token generated successfully');
       return data.token;
     } catch (error) {
       console.error('JWT generation failed:', error);
@@ -145,12 +143,6 @@ const meetingConfig = {
     const baseUrl = 'https://meet.jit.si';
     const secureRoomName = meetingConfig.generateSecureRoomName(roomName);
     
-    console.log('Generating direct URL for meeting:', {
-      roomName: secureRoomName,
-      displayName,
-      userId,
-      isHost
-    });
     
     // Try to get JWT token first for better security
     let jwtToken = null;
@@ -184,7 +176,6 @@ const meetingConfig = {
     // Add user display name
     url += `&userInfo.displayName=${encodeURIComponent(displayName || 'User')}`;
     
-    console.log('Generated URL:', url.substring(0, 100) + '...');
     return url;
   },
   
@@ -194,7 +185,6 @@ const meetingConfig = {
     
     // Add network quality listeners
     api.addEventListener('connectionEstablished', () => {
-      console.log('Jitsi connection established');
     });
     
     api.addEventListener('connectionFailed', (error) => {
@@ -207,12 +197,10 @@ const meetingConfig = {
     });
     
     api.addEventListener('videoConferenceLeft', () => {
-      console.log('Left video conference');
     });
     
     // Add participant handling
-    api.addEventListener('participantJoined', (participant) => {
-      console.log('Participant joined:', participant);
+    api.addEventListener('participantJoined', () => {
     });
   }
 };

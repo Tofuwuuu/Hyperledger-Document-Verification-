@@ -50,7 +50,6 @@ export const getEventById = async (eventId) => {
 
 export const createEvent = async (eventData) => {
   try {
-    console.log('Creating event with data:', JSON.stringify(eventData));
     
     // Make sure all date fields are properly formatted
     const cleanedData = {
@@ -68,7 +67,6 @@ export const createEvent = async (eventData) => {
                       eventData.max_attendees : Number(eventData.max_attendees))
     };
     
-    console.log('Fetching CSRF token for event creation');
     
     // First, explicitly fetch a CSRF token and ensure it's stored - with retry mechanism
     let csrfToken = null;
@@ -88,7 +86,6 @@ export const createEvent = async (eventData) => {
         if (tokenResponse.data && tokenResponse.data.csrf_token) {
           csrfToken = tokenResponse.data.csrf_token;
           localStorage.setItem('csrf_token', csrfToken);
-          console.log('CSRF token obtained');
         } else {
           console.warn('CSRF token response missing token data');
           retryCount++;
@@ -107,7 +104,6 @@ export const createEvent = async (eventData) => {
       console.warn('Failed to obtain CSRF token after multiple attempts, will try without it');
     }
     
-    console.log('Sending cleaned event data:', JSON.stringify(cleanedData));
     
     // Create custom axios instance for this specific request
     const axiosInstance = axios.create({
@@ -129,13 +125,11 @@ export const createEvent = async (eventData) => {
     // Add CSRF token if available
     if (csrfToken) {
       axiosInstance.defaults.headers.common['X-CSRF-Token'] = csrfToken;
-      console.log('Added CSRF token to request');
     }
 
     // Making the request directly with axios instead of using the api service
     const response = await axiosInstance.post('/events', cleanedData);
     
-    console.log('Event creation successful:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error creating event:', error.message || error);
@@ -168,7 +162,6 @@ export const createEvent = async (eventData) => {
 
 export const updateEvent = async (eventId, eventData) => {
   try {
-    console.log(`Updating event ${eventId} with data:`, JSON.stringify(eventData));
     
     // First, explicitly fetch a CSRF token and ensure it's stored
     try {
@@ -178,7 +171,6 @@ export const updateEvent = async (eventId, eventData) => {
       
       if (tokenResponse.data && tokenResponse.data.csrf_token) {
         localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
-        console.log('CSRF token obtained and stored:', tokenResponse.data.csrf_token);
       }
     } catch (csrfError) {
       console.warn('Error obtaining initial CSRF token:', csrfError);
@@ -193,7 +185,6 @@ export const updateEvent = async (eventId, eventData) => {
       timeout: 15000 // Increase timeout to 15 seconds
     });
     
-    console.log('Event update successful:', response.data);
     return response.data;
   } catch (error) {
     console.error(`Error updating event with ID ${eventId}:`, error);
@@ -213,7 +204,6 @@ export const updateEvent = async (eventId, eventData) => {
 
 export const deleteEvent = async (eventId) => {
   try {
-    console.log(`Deleting event ${eventId}`);
     
     // First, explicitly fetch a CSRF token and ensure it's stored
     try {
@@ -223,7 +213,6 @@ export const deleteEvent = async (eventId) => {
       
       if (tokenResponse.data && tokenResponse.data.csrf_token) {
         localStorage.setItem('csrf_token', tokenResponse.data.csrf_token);
-        console.log('CSRF token obtained and stored:', tokenResponse.data.csrf_token);
       }
     } catch (csrfError) {
       console.warn('Error obtaining initial CSRF token:', csrfError);
@@ -238,7 +227,6 @@ export const deleteEvent = async (eventId) => {
       timeout: 15000 // Increase timeout to 15 seconds
     });
     
-    console.log('Event deletion successful');
     return response.data;
   } catch (error) {
     console.error(`Error deleting event with ID ${eventId}:`, error);
@@ -259,7 +247,6 @@ export const deleteEvent = async (eventId) => {
 // Registration-related API calls
 export const registerForEvent = async (eventId) => {
   try {
-    console.log(`Registering for event with ID ${eventId}`);
     // Get the current user ID from localStorage
     const token = localStorage.getItem('token');
     let userId = null;
@@ -280,11 +267,9 @@ export const registerForEvent = async (eventId) => {
       event_id: eventId,
       user_id: userId // Include user_id explicitly
     };
-    console.log('Request payload:', JSON.stringify(payload));
     
     // Use api instance to include admin headers
     const response = await api.post(`/registrations`, payload);
-    console.log('Registration successful:', response.data);
     
     // Add the new registration to localStorage cache
     if (response.data) {
@@ -298,7 +283,6 @@ export const registerForEvent = async (eventId) => {
         
         // Update localStorage
         localStorage.setItem('userRegistrations', JSON.stringify(cachedRegistrations));
-        console.log('Updated localStorage with new registration');
       } catch (e) {
         console.error('Error updating registration cache:', e);
       }
@@ -345,11 +329,9 @@ export const registerForEvent = async (eventId) => {
 
 export const getUserRegistrations = async () => {
   try {
-    console.log('Fetching user registrations');
     
     // Use api instance to include admin headers
     const response = await api.get(`/registrations/user`);
-    console.log(`Received ${response.data.length} registrations from API`);
     
     // Cache registrations in localStorage for offline access
     localStorage.setItem('userRegistrations', JSON.stringify(response.data));
@@ -363,7 +345,6 @@ export const getUserRegistrations = async () => {
     try {
       const cachedData = localStorage.getItem('userRegistrations');
       if (cachedData) {
-        console.log('Using cached registration data');
         return JSON.parse(cachedData);
       }
     } catch (cacheError) {
@@ -376,11 +357,9 @@ export const getUserRegistrations = async () => {
 
 export const getEventRegistrations = async (eventId) => {
   try {
-    console.log(`Fetching registrations for event ${eventId}`);
     
     // Use api instance to include admin headers
     const response = await api.get(`/registrations/event/${eventId}`);
-    console.log(`Received ${response.data.length} registrations for event ${eventId}`);
     
     return response.data;
   } catch (error) {
@@ -391,14 +370,12 @@ export const getEventRegistrations = async (eventId) => {
 
 export const getAllEventRegistrations = async () => {
   try {
-    console.log("Making API call to fetch all registrations");
     
     // Use api instance to include admin headers
     const response = await api.get(`/registrations/all`, {
       timeout: 15000 // Increase timeout to 15 seconds
     });
     
-    console.log("Received API response for all registrations");
     
     // Validate the response data
     if (response.data === undefined || response.data === null) {
@@ -411,7 +388,6 @@ export const getAllEventRegistrations = async () => {
                        (response.data.registrations || response.data.data || []);
     
     // Log number of registrations
-    console.log(`Retrieved ${registrations.length} registrations from API`);
     
     // Add default status if missing to ensure stats are calculated properly
     registrations = registrations.map(reg => {
@@ -465,7 +441,6 @@ export const cancelRegistration = async (registrationId) => {
       timeout: 10000
     });
     
-    console.log('Registration cancelled successfully:', response.data);
     
     // Remove the cancelled registration from localStorage cache
     try {
@@ -482,7 +457,6 @@ export const cancelRegistration = async (registrationId) => {
         
         // Update localStorage
         localStorage.setItem('userRegistrations', JSON.stringify(updatedRegistrations));
-        console.log('Updated localStorage after cancellation');
       }
     } catch (e) {
       console.error('Error updating registration cache after cancellation:', e);
@@ -501,18 +475,15 @@ export const cancelRegistration = async (registrationId) => {
 
 export const checkUserEventRegistration = async (eventId) => {
   try {
-    console.log(`Checking registration for event ID: ${eventId}`);
     
     // Get all user registrations
     const registrations = await getUserRegistrations();
-    console.log(`Received ${registrations.length} user registrations to check against`);
     
     // Normalize the event ID we're checking for
     const eventIdToMatch = typeof eventId === 'object' ? 
       (eventId._id || eventId.id) : 
       String(eventId);
       
-    console.log(`Normalized event ID to match: ${eventIdToMatch}`);
     
     // Check if the user is registered for this event
     const matchingRegistration = registrations.find(reg => {
@@ -531,15 +502,9 @@ export const checkUserEventRegistration = async (eventId) => {
       // Ensure both IDs are strings for comparison
       regEventId = String(regEventId);
       
-      console.log(`Comparing registration event ID: ${regEventId} with target ID: ${eventIdToMatch}`);
       
       return regEventId === eventIdToMatch;
     });
-    
-    console.log(`Registration match found: ${!!matchingRegistration}`);
-    if (matchingRegistration) {
-      console.log('Matching registration:', JSON.stringify(matchingRegistration));
-    }
     
     return matchingRegistration || null;
   } catch (error) {
@@ -547,7 +512,6 @@ export const checkUserEventRegistration = async (eventId) => {
     
     // Try to get registrations from localStorage directly as a last resort
     try {
-      console.log('Attempting to use localStorage directly for checking registration');
       const cachedRegistrationsStr = localStorage.getItem('userRegistrations');
       if (cachedRegistrationsStr) {
         const cachedRegistrations = JSON.parse(cachedRegistrationsStr);
@@ -573,7 +537,6 @@ export const checkUserEventRegistration = async (eventId) => {
           return regEventId === eventIdToMatch;
         });
         
-        console.log(`Registration match found in localStorage: ${!!matchingRegistration}`);
         return matchingRegistration || null;
       }
     } catch (localStorageError) {
@@ -607,14 +570,12 @@ export const updateRegistrationStatus = async (registrationId, newStatus) => {
 
 export const getEventAttendees = async (eventId) => {
   try {
-    console.log(`Fetching detailed attendees for event: ${eventId}`);
     
     // Use api instance to include admin headers
     const response = await api.get(`/registrations/event/${eventId}/attendees`, {
       timeout: 15000 // 15 second timeout
     });
     
-    console.log('Event attendees data received:', response.data);
     
     // Validate the response data
     if (!response.data || !response.data.attendees) {
@@ -669,7 +630,6 @@ export const getEventAttendees = async (eventId) => {
 
 export const generateEventQRCode = async (eventId, type) => {
   try {
-    console.log(`Generating QR code for event: ${eventId}, type: ${type}`);
     
     // Use api instance to include admin headers
     const response = await api.get(`/events/${eventId}/qrcode?type=${type}`);
@@ -704,7 +664,6 @@ export const generateAttendanceQRCode = async (eventId) => {
 
 export const handleQuickRegistration = async (eventId, token) => {
   try {
-    console.log(`Quick registering for event ID: ${eventId} with token ${token}`);
     const response = await axios.post(
       `${API_URL}/registrations/quick-register/${eventId}/${token}`, 
       {}, // Empty body
@@ -714,7 +673,6 @@ export const handleQuickRegistration = async (eventId, token) => {
       }
     );
     
-    console.log('Quick registration successful:', response.data);
     
     // Add the new registration to localStorage cache
     if (response.data) {
@@ -728,7 +686,6 @@ export const handleQuickRegistration = async (eventId, token) => {
         
         // Update localStorage
         localStorage.setItem('userRegistrations', JSON.stringify(cachedRegistrations));
-        console.log('Updated localStorage with new registration from QR code');
       } catch (e) {
         console.error('Error updating registration cache:', e);
       }
@@ -749,7 +706,6 @@ export const handleQuickRegistration = async (eventId, token) => {
 
 export const handleQuickAttendance = async (attendanceToken) => {
   try {
-    console.log(`Quick marking attendance with token: ${attendanceToken}`);
     const response = await axios.post(
       `${API_URL}/registrations/quick-attend/${attendanceToken}`, 
       {}, // Empty body
@@ -759,7 +715,6 @@ export const handleQuickAttendance = async (attendanceToken) => {
       // No auth header needed for quick attendance
     );
     
-    console.log('Quick attendance marking successful:', response.data);
     return response.data;
   } catch (error) {
     console.error(`Error marking attendance with token ${attendanceToken}:`, error);

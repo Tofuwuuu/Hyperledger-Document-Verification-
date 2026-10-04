@@ -273,18 +273,6 @@ export default function DashboardLayout() {
     );
   };
 
-  // Debug logging for path changes
-  useEffect(() => {
-    console.log('Current path:', location.pathname);
-    // Check which navigation item should be active
-    const activeItem = fullNavigation.find(item => item.href === location.pathname);
-    if (activeItem) {
-      console.log('Active navigation item:', activeItem.name);
-    } else {
-      console.log('No matching navigation item for current path');
-    }
-  }, [location.pathname, fullNavigation]);
-
   // Fetch notifications on component mount
   useEffect(() => {
     let isMounted = true;
@@ -342,7 +330,6 @@ export default function DashboardLayout() {
     
     // Listen for new notifications
     const unsubscribe = pollingService.on('message', (data) => {
-      console.log("Dashboard received notification:", data);
       setUnreadCount(prev => (prev || 0) + 1);
       setNotifications(prev => [data, ...(prev || [])].slice(0, 5));  // Keep last 5 notifications
     });
@@ -350,7 +337,6 @@ export default function DashboardLayout() {
     const initializeNotifications = async () => {
       const endpointAvailable = await fetchNotifications();
       if (endpointAvailable && isMounted && !pollingService.endpointDisabled) {
-        console.log("Starting notification polling in DashboardLayout");
         pollingService.startPolling();
       }
     };

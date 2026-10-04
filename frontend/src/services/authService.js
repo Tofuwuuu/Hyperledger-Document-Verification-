@@ -125,7 +125,6 @@ export const changePassword = async (passwordData) => {
 // New functions for user verification
 export const getUnverifiedUsers = async (signal) => {
   try {
-    console.log('=== DEBUG: getUnverifiedUsers called ===');
     
     // Get the token and check if it's a valid token
     const token = getToken();
@@ -142,7 +141,6 @@ export const getUnverifiedUsers = async (signal) => {
     
     // Use simplified approach with direct axios call instead of the service
     try {
-      console.log('Making request to:', `${API_URL}/auth/unverified-users?limit=10`);
       
       const response = await axios({
         method: 'get',
@@ -153,7 +151,6 @@ export const getUnverifiedUsers = async (signal) => {
         signal: signal
       });
       
-      console.log('Unverified users response status:', response.status);
       
       if (Array.isArray(response.data)) {
         return response.data;
@@ -194,13 +191,10 @@ export const verifyUser = async (userId, notes = '') => {
   
   while (attempts < maxAttempts) {
     try {
-      console.log(`Sending verification request for userId: ${userId}, notes: ${notes} (Attempt ${attempts + 1}/${maxAttempts})`);
       
       // Try to get a CSRF token first
       try {
-        console.log('Fetching CSRF token');
         await apiService.get('/auth/csrf-token');
-        console.log('CSRF token obtained');
       } catch (csrfError) {
         console.warn('Error obtaining CSRF token:', csrfError);
         // Continue even if CSRF token fetch fails
@@ -214,7 +208,6 @@ export const verifyUser = async (userId, notes = '') => {
       const csrfToken = localStorage.getItem('csrf_token');
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
-        console.log('Added CSRF token to request');
       }
       
       // Use withCORS to handle CORS issues better
@@ -228,7 +221,6 @@ export const verifyUser = async (userId, notes = '') => {
         }
       );
       
-      console.log('Verification API response:', response.data);
       
       // Additional step to trigger the dashboard to refresh immediately
       try {
@@ -256,10 +248,8 @@ export const verifyUser = async (userId, notes = '') => {
       
       // If it's a CSRF error, try to get a new token before retrying
       if (isCsrfError && attempts < maxAttempts) {
-        console.log('CSRF error detected, getting new token...');
         try {
           await apiService.get('/auth/csrf-token');
-          console.log('New CSRF token obtained, retrying...');
           continue;
         } catch (csrfError) {
           console.error('Failed to get new CSRF token:', csrfError);
@@ -275,7 +265,6 @@ export const verifyUser = async (userId, notes = '') => {
       if (isCorsOrNetworkError && attempts < maxAttempts) {
         // Calculate backoff with exponential increase
         const waitTime = backoffMs * Math.pow(2, attempts - 1);
-        console.log(`CORS/Network error detected, retrying in ${waitTime}ms...`);
         
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -352,7 +341,6 @@ export const resetPassword = async (token, password, confirm_password) => {
 
 export const getCsrfToken = async () => {
   try {
-    console.log('Getting CSRF token from server');
     const response = await axios.get(`${API_URL}/auth/csrf-token`, {
       withCredentials: true,
     });
@@ -360,7 +348,6 @@ export const getCsrfToken = async () => {
     if (response.data && response.data.csrf_token) {
       // Store in localStorage for later use
       localStorage.setItem('csrf_token', response.data.csrf_token);
-      console.log('CSRF token stored in localStorage');
       return response.data.csrf_token;
     } else {
       console.error('Invalid CSRF token response:', response.data);

@@ -42,7 +42,6 @@ export default function NotificationsPage() {
     
     // Listen for new notifications
     const unsubscribe = pollingService.on('message', (data) => {
-      console.log("Notification page received notification:", data);
       setNotifications(prev => [data, ...prev]);
       if (!data.is_read) {
         setUnreadCount(prev => prev + 1);

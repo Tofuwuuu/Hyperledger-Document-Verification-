@@ -78,7 +78,6 @@ export default function AdminUserManagementPage() {
       );
       
       if (!response || !response.data) {
-        console.log('Empty or invalid response received');
         setUsers([]);
         return;
       }
@@ -155,7 +154,6 @@ export default function AdminUserManagementPage() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      console.log('Submitting user data:', formData);
       
       // First make the API call
       const response = await adminUserService.createAdminUser(formData);
@@ -203,7 +201,6 @@ export default function AdminUserManagementPage() {
   const handleEditUser = async (e) => {
     e.preventDefault();
     try {
-      console.log('Submitting user update data:', formData);
       
       // Optimistic UI update - update the user in state
       setUsers(prevUsers => 

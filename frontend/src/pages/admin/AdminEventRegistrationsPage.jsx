@@ -17,7 +17,6 @@ const AdminEventRegistrationsPage = () => {
   });
 
   const calculateRegistrationStats = (registrations) => {
-    console.log("Calculating stats for registrations:", registrations);
     
     // Default to 0 for all stats
     let stats = {
@@ -48,7 +47,6 @@ const AdminEventRegistrationsPage = () => {
         }
       });
       
-      console.log("Calculated registration stats:", stats);
     } else {
       console.warn("No registrations found or invalid registrations data:", registrations);
     }
@@ -61,9 +59,7 @@ const AdminEventRegistrationsPage = () => {
     setError(null);
     
     try {
-      console.log("Fetching event registrations...");
       const data = await getAllEventRegistrations();
-      console.log("Registrations data received:", data);
       
       // Ensure we have a valid array of registrations
       if (Array.isArray(data)) {

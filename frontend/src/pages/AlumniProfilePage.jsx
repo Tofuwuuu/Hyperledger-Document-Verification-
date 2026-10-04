@@ -150,11 +150,9 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         // Check if profile already exists for this user
         try {
           const checkUserId = userId || currentUser._id;
-          console.log(`Checking if profile exists for user: ${checkUserId}`);
           const checkResponse = await api.get(`/alumni/user/${checkUserId}`);
           
           if (checkResponse && checkResponse.data) {
-            console.log('Existing profile found:', checkResponse.data);
             alert('An alumni profile already exists for this user. Redirecting to edit page.');
             
             // Navigate to edit page for the existing profile
@@ -166,8 +164,6 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
           // Only proceed if we get a 404 (not found) error
           if (checkError.response && checkError.response.status !== 404) {
             console.error('Error checking for existing profile:', checkError);
-          } else {
-            console.log('No existing profile found, proceeding with creation');
           }
         }
         
@@ -187,14 +183,11 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         if (profileData.birthday) {
           // Just use the date portion (YYYY-MM-DD)
           profileData.birthday = profileData.birthday.split('T')[0];
-          console.log('Formatted birthday for API:', profileData.birthday);
         }
         
-        console.log('Creating new alumni profile with data:', profileData);
         try {
           // Try using the direct reliable endpoint first
           await api.post('/alumni/simple', profileData);
-          console.log('Profile created successfully with reliable endpoint');
           navigate(`/admin/alumni`);
           return;
         } catch (createError) {
@@ -225,14 +218,11 @@ export default function AlumniProfilePage({ isAdmin = false, isNew = false }) {
         if (updateData.birthday) {
           // Just use the date portion (YYYY-MM-DD)
           updateData.birthday = updateData.birthday.split('T')[0];
-          console.log('Formatted birthday for API:', updateData.birthday);
         }
         
-        console.log('Updating alumni profile with data:', updateData);
         try {
           // Try using the direct reliable endpoint first
           await api.put(`/alumni/${profileId}/simple`, updateData);
-          console.log('Profile updated successfully with reliable endpoint');
           navigate(`/admin/alumni`);
           return;
         } catch (updateError) {
