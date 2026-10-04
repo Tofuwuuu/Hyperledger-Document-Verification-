@@ -18,7 +18,9 @@ Compose starts the API with `USE_REAL_BLOCKCHAIN=false`, so approval uses the in
 | --- | --- |
 | **Public verifier** | Open `/verify` with no login, upload a file, and compare its SHA-256 hash to the ledger. An optional document id checks that specific record. |
 | **Alumni** | Register, sign in, edit a profile, and (after an admin verifies the account) upload documents, request official documents, register for events, and read notifications. |
-| **Admin** | Approve or reject accounts, review uploaded documents, and on approval try to store the file hash on Fabric. Also manages events, QR check-in, roles, and meetings. |
+| **Admin** | Approve or reject accounts, review uploaded documents, and on approval try to store the file hash on Fabric. Also creates and manages events. |
+
+Not built yet: QR check-in, role management, and meetings have screens, but they don't do anything yet.
 
 The ledger stores hashes and small metadata, not the files. Files stay in MongoDB and `backend/uploads/`.
 

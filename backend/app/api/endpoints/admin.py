@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 import logging
 import math
 from datetime import datetime, timezone
@@ -17,6 +18,7 @@ from app.db.collections import alumni_profiles_collection, documents_collection,
 from app.db.session import get_motor_client
 from app.services.blockchain_manager import get_blockchain_manager
 from app.utils.auth import get_current_user
+from app.utils.uploads import IMAGE_KINDS, read_validated_upload, safe_extension_for_mime
 from app.utils.mongo_ids import find_one_by_id
 
 router = APIRouter()
@@ -223,11 +225,11 @@ async def upload_admin_profile_picture(
     current_user: dict = Depends(_require_admin),
 ) -> dict:
     user = await _load_current_admin(current_user)
-    filename = f"admin_{user['_id']}_{Path(profile_picture.filename).name}".replace(" ", "_")
+    contents, mime = await read_validated_upload(profile_picture, IMAGE_KINDS)
+    filename = f"admin_{user['_id']}_{secrets.token_hex(8)}{safe_extension_for_mime(mime)}"
     saved_path = _uploads_dir() / filename
 
     try:
-        contents = await profile_picture.read()
         saved_path.write_bytes(contents)
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Could not save profile picture") from exc
@@ -554,55 +556,34 @@ async def approve_verification(
         "full_name": (profile or {}).get("full_name") or (user or {}).get("full_name"),
         "email": (profile or {}).get("email") or (user or {}).get("email"),
     }
-    fallback_tx_id = f"mongo-fallback-{document_id}-{file_hash[:12]}"
+    # The approval only stands if the hash is actually written to the ledger.
+    # On any failure the document stays pending and the admin can retry.
     blockchain_error: str | None = None
-    blockchain_result: dict[str, Any] = {
-        "success": False,
-        "transaction_id": fallback_tx_id,
-        "timestamp": now.isoformat(),
-    }
-
     try:
         blockchain_result = await asyncio.wait_for(
             get_blockchain_manager().store_document(document_id, file_hash, metadata),
             timeout=10,
         )
         if not blockchain_result.get("success"):
-            blockchain_error = blockchain_result.get("message", "Blockchain storage failed")
-            logger.warning(
-                "Blockchain storage failed for document %s; approving with MongoDB fallback: %s",
-                document_id,
-                blockchain_error,
-            )
-            blockchain_result = {
-                **blockchain_result,
-                "transaction_id": blockchain_result.get("transaction_id") or fallback_tx_id,
-                "timestamp": blockchain_result.get("timestamp") or now.isoformat(),
-            }
+            blockchain_error = blockchain_result.get("message") or "Blockchain storage failed"
     except asyncio.TimeoutError:
         blockchain_error = "Blockchain storage timed out"
-        logger.warning(
-            "Blockchain storage timed out for document %s; approving with MongoDB fallback",
-            document_id,
-        )
-        blockchain_result = {
-            "success": False,
-            "transaction_id": fallback_tx_id,
-            "timestamp": now.isoformat(),
-        }
     except Exception as exc:
-        blockchain_error = str(exc) or exc.__class__.__name__
-        logger.exception(
-            "Blockchain storage crashed for document %s; approving with MongoDB fallback",
-            document_id,
-        )
-        blockchain_result = {
-            "success": False,
-            "transaction_id": fallback_tx_id,
-            "timestamp": now.isoformat(),
-        }
+        logger.exception("Blockchain storage crashed for document %s", document_id)
+        blockchain_error = exc.__class__.__name__
 
-    blockchain_committed = bool(blockchain_result.get("success"))
+    if blockchain_error is not None:
+        logger.warning("Approval of document %s not saved: ledger write failed (%s)", document_id, blockchain_error)
+        await docs.update_one(
+            {"_id": object_id},
+            {"$set": {"blockchain_commit_status": "failed", "blockchain_error": blockchain_error, "updated_at": now}},
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="The document was not approved because the ledger write failed. It is still pending; try again.",
+        )
+
+    blockchain_committed = True
 
     update_data = {
         "verification_status": "verified",
@@ -614,7 +595,7 @@ async def approve_verification(
         "blockchain_hash": file_hash,
         "blockchain_tx_id": blockchain_result.get("transaction_id"),
         "blockchain_recorded_at": blockchain_result.get("timestamp") or now.isoformat(),
-        "blockchain_commit_status": "committed" if blockchain_committed else "fallback",
+        "blockchain_commit_status": "committed",
         "blockchain_error": blockchain_error,
         "updated_at": now,
     }

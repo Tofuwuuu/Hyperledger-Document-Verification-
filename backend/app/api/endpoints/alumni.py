@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from app.db.session import get_motor_client
 from app.db.collections import alumni_profiles_collection
-from app.schemas.alumni_profile import AlumniProfileCreate, AlumniProfileUpdate
+from app.schemas.alumni_profile import PROFILE_FIELDS, AlumniProfileCreate, AlumniProfileUpdate
+from app.utils.auth import get_current_user
+from app.utils.uploads import IMAGE_KINDS, read_validated_upload, safe_extension_for_mime
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -27,29 +30,77 @@ def _users_collection(client):
     return db["users"]
 
 
-def _serialize_document(document: dict[str, Any]) -> dict[str, Any]:
+# Fields any signed-in user may see about another alumni (directory view).
+_PUBLIC_FIELDS = {
+    "full_name",
+    "graduation_year",
+    "batch",
+    "course",
+    "department",
+    "bio",
+    "profile_picture",
+    "current_job",
+    "current_employer",
+    "is_verified",
+}
+# Extra fields the owner and admins may see. Secrets (password hashes, reset
+# tokens, MFA secrets, token versions) are never in either list.
+_PRIVATE_FIELDS = _PUBLIC_FIELDS | {
+    "user_id",
+    "email",
+    "student_id",
+    "phone",
+    "sex",
+    "civil_status",
+    "birthday",
+    "region_of_origin",
+    "address",
+    "is_admin",
+    "mfa_enabled",
+    "created_at",
+    "updated_at",
+}
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _serialize_document(document: dict[str, Any] | None, *, private: bool = True) -> dict[str, Any]:
     if not document:
         return {}
-
-    def _json_safe(value: Any) -> Any:
-        if isinstance(value, ObjectId):
-            return str(value)
-        if isinstance(value, datetime):
-            return value.isoformat()
-        if isinstance(value, dict):
-            return {key: _json_safe(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [_json_safe(item) for item in value]
-        return value
-
-    result = _json_safe({**document})
-    result.pop("password_hash", None)
-    result.pop("hashed_password", None)
-    if "_id" in result:
-        object_id = result["_id"]
+    allowed = _PRIVATE_FIELDS if private else _PUBLIC_FIELDS
+    result = {key: _json_safe(value) for key, value in document.items() if key in allowed}
+    if "_id" in document:
+        object_id = _json_safe(document["_id"])
         result["_id"] = object_id
         result["id"] = object_id
     return result
+
+
+def _owner_ids(document: dict[str, Any] | None, fallback_id: Any = None) -> set[str]:
+    ids = {str(fallback_id)} if fallback_id is not None else set()
+    if document:
+        for key in ("user_id", "_id"):
+            if document.get(key) is not None:
+                ids.add(str(document[key]))
+    return ids
+
+
+def _can_see_private(current_user: dict[str, Any], document: dict[str, Any] | None, fallback_id: Any = None) -> bool:
+    return bool(current_user.get("is_admin")) or str(current_user.get("sub")) in _owner_ids(document, fallback_id)
+
+
+def _allowlisted(update: dict[str, Any]) -> dict[str, Any]:
+    return {key: update[key] for key in PROFILE_FIELDS if key in update}
 
 
 def _get_object_id(value: str) -> ObjectId | None:
@@ -71,7 +122,7 @@ async def alumni_health() -> dict[str, str]:
 
 
 @router.get("/alumni/user/{user_id}")
-async def get_alumni_by_user(user_id: str) -> dict[str, Any]:
+async def get_alumni_by_user(user_id: str, current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
     client = get_motor_client()
     profiles = alumni_profiles_collection(client)
     users = _users_collection(client)
@@ -98,11 +149,11 @@ async def get_alumni_by_user(user_id: str) -> dict[str, Any]:
     if not document:
         return JSONResponse(status_code=200, content=None)
 
-    return _serialize_document(document)
+    return _serialize_document(document, private=_can_see_private(current_user, document, user_id))
 
 
 @router.get("/alumni/{alumni_id}")
-async def get_alumni_by_id(alumni_id: str) -> dict[str, Any]:
+async def get_alumni_by_id(alumni_id: str, current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
     client = get_motor_client()
     profiles = alumni_profiles_collection(client)
     users = _users_collection(client)
@@ -123,27 +174,32 @@ async def get_alumni_by_id(alumni_id: str) -> dict[str, Any]:
     if not document:
         raise HTTPException(status_code=404, detail="Alumni profile not found")
 
-    return _serialize_document(document)
+    return _serialize_document(document, private=_can_see_private(current_user, document))
 
 
 @router.post("/alumni")
-async def create_alumni_profile(payload: AlumniProfileCreate) -> dict[str, Any]:
+async def create_alumni_profile(payload: AlumniProfileCreate, current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    """Fill in profile fields on a user record.
+
+    Signed-in users may only write their own record; admins may write any.
+    Only PROFILE_FIELDS are stored, so is_admin, role, and verification
+    fields can't be set here.
+    """
     client = get_motor_client()
     collection = _users_collection(client)
 
-    if not payload.user_id:
-        raise HTTPException(status_code=400, detail="user_id is required")
-
-    object_id = _get_object_id(payload.user_id)
+    target_id = payload.user_id or str(current_user.get("sub", ""))
+    object_id = _get_object_id(target_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid user ID")
+    if not current_user.get("is_admin") and str(object_id) != str(current_user.get("sub")):
+        raise HTTPException(status_code=403, detail="You can only edit your own profile")
 
     existing = await collection.find_one({"_id": object_id})
     if not existing:
         raise HTTPException(status_code=404, detail="User not found")
 
-    document = payload.dict(exclude_unset=True)
-    document.pop("user_id", None)
+    document = _allowlisted(payload.model_dump(exclude_unset=True))
     document["updated_at"] = datetime.now(timezone.utc)
 
     try:
@@ -157,42 +213,33 @@ async def create_alumni_profile(payload: AlumniProfileCreate) -> dict[str, Any]:
 
 
 @router.put("/alumni/{alumni_id}")
-async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) -> dict[str, Any]:
+async def update_alumni_profile(
+    alumni_id: str,
+    payload: AlumniProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Update (or create) a profile. Owner or admin only; allowlisted fields only."""
     client = get_motor_client()
     users = _users_collection(client)
     object_id = _get_object_id(alumni_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
 
-    update_data = payload.dict(exclude_unset=True)
-    payload_user_id = update_data.pop("user_id", None)
-    update_data.pop("password_hash", None)
-    update_data.pop("hashed_password", None)
-    update_data.pop("is_admin", None)
+    raw = payload.model_dump(exclude_unset=True)
+    payload_user_id = raw.get("user_id")
+    update_data = _allowlisted(raw)
+    if "email" in raw:
+        # Display copy on the profile only; the login email lives on the user record.
+        update_data["email"] = raw["email"]
     # Normalize empty strings to None so Mongo doesn't store empty strings for optional fields
     for k, v in list(update_data.items()):
         if isinstance(v, str) and v.strip() == "":
             update_data[k] = None
-
-    # Recursively remove any `_id` or `id` keys from the update payload so we do
-    # not attempt to modify MongoDB's immutable `_id` field even if nested objects
-    # include IDs coming from the frontend.
-    def _remove_id_keys(obj):
-        if isinstance(obj, dict):
-            obj.pop("_id", None)
-            obj.pop("id", None)
-            for val in obj.values():
-                _remove_id_keys(val)
-        elif isinstance(obj, list):
-            for item in obj:
-                _remove_id_keys(item)
-
-    _remove_id_keys(update_data)
-
     update_data["updated_at"] = datetime.now(timezone.utc)
 
-    # Use the alumni_profiles collection for profile updates (not the users collection)
     profiles = alumni_profiles_collection(client)
+    is_admin = bool(current_user.get("is_admin"))
+    current_id = str(current_user.get("sub"))
 
     try:
         existing_profile = await profiles.find_one({"_id": object_id})
@@ -202,53 +249,47 @@ async def update_alumni_profile(alumni_id: str, payload: AlumniProfileUpdate) ->
             existing_profile = await profiles.find_one({"user_id": object_id})
             profile_filter = {"_id": existing_profile["_id"]} if existing_profile else {"_id": object_id}
 
-        if payload_user_id:
+        if existing_profile:
+            owner_id = existing_profile.get("user_id") or existing_profile.get("_id")
+        elif is_admin and payload_user_id:
             owner_id = _get_object_id(str(payload_user_id))
             if owner_id is None:
                 raise HTTPException(status_code=400, detail="Invalid user ID")
-            update_data["user_id"] = owner_id
-        elif not existing_profile:
+        else:
+            # New profile: its id is the owner's user id.
             user = await users.find_one({"_id": object_id}, {"_id": 1})
-            if user:
-                update_data["user_id"] = object_id
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            owner_id = object_id
 
-        # Log useful debug info before attempting the update to help diagnose
-        # any remaining cases where an `_id` might still be present in the payload.
-        logger.debug("Updating alumni profile %s with filter=%s keys=%s", alumni_id, profile_filter, list(update_data.keys()))
-        # Use upsert=True to create the document if it doesn't exist yet. This avoids 404s
-        # originating from a missing document when clients attempt to save a profile.
-        result = await profiles.update_one(profile_filter, {"$set": update_data}, upsert=True)
+        if not is_admin and str(owner_id) != current_id:
+            raise HTTPException(status_code=403, detail="You can only edit your own profile")
+
+        if not existing_profile:
+            update_data["user_id"] = owner_id
+
+        await profiles.update_one(profile_filter, {"$set": update_data}, upsert=True)
     except PyMongoError as exc:
-        # Log the update payload to help debugging the immutable _id error
-        try:
-            logger.exception("Database error updating alumni profile. update_data=%s", update_data)
-            # Also persist a copy to disk for easier inspection during debugging
-            try:
-                debug_path = Path(__file__).resolve().parents[2] / "update_debug.log"
-                with debug_path.open("a", encoding="utf-8") as fh:
-                    fh.write(f"{datetime.now(timezone.utc).isoformat()} FILTER={profile_filter} UPDATE={repr(update_data)}\n")
-            except Exception:
-                logger.exception("Failed writing update_debug.log")
-        except Exception:
-            logger.exception("Database error updating alumni profile (failed to stringify update_data)")
+        logger.exception("Database error updating alumni profile %s", alumni_id)
         raise HTTPException(status_code=503, detail="Database error") from exc
 
-    # If upsert created a new document, matched_count may be 0 but upserted_id will be set.
-    # Continue and fetch the resulting document in either case.
-
-    updated_document = await profiles.find_one({"_id": object_id})
+    updated_document = await profiles.find_one(profile_filter)
     return _serialize_document(updated_document)
 
 
 @router.post("/alumni/simple")
-async def create_alumni_profile_simple(payload: AlumniProfileCreate) -> dict[str, Any]:
-    profile = await create_alumni_profile(payload)
+async def create_alumni_profile_simple(payload: AlumniProfileCreate, current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    profile = await create_alumni_profile(payload, current_user)
     return {"success": True, "id": profile.get("_id"), "profile": profile}
 
 
 @router.put("/alumni/{alumni_id}/simple")
-async def update_alumni_profile_simple(alumni_id: str, payload: AlumniProfileUpdate) -> dict[str, Any]:
-    profile = await update_alumni_profile(alumni_id, payload)
+async def update_alumni_profile_simple(
+    alumni_id: str,
+    payload: AlumniProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    profile = await update_alumni_profile(alumni_id, payload, current_user)
     return {"success": True, "id": str(profile.get("_id")), "profile": profile}
 
 
@@ -260,13 +301,22 @@ class AlumniListResponse(BaseModel):
 
 
 @router.get("/alumni")
-async def list_alumni_profiles(offset: int = 0, limit: int = 25) -> AlumniListResponse:
+async def list_alumni_profiles(
+    offset: int = 0,
+    limit: int = 25,
+    current_user: dict = Depends(get_current_user),
+) -> AlumniListResponse:
+    """Signed-in users only. Non-admins get directory fields; admins get contact fields too.
+    Secrets are never included."""
     client = get_motor_client()
     collection = _users_collection(client)
+    offset = max(offset, 0)
+    limit = max(min(limit, 100), 1)
+    private = bool(current_user.get("is_admin"))
 
     try:
         cursor = collection.find().skip(offset).limit(limit)
-        documents = [ _serialize_document(doc) async for doc in cursor ]
+        documents = [_serialize_document(doc, private=private) async for doc in cursor]
         total = await collection.count_documents({})
     except PyMongoError as exc:
         logger.exception("Database error listing alumni profiles")
@@ -276,27 +326,38 @@ async def list_alumni_profiles(offset: int = 0, limit: int = 25) -> AlumniListRe
 
 
 @router.get("/alumni/list")
-async def list_alumni_profiles_alias(offset: int = 0, limit: int = 25) -> AlumniListResponse:
-    return await list_alumni_profiles(offset=offset, limit=limit)
+async def list_alumni_profiles_alias(
+    offset: int = 0,
+    limit: int = 25,
+    current_user: dict = Depends(get_current_user),
+) -> AlumniListResponse:
+    return await list_alumni_profiles(offset=offset, limit=limit, current_user=current_user)
 
 
 @router.post("/alumni/{alumni_id}/profile-picture")
-async def upload_alumni_profile_picture(alumni_id: str, profile_picture: UploadFile = File(...)) -> dict[str, Any]:
+async def upload_alumni_profile_picture(
+    alumni_id: str,
+    profile_picture: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
     object_id = _get_object_id(alumni_id)
     if object_id is None:
         raise HTTPException(status_code=404, detail="Invalid alumni profile ID")
+    if not current_user.get("is_admin") and str(object_id) != str(current_user.get("sub")):
+        raise HTTPException(status_code=403, detail="You can only change your own picture")
 
-    filename = f"{alumni_id}_{Path(profile_picture.filename).name}".replace(' ', '_')
+    contents, mime = await read_validated_upload(profile_picture, IMAGE_KINDS)
+    # Server-chosen name: never trust the client filename on disk.
+    filename = f"{alumni_id}_{secrets.token_hex(8)}{safe_extension_for_mime(mime)}"
     saved_path = _uploads_dir() / filename
 
     try:
-        contents = await profile_picture.read()
         saved_path.write_bytes(contents)
     except Exception as exc:
         logger.exception("Error saving profile picture")
         raise HTTPException(status_code=500, detail="Could not save profile picture") from exc
 
-    client = get_motor_client() 
+    client = get_motor_client()
     collection = _users_collection(client)
 
     try:

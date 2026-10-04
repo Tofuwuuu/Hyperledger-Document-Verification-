@@ -11,7 +11,9 @@ from pydantic import BaseModel
 from app.db.collections import documents_collection, get_default_db
 from app.db.session import get_motor_client
 from app.services.blockchain_manager import get_blockchain_manager
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_admin, get_current_user
+from app.utils.uploads import read_limited
+from app.config import _BACKEND_ROOT
 
 router = APIRouter()
 
@@ -23,7 +25,7 @@ class VerifyPayload(BaseModel):
 
 class StorePayload(BaseModel):
     document_id: str
-    hash: str
+    hash: str | None = None
     metadata: dict[str, Any] = {}
 
 
@@ -38,11 +40,25 @@ def _hex_digest(raw: bytes) -> str:
     return sha256(raw).hexdigest()
 
 
-@router.post("/verification/blockchain/store")
-async def store_document_on_blockchain(payload: StorePayload, current_user: dict = Depends(get_current_user)) -> dict:
-    if not current_user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin access required to store blockchain proof")
+def _backend_root():
+    return _BACKEND_ROOT
 
+
+def _stored_file_hash(doc: dict[str, Any]) -> str | None:
+    """Hash of the file actually stored for this document, read from disk."""
+    file_path = doc.get("file_path")
+    if not isinstance(file_path, str) or not file_path:
+        return None
+    uploads_root = (_backend_root() / "uploads").resolve()
+    full_path = (_backend_root() / file_path).resolve()
+    if not full_path.is_relative_to(uploads_root) or not full_path.is_file():
+        return None
+    return _hex_digest(full_path.read_bytes())
+
+
+@router.post("/verification/blockchain/store")
+async def store_document_on_blockchain(payload: StorePayload, current_user: dict = Depends(get_current_admin)) -> dict:
+    """Anchor the hash of a real stored document. A caller-supplied hash is never anchored on its own."""
     object_id = _object_id(payload.document_id)
     if object_id is None:
         raise HTTPException(status_code=400, detail="Invalid document_id")
@@ -53,9 +69,13 @@ async def store_document_on_blockchain(payload: StorePayload, current_user: dict
         raise HTTPException(status_code=404, detail="Document not found")
 
     now = datetime.now(timezone.utc)
-    file_hash = payload.hash or doc.get("file_hash")
+    file_hash = _stored_file_hash(doc)
     if not file_hash:
-        raise HTTPException(status_code=400, detail="Document hash is required")
+        raise HTTPException(status_code=400, detail="The stored file for this document could not be read")
+    if doc.get("file_hash") and doc.get("file_hash") != file_hash:
+        raise HTTPException(status_code=409, detail="The stored file no longer matches its recorded hash")
+    if payload.hash and payload.hash.strip().lower() != file_hash:
+        raise HTTPException(status_code=400, detail="Hash does not match the stored document")
 
     blockchain_result = await get_blockchain_manager().store_document(payload.document_id, file_hash, payload.metadata)
     if not blockchain_result.get("success"):
@@ -124,7 +144,7 @@ async def verify_document_on_blockchain(payload: VerifyPayload) -> dict:
 
 @router.post("/verification/blockchain/verify-file")
 async def verify_file_on_blockchain(document_id: str | None = Form(default=None), file: UploadFile = File(...)) -> dict:
-    content = await file.read()
+    content = await read_limited(file)
     uploaded_hash = _hex_digest(content)
 
     if document_id:

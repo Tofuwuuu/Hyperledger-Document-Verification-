@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
@@ -12,8 +12,12 @@ import {
   LockClosedIcon,
 } from '@heroicons/react/24/outline';
 import AuthShell from './AuthShell';
-import { PREVIEW_MODE } from '../../config';
+import { API_ORIGIN, PREVIEW_MODE } from '../../config';
 import PreviewNotice from '../../components/PreviewNotice';
+
+const WAKING_DELAY_MS = 3000;
+const WRONG_CODE_MESSAGE = "That code didn't work. Check your app and try again.";
+const TOO_MANY_TRIES_MESSAGE = 'Too many tries. Wait a few minutes and try again.';
 
 // Validation schema
 const LoginSchema = Yup.object().shape({
@@ -27,7 +31,13 @@ const LoginSchema = Yup.object().shape({
 });
 
 export default function LoginPage() {
-  const { isAuthenticated, error: authError, clearError, login } = useAuth();
+  const { isAuthenticated, error: authError, clearError, login, completeMfaLogin } = useAuth();
+  const [waking, setWaking] = useState(false);
+  const wakingTimer = useRef(null);
+  const [mfa, setMfa] = useState(null); // { token, remember } after the password step
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
@@ -70,6 +80,60 @@ export default function LoginPage() {
     };
   }, [location, clearError, isAuthenticated, navigate]);
 
+  // Wake a sleeping server as soon as the page opens, so Sign in is faster.
+  useEffect(() => {
+    if (PREVIEW_MODE || !API_ORIGIN) return undefined;
+    const controller = new AbortController();
+    fetch(`${API_ORIGIN}/health`, { cache: 'no-store', signal: controller.signal }).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => () => clearTimeout(wakingTimer.current), []);
+
+  const goAfterLogin = () => {
+    const storedRedirect = sessionStorage.getItem('redirectAfterLogin');
+    if (storedRedirect) {
+      sessionStorage.removeItem('redirectAfterLogin');
+      navigate(storedRedirect);
+    } else {
+      navigate(redirectPath || '/dashboard');
+    }
+  };
+
+  const backToLogin = () => {
+    setMfa(null);
+    setMfaCode('');
+    setMfaError('');
+  };
+
+  const handleMfaSubmit = async (event) => {
+    event.preventDefault();
+    if (!mfa || mfaLoading) return;
+    if (!/^\d{6}$/.test(mfaCode)) {
+      setMfaError(WRONG_CODE_MESSAGE);
+      return;
+    }
+    setMfaError('');
+    setMfaLoading(true);
+    try {
+      await completeMfaLogin(mfa.token, mfaCode, mfa.remember);
+      goAfterLogin();
+    } catch (error) {
+      if (error.status === 429) {
+        setMfaError(TOO_MANY_TRIES_MESSAGE);
+      } else if (error.response?.data?.detail === WRONG_CODE_MESSAGE) {
+        setMfaError(WRONG_CODE_MESSAGE);
+      } else if (error.status === 401) {
+        setMfaError('Your sign-in timed out. Go back to login and try again.');
+      } else {
+        setMfaError(WRONG_CODE_MESSAGE);
+      }
+      setMfaCode('');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Set login error from context
     if (authError) {
@@ -86,22 +150,25 @@ export default function LoginPage() {
     }
     setGeneralError('');
     setIsLoading(true);
+    setWaking(false);
+    clearTimeout(wakingTimer.current);
+    // A sleeping free-tier server can take a while to answer the first request.
+    wakingTimer.current = setTimeout(() => setWaking(true), WAKING_DELAY_MS);
     
     try {
-      await login({
+      const result = await login({
         email: values.email,
         password: values.password,
         remember: values.remember
       });
 
-      // Successful login: go where the app intended.
-      const storedRedirect = sessionStorage.getItem('redirectAfterLogin');
-      if (storedRedirect) {
-        sessionStorage.removeItem('redirectAfterLogin');
-        navigate(storedRedirect);
-      } else {
-        navigate(redirectPath || '/dashboard');
+      if (result?.mfa_required && result?.mfa_token) {
+        setMfa({ token: result.mfa_token, remember: Boolean(values.remember) });
+        return;
       }
+
+      // Successful login: go where the app intended.
+      goAfterLogin();
     } catch (error) {
       console.error('Login error:', error.message || 'Unknown error');
       
@@ -134,10 +201,64 @@ export default function LoginPage() {
         setFieldError('password', 'Incorrect password');
       }
     } finally {
+      clearTimeout(wakingTimer.current);
+      setWaking(false);
       setIsLoading(false);
       setSubmitting(false);
     }
   };
+
+  if (mfa) {
+    return (
+      <AuthShell
+        title="Enter your code"
+        subtitle="Type the 6-digit code from your authenticator app."
+        badgeText="Secure alumni access"
+      >
+        <form className="space-y-5" onSubmit={handleMfaSubmit} noValidate>
+          <div>
+            <label htmlFor="mfa-code" className="block text-sm font-semibold text-slate-700">
+              6-digit code
+            </label>
+            <input
+              id="mfa-code"
+              name="code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              autoFocus
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              aria-invalid={Boolean(mfaError)}
+              aria-describedby={mfaError ? 'mfa-error' : undefined}
+              className="form-input mt-1 text-center text-2xl tracking-[0.5em]"
+            />
+            {mfaError && (
+              <p id="mfa-error" role="alert" className="mt-2 text-sm text-red-600">
+                {mfaError}
+              </p>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={mfaLoading || mfaCode.length !== 6}
+            className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {mfaLoading ? 'Verifying...' : 'Verify'}
+          </button>
+          <button
+            type="button"
+            onClick={backToLogin}
+            className="w-full text-center text-sm font-semibold text-cvsu-green hover:text-cvsu-green/80"
+          >
+            Back to login
+          </button>
+        </form>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
@@ -308,6 +429,16 @@ export default function LoginPage() {
                       </>
                     )}
                   </button>
+                  {isLoading && waking && (
+                    <div role="status" aria-live="polite" className="mt-3">
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full w-1/3 animate-pulse rounded-full bg-cvsu-green" />
+                      </div>
+                      <p className="mt-2 text-center text-sm text-slate-600">
+                        Waking up the server. This can take about 30 seconds.
+                      </p>
+                    </div>
+                  )}
                   {previewBlocked && <PreviewNotice />}
                 </div>
               </Form>

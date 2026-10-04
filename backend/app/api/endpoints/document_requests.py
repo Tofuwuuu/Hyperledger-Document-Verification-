@@ -20,7 +20,7 @@ from app.constants.document_types import (
 from app.db.collections import alumni_profiles_collection, document_requests_collection, documents_collection, users_collection
 from app.db.session import get_motor_client
 from app.services.blockchain_manager import get_blockchain_manager
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, get_current_verified_user
 
 router = APIRouter()
 
@@ -238,7 +238,7 @@ async def _verify_document_release_integrity(document: dict[str, Any]) -> tuple[
 
 
 @router.post("/document-requests/")
-async def create_document_request(payload: DocumentRequestCreate, current_user: dict = Depends(_require_auth)) -> dict:
+async def create_document_request(payload: DocumentRequestCreate, current_user: dict = Depends(get_current_verified_user)) -> dict:
     client = get_motor_client()
     user_id = current_user.get("sub")
     profile = await _find_profile_by_user(client, user_id)

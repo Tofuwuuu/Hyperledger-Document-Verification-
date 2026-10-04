@@ -1,17 +1,35 @@
+import hashlib
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from app.config import settings
 from app.db.collections import alumni_profiles_collection, users_collection
 from app.db.session import get_motor_client
-from app.utils.auth import create_access_token, decode_access_token, get_current_user
+from app.utils import totp
+from app.utils.auth import (
+    TOKEN_TYPE_CSRF,
+    TOKEN_TYPE_MFA_PENDING,
+    create_access_token,
+    create_mfa_pending_token,
+    create_token,
+    get_current_user,
+    load_user_for_token,
+)
+from app.utils.rate_limit import (
+    LOGIN_LIMIT,
+    MFA_VERIFY_LIMIT,
+    RESET_LIMIT,
+    check_rate_limit,
+    client_ip,
+)
 from app.utils.mongo_ids import find_one_by_id
 
 logger = logging.getLogger(__name__)
@@ -55,11 +73,17 @@ class ResetPasswordConfirmRequest(BaseModel):
 
 
 class MFASetupRequest(BaseModel):
-    type: str = "email"
+    type: str = "totp"
 
 
 class MFAEnableRequest(BaseModel):
     verification_code: str = Field(min_length=4, max_length=12)
+
+
+class MFAVerifyRequest(BaseModel):
+    mfa_token: str = Field(min_length=10, max_length=4096)
+    code: str = Field(min_length=6, max_length=12)
+    remember: bool = False
 
 
 class SecurityQuestionItem(BaseModel):
@@ -102,6 +126,7 @@ async def _load_user_by_subject(client, subject: str) -> dict | None:
 
 
 async def _require_admin_user(current_user: dict) -> dict:
+    # `current_user` comes from get_current_user, which reads is_admin from the database.
     if not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
@@ -145,21 +170,72 @@ def _is_token_expired(expires_at: datetime | None) -> bool:
 
 def _mfa_status_payload(user: dict) -> dict:
     expires_at = user.get("mfa_setup_expires_at")
-    has_pending_setup = bool(user.get("mfa_setup_code")) and not _is_token_expired(expires_at)
+    has_pending_setup = bool(user.get("mfa_pending_secret")) and not _is_token_expired(expires_at)
     return {
         "success": True,
         "is_enabled": bool(user.get("mfa_enabled", False)),
-        "mfa_type": user.get("mfa_type", "email"),
+        "mfa_type": "totp",
         "email": user.get("email"),
         "has_pending_setup": has_pending_setup,
         "expires_at": expires_at.isoformat() if isinstance(expires_at, datetime) else None,
     }
 
 
+
+GENERIC_LOGIN_ERROR = "Incorrect email or password."
+RESET_DISABLED_DETAIL = "Password reset isn't available in the demo."
+RESET_REQUESTED_MESSAGE = "If an account exists for that email, reset instructions have been sent."
+RESET_TOKEN_MINUTES = 30
+# Compared against when the email is unknown, so both paths cost one bcrypt check.
+_DUMMY_PASSWORD_HASH = bcrypt.hashpw(b"not-a-real-password", bcrypt.gensalt()).decode("utf-8")
+
+
+def _reset_disabled_response() -> JSONResponse:
+    # Same response for every caller and every email: no lookup happens at all.
+    return JSONResponse(status_code=503, content={"detail": RESET_DISABLED_DETAIL})
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def _issue_reset_token(users, user: dict) -> str:
+    """Random one-time token. Only its hash is stored. It is not a JWT and can't authenticate."""
+    token = secrets.token_urlsafe(32)
+    await users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "password_reset_token_hash": _hash_reset_token(token),
+                "password_reset_expires_at": _now_utc() + timedelta(minutes=RESET_TOKEN_MINUTES),
+                "updated_at": _now_utc(),
+            }
+        },
+    )
+    return token
+
+
+async def _user_for_reset_token(users, token: str) -> dict:
+    token = (token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required")
+    user = await users.find_one({"password_reset_token_hash": _hash_reset_token(token)})
+    if not user or _is_token_expired(user.get("password_reset_expires_at")):
+        raise HTTPException(status_code=401, detail="Invalid or expired reset token")
+    return user
+
+
+def _login_success_payload(user: dict) -> dict:
+    return {
+        "success": True,
+        "access_token": create_access_token(user),
+        "token_type": "bearer",
+        "user": _safe_user_payload(user),
+    }
+
+
 @router.post("/auth/register")
 async def register_user(payload: RegisterRequest) -> dict:
-    logger.info("Registration attempt for email: %s", payload.email)
-
     if payload.password != payload.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
@@ -181,6 +257,7 @@ async def register_user(payload: RegisterRequest) -> dict:
             "is_admin": False,
             "is_verified": False,
             "is_active": True,
+            "token_version": 0,
             "created_at": now,
             "updated_at": now,
         }
@@ -192,7 +269,7 @@ async def register_user(payload: RegisterRequest) -> dict:
     except DuplicateKeyError:
         raise HTTPException(status_code=400, detail="Email already registered")
     except PyMongoError as exc:
-        logger.exception("MongoDB error during registration: %s", exc)
+        logger.exception("MongoDB error during registration: %s", exc.__class__.__name__)
         raise HTTPException(
             status_code=503,
             detail="Database unavailable. Ensure MongoDB is running and MONGODB_URL is correct.",
@@ -202,11 +279,12 @@ async def register_user(payload: RegisterRequest) -> dict:
 
 
 @router.post("/auth/login")
-async def login_user(payload: LoginRequest) -> dict:
+async def login_user(payload: LoginRequest, request: Request) -> dict:
+    normalized = _normalize_email(str(payload.email))
+    check_rate_limit("login", f"{client_ip(request)}|{normalized}", LOGIN_LIMIT)
+
     client = get_motor_client()
     users = users_collection(client)
-    normalized = _normalize_email(str(payload.email))
-
     try:
         user = await users.find_one({"email": normalized})
     except PyMongoError:
@@ -216,29 +294,45 @@ async def login_user(payload: LoginRequest) -> dict:
             detail="Database unavailable. Ensure MongoDB is running and MONGODB_URL is correct.",
         )
 
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="No account found for this email. Please register first.",
-        )
+    password_hash = _canonical_password_hash(user) if user else None
+    # Always run one bcrypt check so unknown emails take as long as wrong passwords.
+    matched = _password_matches(payload.password, password_hash or _DUMMY_PASSWORD_HASH)
+    if not user or not password_hash or not matched:
+        raise HTTPException(status_code=401, detail=GENERIC_LOGIN_ERROR)
+    if user.get("is_active") is False:
+        raise HTTPException(status_code=401, detail=GENERIC_LOGIN_ERROR)
 
-    password_hash = _canonical_password_hash(user)
-    if not password_hash:
-        raise HTTPException(status_code=401, detail="Account password is not set.")
+    if user.get("mfa_enabled") and user.get("mfa_secret"):
+        # Password step only. The pending token works for /auth/mfa/verify and nothing else.
+        return {
+            "success": True,
+            "mfa_required": True,
+            "mfa_token": create_mfa_pending_token(user),
+            "token_type": TOKEN_TYPE_MFA_PENDING,
+            "expires_in": 300,
+        }
 
-    if not _password_matches(payload.password, password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect password.")
-
-    access_token = create_access_token(user)
     now = datetime.now(timezone.utc)
     await users.update_one({"_id": user["_id"]}, {"$set": {"last_login_at": now, "updated_at": now}})
+    return _login_success_payload(user)
 
-    return {
-        "success": True,
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": _safe_user_payload(user),
-    }
+
+@router.post("/auth/mfa/verify")
+async def verify_mfa_login(payload: MFAVerifyRequest, request: Request) -> dict:
+    check_rate_limit("mfa", client_ip(request), MFA_VERIFY_LIMIT)
+    _claims, user = await load_user_for_token(payload.mfa_token, TOKEN_TYPE_MFA_PENDING)
+    check_rate_limit("mfa-user", str(user["_id"]), MFA_VERIFY_LIMIT)
+    secret = user.get("mfa_secret")
+    if not user.get("mfa_enabled") or not secret:
+        raise HTTPException(status_code=400, detail="MFA is not enabled for this account")
+    if not totp.verify(secret, payload.code):
+        raise HTTPException(status_code=401, detail="That code didn't work. Check your app and try again.")
+
+    now = datetime.now(timezone.utc)
+    await users_collection(get_motor_client()).update_one(
+        {"_id": user["_id"]}, {"$set": {"last_login_at": now, "updated_at": now}}
+    )
+    return _login_success_payload(user)
 
 
 @router.get("/auth/me")
@@ -261,12 +355,8 @@ async def refresh_token(payload: RefreshRequest) -> dict:
     if not payload.refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token provided")
 
-    current_user = decode_access_token(payload.refresh_token)
-    client = get_motor_client()
-    user = await _load_user_by_subject(client, current_user.get("sub", ""))
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
+    # Only a still-valid, unrevoked access token can be exchanged.
+    _claims, user = await load_user_for_token(payload.refresh_token)
     new_token = create_access_token(user)
     return {
         "access_token": new_token,
@@ -276,76 +366,67 @@ async def refresh_token(payload: RefreshRequest) -> dict:
 
 
 @router.post("/auth/logout")
-async def logout_user() -> dict:
+async def logout_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Bump the user's token version, which ends every token issued before now."""
+    client = get_motor_client()
+    users = users_collection(client)
+    user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
+    if user:
+        next_version = int(user.get("token_version", 0) or 0) + 1
+        await users.update_one({"_id": user["_id"]}, {"$set": {"token_version": next_version, "updated_at": _now_utc()}})
     return {"success": True}
 
 
 @router.get("/auth/csrf-token")
 async def get_csrf_token() -> dict:
-    token = create_access_token({"_id": "csrf", "email": "csrf@local", "is_admin": False, "is_verified": True})
+    token = create_token({"_id": "csrf"}, token_type=TOKEN_TYPE_CSRF, expires_minutes=60)
     return {"csrf_token": token}
 
 
 @router.post("/auth/reset-password")
-async def request_password_reset(payload: ResetPasswordRequest) -> dict:
-    client = get_motor_client()
-    users = users_collection(client)
-    normalized = _normalize_email(str(payload.email))
-    user = await users.find_one({"email": normalized})
-    if not user:
-        return {"success": True, "message": "If the email exists, a reset token has been issued."}
+async def request_password_reset(payload: ResetPasswordRequest, request: Request):
+    check_rate_limit("reset", client_ip(request), RESET_LIMIT)
+    if not settings.password_reset_enabled:
+        return _reset_disabled_response()
 
-    token = create_access_token(user, expires_hours=1)
-    expires_at = datetime.fromtimestamp(decode_access_token(token)["exp"], tz=timezone.utc)
-    await users.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"password_reset_token": token, "password_reset_expires_at": expires_at, "updated_at": _now_utc()}},
-    )
-    return {
-        "success": True,
-        "message": "Reset token issued successfully",
-        "reset_token": token,
-        "expires_at": expires_at.isoformat(),
-    }
+    users = users_collection(get_motor_client())
+    user = await users.find_one({"email": _normalize_email(str(payload.email))})
+    if user:
+        # The token is never returned here. Deliver it by email once email sending exists.
+        await _issue_reset_token(users, user)
+    return {"success": True, "message": RESET_REQUESTED_MESSAGE}
 
 
 @router.post("/auth/verify-reset-token")
-async def verify_reset_token(payload: VerifyResetTokenRequest) -> dict:
-    token = payload.token.strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="Token is required")
-    claims = decode_access_token(token)
-    client = get_motor_client()
-    user = await _load_user_by_subject(client, str(claims.get("sub", "")))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found for this token")
-    if str(user.get("password_reset_token", "")) != token:
-        raise HTTPException(status_code=401, detail="Invalid or outdated reset token")
-    if _is_token_expired(user.get("password_reset_expires_at")):
-        raise HTTPException(status_code=401, detail="Reset token has expired")
+async def verify_reset_token(payload: VerifyResetTokenRequest, request: Request):
+    check_rate_limit("reset", client_ip(request), RESET_LIMIT)
+    if not settings.password_reset_enabled:
+        return _reset_disabled_response()
+    user = await _user_for_reset_token(users_collection(get_motor_client()), payload.token)
     return {"success": True, "valid": True, "email": user.get("email")}
 
 
 @router.post("/auth/reset-password-confirm")
-async def reset_password_confirm(payload: ResetPasswordConfirmRequest) -> dict:
+async def reset_password_confirm(payload: ResetPasswordConfirmRequest, request: Request):
+    check_rate_limit("reset", client_ip(request), RESET_LIMIT)
+    if not settings.password_reset_enabled:
+        return _reset_disabled_response()
     if payload.password != payload.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
-    claims = decode_access_token(payload.token.strip())
-    client = get_motor_client()
-    users = users_collection(client)
-    user = await _load_user_by_subject(client, str(claims.get("sub", "")))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found for this token")
-    if str(user.get("password_reset_token", "")) != payload.token:
-        raise HTTPException(status_code=401, detail="Invalid or outdated reset token")
-    if _is_token_expired(user.get("password_reset_expires_at")):
-        raise HTTPException(status_code=401, detail="Reset token has expired")
+    users = users_collection(get_motor_client())
+    user = await _user_for_reset_token(users, payload.token)
     new_hash = bcrypt.hashpw(payload.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     await users.update_one(
         {"_id": user["_id"]},
         {
-            "$set": {"password_hash": new_hash, "updated_at": _now_utc()},
-            "$unset": {"password_reset_token": "", "password_reset_expires_at": ""},
+            "$set": {
+                "password_hash": new_hash,
+                "password_reset_token_hash": None,
+                "password_reset_expires_at": None,
+                # A new password ends every existing session.
+                "token_version": int(user.get("token_version", 0) or 0) + 1,
+                "updated_at": _now_utc(),
+            },
         },
     )
     return {"success": True, "message": "Password has been reset successfully"}
@@ -362,24 +443,22 @@ async def get_mfa_status(current_user: dict = Depends(get_current_user)) -> dict
 
 @router.post("/auth/mfa/setup")
 async def setup_mfa(payload: MFASetupRequest, current_user: dict = Depends(get_current_user)) -> dict:
+    """Start TOTP setup. Returns the secret for the authenticator app, never a current code."""
     client = get_motor_client()
     users = users_collection(client)
     user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.get("mfa_enabled"):
+        raise HTTPException(status_code=400, detail="MFA is already enabled")
 
-    mfa_type = payload.type.strip().lower() or "email"
-    if mfa_type != "email":
-        raise HTTPException(status_code=400, detail="Only email MFA is supported right now")
-
-    verification_code = f"{secrets.randbelow(1000000):06d}"
+    secret = totp.generate_secret()
     expires_at = _now_utc() + timedelta(minutes=10)
     await users.update_one(
         {"_id": user["_id"]},
         {
             "$set": {
-                "mfa_type": mfa_type,
-                "mfa_setup_code": verification_code,
+                "mfa_pending_secret": secret,
                 "mfa_setup_expires_at": expires_at,
                 "updated_at": _now_utc(),
             }
@@ -390,8 +469,9 @@ async def setup_mfa(payload: MFASetupRequest, current_user: dict = Depends(get_c
     response = _mfa_status_payload(updated or user)
     response.update(
         {
-            "message": "MFA setup initiated",
-            "verification_code": verification_code,
+            "message": "Add this account to your authenticator app, then enter the 6-digit code.",
+            "secret": secret,
+            "otpauth_url": totp.provisioning_uri(secret, str(user.get("email") or "")),
         }
     )
     return response
@@ -404,21 +484,23 @@ async def enable_mfa(payload: MFAEnableRequest, current_user: dict = Depends(get
     user = await _load_user_by_subject(client, str(current_user.get("sub", "")))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if _is_token_expired(user.get("mfa_setup_expires_at")):
-        raise HTTPException(status_code=400, detail="MFA setup code expired")
-
-    expected = str(user.get("mfa_setup_code", "")).strip()
-    if payload.verification_code.strip() != expected:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
+    pending = user.get("mfa_pending_secret")
+    if not pending or _is_token_expired(user.get("mfa_setup_expires_at")):
+        raise HTTPException(status_code=400, detail="MFA setup expired. Start again.")
+    if not totp.verify(pending, payload.verification_code):
+        raise HTTPException(status_code=400, detail="That code didn't work. Check your app and try again.")
 
     await users.update_one(
         {"_id": user["_id"]},
         {
             "$set": {
                 "mfa_enabled": True,
+                "mfa_type": "totp",
+                "mfa_secret": pending,
+                "mfa_pending_secret": None,
+                "mfa_setup_expires_at": None,
                 "updated_at": _now_utc(),
             },
-            "$unset": {"mfa_setup_code": "", "mfa_setup_expires_at": ""},
         },
     )
 
@@ -438,8 +520,13 @@ async def disable_mfa(current_user: dict = Depends(get_current_user)) -> dict:
     await users.update_one(
         {"_id": user["_id"]},
         {
-            "$set": {"mfa_enabled": False, "updated_at": _now_utc()},
-            "$unset": {"mfa_setup_code": "", "mfa_setup_expires_at": ""},
+            "$set": {
+                "mfa_enabled": False,
+                "mfa_secret": None,
+                "mfa_pending_secret": None,
+                "mfa_setup_expires_at": None,
+                "updated_at": _now_utc(),
+            },
         },
     )
     updated = await users.find_one({"_id": user["_id"]})
@@ -471,7 +558,11 @@ async def set_security_questions(payload: SetSecurityQuestionsRequest, current_u
 
 
 @router.get("/auth/security-questions/{email}")
-async def get_security_questions(email: str) -> dict:
+async def get_security_questions(email: str, request: Request):
+    # Part of account recovery, so it follows the password reset switch.
+    check_rate_limit("reset", client_ip(request), RESET_LIMIT)
+    if not settings.password_reset_enabled:
+        return _reset_disabled_response()
     normalized = _normalize_email(email)
     user = await users_collection(get_motor_client()).find_one({"email": normalized}, {"security_questions": 1})
     if not user:
@@ -483,7 +574,10 @@ async def get_security_questions(email: str) -> dict:
 
 
 @router.post("/auth/verify-security-questions")
-async def verify_security_questions(payload: VerifySecurityQuestionsRequest) -> dict:
+async def verify_security_questions(payload: VerifySecurityQuestionsRequest, request: Request):
+    check_rate_limit("reset", client_ip(request), RESET_LIMIT)
+    if not settings.password_reset_enabled:
+        return _reset_disabled_response()
     normalized = _normalize_email(str(payload.email))
     users = users_collection(get_motor_client())
     user = await users.find_one({"email": normalized}, {"security_questions": 1, "email": 1, "is_admin": 1, "is_verified": 1})
@@ -505,13 +599,9 @@ async def verify_security_questions(payload: VerifySecurityQuestionsRequest) -> 
     if correct < 2:
         raise HTTPException(status_code=401, detail="Security answers did not match")
 
-    token = create_access_token({"_id": user["_id"], "email": user.get("email"), "is_admin": user.get("is_admin", False), "is_verified": user.get("is_verified", False)}, expires_hours=1)
-    expires_at = datetime.fromtimestamp(decode_access_token(token)["exp"], tz=timezone.utc)
-    await users.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"password_reset_token": token, "password_reset_expires_at": expires_at, "updated_at": _now_utc()}},
-    )
-    return {"status": "success", "reset_token": token, "expires_at": expires_at.isoformat()}
+    # A one-time reset token (not a JWT), usable only with /auth/reset-password-confirm.
+    token = await _issue_reset_token(users, user)
+    return {"status": "success", "reset_token": token, "expires_in": RESET_TOKEN_MINUTES * 60}
 
 
 @router.get("/auth/unverified-users")

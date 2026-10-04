@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.db.collections import alumni_profiles_collection, event_registrations_collection, events_collection, users_collection
 from app.db.session import get_motor_client
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, get_current_verified_user
 
 router = APIRouter()
 
@@ -120,12 +120,14 @@ async def _create_or_restore_registration(client, event_id: ObjectId, user_id: O
 
 
 @router.post("/registrations")
-async def create_registration(payload: RegistrationCreate, current_user: dict = Depends(_require_auth)) -> dict:
+async def create_registration(payload: RegistrationCreate, current_user: dict = Depends(get_current_verified_user)) -> dict:
     client = get_motor_client()
     event_id = _object_id(payload.event_id)
     user_id = _object_id(payload.user_id or current_user.get("sub", ""))
     if event_id is None or user_id is None:
         raise HTTPException(status_code=400, detail="Invalid event_id or user_id")
+    if not current_user.get("is_admin") and str(user_id) != str(current_user.get("sub")):
+        raise HTTPException(status_code=403, detail="You can only register yourself")
     return await _create_or_restore_registration(client, event_id, user_id)
 
 

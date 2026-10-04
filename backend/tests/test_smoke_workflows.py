@@ -16,6 +16,7 @@ from app.api.endpoints import document_requests as document_requests_api
 from app.api.endpoints import documents as documents_api
 from app.api.endpoints import verification as verification_api
 from app.main import app
+from app.utils import auth as auth_utils
 from app.utils.auth import create_access_token
 
 
@@ -163,7 +164,7 @@ def _patch_test_environment(monkeypatch, tmp_path: Path) -> FakeClient:
     uploads_root = tmp_path / "uploads"
     uploads_root.mkdir()
 
-    for module in (register_api, alumni_api, admin_api, documents_api, verification_api, document_requests_api):
+    for module in (register_api, alumni_api, admin_api, documents_api, verification_api, document_requests_api, auth_utils):
         monkeypatch.setattr(module, "get_motor_client", lambda: fake_client)
 
     monkeypatch.setattr(documents_api, "_uploads_dir", lambda: uploads_root)
@@ -172,6 +173,7 @@ def _patch_test_environment(monkeypatch, tmp_path: Path) -> FakeClient:
     monkeypatch.setattr(document_requests_api, "_backend_root", lambda: tmp_path)
     monkeypatch.setattr(document_requests_api, "_uploads_root", lambda: uploads_root)
     monkeypatch.setattr(admin_api, "_uploads_dir", lambda: uploads_root)
+    monkeypatch.setattr(verification_api, "_backend_root", lambda: tmp_path)
 
     blockchain = FakeBlockchainManager()
     monkeypatch.setattr(admin_api, "get_blockchain_manager", lambda: blockchain)
@@ -257,12 +259,13 @@ def test_document_smoke_profile_upload_admin_approval_public_verification_reques
 
     picture_response = client.post(
         f"/api/v1/alumni/{alumni_id}/profile-picture",
-        files={"profile_picture": ("avatar.png", b"avatar-bytes", "image/png")},
+        headers=_auth_header(alumni_user),
+        files={"profile_picture": ("avatar.png", b"\x89PNG\r\n\x1a\navatar-bytes", "image/png")},
     )
     assert picture_response.status_code == 200
     assert picture_response.json()["path"].startswith("uploads/")
 
-    file_bytes = b"document-smoke-test"
+    file_bytes = b"%PDF-1.4 document-smoke-test"
     upload_response = client.post(
         "/api/v1/documents/upload",
         headers=_auth_header(alumni_user),

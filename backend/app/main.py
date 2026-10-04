@@ -79,16 +79,36 @@ app.include_router(auth_password_router, prefix="/api/v1")
 
 @app.get("/health")
 async def root_health() -> dict[str, str]:
-    """Lightweight health check (no DB); use to confirm the ASGI app is running."""
+    """No auth, no DB. The login page calls this on load to wake a sleeping server."""
     return {"status": "ok"}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    # Stops browsers from guessing a different content type for uploaded files.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
+
+def _redacted_validation_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
+    """Validation errors without the submitted values, which can include passwords."""
+    cleaned = []
+    for error in exc.errors():
+        cleaned.append({key: error[key] for key in ("loc", "msg", "type") if key in error})
+    return cleaned
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    body = await request.body()
-    logger.error("Request validation failed for %s: %s", request.url.path, exc.errors())
-    logger.error("Request body: %s", body.decode("utf-8", errors="replace"))
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    errors = _redacted_validation_errors(exc)
+    # Log only where and why validation failed. Never log the request body.
+    logger.warning(
+        "Request validation failed for %s: %s",
+        request.url.path,
+        [(e.get("loc"), e.get("type")) for e in errors],
+    )
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 
 def custom_openapi() -> dict[str, Any]:

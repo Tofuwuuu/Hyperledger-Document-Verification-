@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { requestPasswordReset, verifyResetToken, resetPassword } from '../services/authService';
 import AuthShell from './auth/AuthShell';
-import { PREVIEW_MODE } from '../config';
+import { PASSWORD_RESET_ENABLED, PREVIEW_MODE, RESET_UNAVAILABLE_MESSAGE } from '../config';
 import PreviewNotice from '../components/PreviewNotice';
 
 const steps = ['Email', 'Token', 'New password'];
@@ -42,6 +42,10 @@ export default function ResetPasswordPage() {
       setPreviewBlocked(true);
       return;
     }
+    if (!PASSWORD_RESET_ENABLED) {
+      setError(RESET_UNAVAILABLE_MESSAGE);
+      return;
+    }
     setError('');
     setNotice('');
 
@@ -55,14 +59,9 @@ export default function ResetPasswordPage() {
     try {
       const response = await requestPasswordReset(email.trim());
 
-      if (response.reset_token) {
-        setToken(response.reset_token);
-        setNotice('A reset session was created. You can set a new password now.');
-        setStep(3);
-      } else {
-        setNotice('If the email exists, a reset token has been issued.');
-        setStep(2);
-      }
+      // The server never returns the reset token; it is delivered out of band.
+      setNotice(response?.message || 'If an account exists for that email, reset instructions have been sent.');
+      setStep(2);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to request password reset'));
     } finally {
@@ -74,6 +73,10 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     if (PREVIEW_MODE) {
       setPreviewBlocked(true);
+      return;
+    }
+    if (!PASSWORD_RESET_ENABLED) {
+      setError(RESET_UNAVAILABLE_MESSAGE);
       return;
     }
     setError('');
@@ -101,6 +104,10 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     if (PREVIEW_MODE) {
       setPreviewBlocked(true);
+      return;
+    }
+    if (!PASSWORD_RESET_ENABLED) {
+      setError(RESET_UNAVAILABLE_MESSAGE);
       return;
     }
     setError('');

@@ -36,12 +36,6 @@ export default function AdminDashboardPage() {
   const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
-    // Check if we're using admin bypass
-    const token = localStorage.getItem('token');
-    if (token && token.startsWith('admin_access_token_')) {
-      return; // Skip polling for admin bypass
-    }
-    
     // Start polling as admin
     pollingService.stopPolling(); // Stop any existing polling
     pollingService.startPolling('admin'); // Start with admin role

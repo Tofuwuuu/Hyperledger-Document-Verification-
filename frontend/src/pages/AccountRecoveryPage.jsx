@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { authService } from '../services/api';
 import AuthShell from './auth/AuthShell';
-import { PREVIEW_MODE } from '../config';
+import { PASSWORD_RESET_ENABLED, PREVIEW_MODE, RESET_UNAVAILABLE_MESSAGE } from '../config';
 import PreviewNotice from '../components/PreviewNotice';
 
 const getErrorMessage = (err, fallback) => {
@@ -38,6 +38,10 @@ export default function AccountRecoveryPage() {
     e.preventDefault();
     if (PREVIEW_MODE) {
       setPreviewBlocked(true);
+      return;
+    }
+    if (!PASSWORD_RESET_ENABLED) {
+      setError(RESET_UNAVAILABLE_MESSAGE);
       return;
     }
     setError('');
@@ -76,6 +80,10 @@ export default function AccountRecoveryPage() {
     e.preventDefault();
     if (PREVIEW_MODE) {
       setPreviewBlocked(true);
+      return;
+    }
+    if (!PASSWORD_RESET_ENABLED) {
+      setError(RESET_UNAVAILABLE_MESSAGE);
       return;
     }
     setError('');
