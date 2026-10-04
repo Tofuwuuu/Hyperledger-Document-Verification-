@@ -234,9 +234,6 @@ export default function AdminRoleManagementPage() {
   
   const handleSavePermissions = async () => {
     try {
-      // Save original role data in case we need to revert
-      const originalRole = roles.find(r => r.id === currentRole.id);
-      
       // Optimistic UI update
       setRoles(prevRoles => 
         prevRoles.map(role => {

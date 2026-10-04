@@ -34,15 +34,12 @@ const EventDetailPage = () => {
       
       // If user is authenticated, check if already registered
       if (isAuthenticated && currentUser) {
-        console.log(`Authenticated user ${currentUser.username} checking registration for event ${eventId}`);
         const registration = await checkUserEventRegistration(eventId);
-        console.log(`Registration check result:`, registration);
         setIsRegistered(!!registration);
         setUserRegistration(registration);
         
         // Check if user is admin
         const userIsAdmin = currentUser.is_admin === true;
-        console.log('User is admin:', userIsAdmin);
         setIsAdmin(userIsAdmin);
       } else {
         // Reset registration state if not authenticated
@@ -76,9 +73,7 @@ const EventDetailPage = () => {
 
     try {
       setRegistering(true);
-      console.log(`Attempting to register for event ${eventId}`);
       const registration = await registerForEvent(eventId);
-      console.log('Registration successful, response:', registration);
       toast.success('You have successfully registered for this event!');
       
       // Update registration status
@@ -91,7 +86,6 @@ const EventDetailPage = () => {
       
       // Double-check registration status to ensure UI consistency
       const confirmedRegistration = await checkUserEventRegistration(eventId);
-      console.log('Confirmed registration after register:', confirmedRegistration);
       
       if (!confirmedRegistration) {
         console.warn('Registration succeeded but checkUserEventRegistration returned null. Forcing isRegistered state to true.');
@@ -137,7 +131,7 @@ const EventDetailPage = () => {
     }
   };
 
-  const handleMeetingScheduled = (meeting) => {
+  const handleMeetingScheduled = () => {
     fetchEventDetails();
   };
   

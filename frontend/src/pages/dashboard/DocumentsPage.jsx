@@ -20,8 +20,6 @@ import { documentService, alumniService, verificationService } from '../../servi
 import documentVerificationService from '../../services/document';
 import { getDocumentTypeLabel, normalizeDocumentType } from '../../constants/documentTypes';
 import { Link } from 'react-router-dom';
-import { calculateDocumentHash } from '../../services/document';
-import { sha256 } from 'js-sha256';
 
 const truncateString = (value, maxLength = 20) => {
   const text = String(value || '');
@@ -31,7 +29,7 @@ const truncateString = (value, maxLength = 20) => {
 
 export default function DocumentsPage() {
   const { currentUser } = useAuth();
-  const [alumniProfile, setAlumniProfile] = useState(null);
+  const [, setAlumniProfile] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,10 +39,6 @@ export default function DocumentsPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [blockchainDetails, setBlockchainDetails] = useState(null);
-  const [verifyingDocument, setVerifyingDocument] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadErrorMessage, setUploadErrorMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -74,7 +68,6 @@ export default function DocumentsPage() {
     
     setLoading(true);
     try {
-      console.log(`Fetching alumni profile for user ID: ${userId}`);
       const response = await alumniService.getAlumniByUserId(userId);
       setAlumniProfile(response.data);
       
@@ -188,55 +181,6 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    setUploading(true);
-    setUploadErrorMessage('');
-    
-    try {
-      // Create form data
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', file.name);
-      formData.append('document_type', 'certificate'); // Default type
-      formData.append('description', 'Uploaded on ' + new Date().toLocaleDateString());
-      
-      // Upload with blockchain verification
-      const response = await documentVerificationService.uploadDocumentWithVerification(formData);
-      
-      if (response.success) {
-        // Add new document to the list
-        const newDoc = {
-          id: response.document_id,
-          name: file.name,
-          description: 'Uploaded on ' + new Date().toLocaleDateString(),
-          uploadDate: new Date().toISOString().split('T')[0],
-          size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
-          status: 'pending',
-          hash: response.hash,
-          blockchain_tx_id: response.blockchain_tx_id
-        };
-        
-        setDocuments([newDoc, ...documents]);
-        setUploadSuccess(true);
-        
-        // Reset success message after 3 seconds
-        setTimeout(() => {
-          setUploadSuccess(false);
-        }, 3000);
-      } else {
-        setUploadErrorMessage(response.message || 'Upload failed');
-      }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      setUploadErrorMessage('Failed to upload document: ' + (error.message || 'Unknown error'));
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleViewDetails = async (document) => {
     setSelectedDocument(document);
     setBlockchainDetails(null);
@@ -259,51 +203,6 @@ export default function DocumentsPage() {
     setShowDetailsModal(false);
     setSelectedDocument(null);
     setBlockchainDetails(null);
-  };
-
-  const verifyDocumentOnBlockchain = async (document) => {
-    if (!document || !document.file_hash) {
-      return;
-    }
-    
-    setVerifyingDocument(true);
-    try {
-      // Since we don't have the actual file, we'll use the hash directly
-      const response = await documentVerificationService.verifyDocumentOnBlockchain(
-        document.id,
-        document.file_hash
-      );
-      
-      // Update the document verification status
-      if (response.data?.verified) {
-        setDocuments(documents.map(doc => {
-          if (doc.id === document.id) {
-            return {
-              ...doc,
-              verification_status: 'verified',
-              verification_date: new Date().toISOString()
-            };
-          }
-          return doc;
-        }));
-        
-        setSelectedDocument({
-          ...selectedDocument,
-          verification_status: 'verified',
-          verification_date: new Date().toISOString()
-        });
-        
-        // Fetch updated blockchain details
-        const historyResponse = await documentVerificationService.getDocumentVerificationHistory(document.id);
-        if (historyResponse.success) {
-          setBlockchainDetails(historyResponse.history);
-        }
-      }
-    } catch (error) {
-      console.error('Error verifying document on blockchain:', error);
-    } finally {
-      setVerifyingDocument(false);
-    }
   };
 
   useEffect(() => {
@@ -362,34 +261,6 @@ export default function DocumentsPage() {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-red-800">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {uploadSuccess && (
-          <div className="rounded-md bg-green-50 p-4 mb-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <CheckCircleIcon className="h-5 w-5 text-green-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-green-800">
-                  Document uploaded and pending admin verification. It will be recorded on the blockchain after approval.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {uploadErrorMessage && (
-          <div className="rounded-md bg-red-50 p-4 mb-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <XCircleIcon className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-red-800">{uploadErrorMessage}</p>
               </div>
             </div>
           </div>

@@ -133,7 +133,7 @@ export default function VerifyPage() {
                   [DocumentTextIcon, 'Accepted files', 'PDF, JPG, JPEG, or PNG up to 10MB.'],
                   [FingerPrintIcon, 'Hash based', 'No manual edits are needed before checking a file.'],
                   [DocumentCheckIcon, 'Immediate result', 'You get a clear verified or not verified answer.'],
-                ].map(([Icon, title, text]) => (
+                ].map(([_Icon, title, text]) => (
                   <div key={title} className="flex gap-4">
                     <Icon className="mt-0.5 h-6 w-6 flex-none text-emerald-300" aria-hidden="true" />
                     <div>

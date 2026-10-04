@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { 
-  validateToken, 
   getAuthTokens, 
   storeAuthTokens, 
   clearAuthTokens,
@@ -11,24 +10,6 @@ import { prepareProfileData } from '../utils/profile-helpers';
 
 // Single source of truth (see `src/config.js`)
 export const API_URL = CONFIG_API_URL;
-console.log('API URL configured as:', API_URL); // Debug API URL
-
-// Flag to prevent multiple refresh token requests
-let isRefreshing = false;
-let failedQueue = [];
-
-// Process the queue of failed requests after token refresh
-const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  
-  failedQueue = [];
-};
 
 // Create axios instance with default config
 export const api = axios.create({
@@ -46,15 +27,6 @@ api.interceptors.request.use(
   (config) => {
     // Ensure withCredentials is always set for cross-origin requests
     config.withCredentials = true;
-    
-    // Debug current request in development
-    if (import.meta.env.MODE === 'development') {
-      console.log(`🚀 API Request [${config.method?.toUpperCase()}] ${config.url}`, { 
-        headers: config.headers, 
-        data: config.data,
-        withCredentials: config.withCredentials
-      });
-    }
 
     // Add auth header if token exists
     const token = localStorage.getItem('token');
@@ -73,19 +45,10 @@ api.interceptors.request.use(
 // Add response interceptor to handle common errors
 api.interceptors.response.use(
   (response) => {
-    // Debug response in development
-    if (import.meta.env.MODE === 'development') {
-      console.log(`✅ API Response [${response.status}] ${response.config.url}`, { 
-        headers: response.headers,
-        data: response.data
-      });
-    }
-    
     // Check for CSRF token in response headers and store it
     const csrfToken = response.headers['x-csrf-token'];
     if (csrfToken) {
       localStorage.setItem('csrf_token', csrfToken);
-      console.log('CSRF token stored from response headers');
     }
     
     return response;
@@ -103,12 +66,10 @@ api.interceptors.response.use(
     if (error.response) {
       // Handle CORS errors more gracefully
       const statusCode = error.response.status;
-      const requestUrl = error.config.url;
       
       // If we get a 401, check if the token is expired
       if (statusCode === 401) {
         // Handle token expiration (add refresh token logic if needed)
-        console.log('Authentication error - check token validity');
       }
 
       // Add more specific error details
@@ -166,10 +127,6 @@ export const apiService = {
   },
   // Specific method for CORS-sensitive endpoints
   withCORS: async (method, url, data = null, config = {}) => {
-    console.log(`apiService.withCORS: ${method.toUpperCase()} ${url}`);
-    
-    const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
-    console.log('Full URL:', fullUrl);
     
     // Ensure we have headers
     if (!config.headers) {
@@ -186,7 +143,6 @@ export const apiService = {
     const csrfToken = localStorage.getItem('csrf_token');
     if (csrfToken && !config.headers['X-CSRF-Token']) {
       config.headers['X-CSRF-Token'] = csrfToken;
-      console.log('Added CSRF token to request');
     }
     
     // Create a merged config with specific CORS settings
@@ -203,7 +159,6 @@ export const apiService = {
     // Add the signal if provided
     if (config.signal) {
       mergedConfig.signal = config.signal;
-      console.log('Using abort signal for request');
     }
     
     // Try the request with retries
@@ -225,7 +180,6 @@ export const apiService = {
           throw new Error(`Unsupported method: ${method}`);
         }
         
-        console.log(`API response (${response.status}):`, response.data);
         return response;
       } catch (error) {
         console.error(`API error (attempt ${retries + 1}/${maxRetries + 1}):`, error);
@@ -245,7 +199,6 @@ export const apiService = {
           try {
             const tokenResponse = await api.get('/auth/csrf-token');
             if (tokenResponse.data && tokenResponse.data.csrf_token) {
-              console.log('Successfully got new CSRF token');
               // Update config with new token
               mergedConfig.headers['X-CSRF-Token'] = tokenResponse.data.csrf_token;
               retries++;
@@ -297,7 +250,6 @@ function handleApiError(error, method, url, isCORSRequest = false) {
 // Authentication services
 export const authService = {
   reloadUserWithFreshData: async () => {
-    console.log("Performing complete user data reload...");
     
     // Clear all caches related to user data
     localStorage.removeItem('user_verification');
@@ -306,7 +258,6 @@ export const authService = {
     const { accessToken } = getAuthTokens();
     
     if (!accessToken) {
-      console.log("No authentication token found");
       return null;
     }
     
@@ -327,7 +278,6 @@ export const authService = {
       // Update local storage with fresh data
       const userData = response.data;
       localStorage.setItem('user', JSON.stringify(userData));
-      console.log("User data reloaded successfully:", userData);
       
       return userData;
     } catch (error) {
@@ -363,12 +313,6 @@ export const authService = {
       
       const loginUrl = `${API_URL}/auth/login`;
       
-      console.log('[LOGIN] Using login URL:', loginUrl);
-      console.log('[LOGIN] Payload:', {
-        email: credentials.email,
-        password: '***REDACTED***',
-        remember: remember !== undefined ? remember : false
-      });
       
       // Make the login request with JSON payload for simple auth mode.
       const loginResponse = await axios.post(loginUrl, payload, {
@@ -377,7 +321,6 @@ export const authService = {
         }
       });
 
-      console.log('[LOGIN] Response status:', loginResponse.status);
 
       // MFA on: the password step only returns a short-lived pending token.
       if (loginResponse.data?.mfa_required && loginResponse.data?.mfa_token) {
@@ -430,11 +373,9 @@ export const authService = {
   
   register: async (userData) => {
     try {
-      console.log('Registration attempt for:', userData?.email);
       
       const registerUrl = `${API_URL}/auth/register`;
       
-      console.log('Sending registration request to:', registerUrl);
       
       // Use direct axios instance to avoid interceptor issues
       const response = await axios({
@@ -447,7 +388,6 @@ export const authService = {
         timeout: 10000 // 10 second timeout
       });
       
-      console.log('Registration response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Registration request failed:', error.message);
@@ -621,11 +561,9 @@ export const alumniService = {
       // Normalize profile data and attach user_id before saving
       const preparedData = await prepareProfileData(profileData);
       
-      console.log('Creating alumni profile using reliable endpoint with data:', preparedData);
       const response = await api.post('/alumni/simple', preparedData);
       
       if (response.data.success) {
-        console.log('Successfully created alumni profile with ID:', response.data.id);
         return response;
           } else {
         console.error('Server reported error in profile creation:', response.data.message);
@@ -648,14 +586,10 @@ export const alumniService = {
         throw new Error('Alumni ID is undefined or invalid. Cannot update profile.');
       }
       
-      console.log(`Updating alumni profile using reliable endpoint ${alumniId}`, {
-        data: profileData
-      });
       
       const response = await api.put(`/alumni/${alumniId}/simple`, profileData);
       
       if (response.data.success) {
-        console.log('Successfully updated alumni profile');
         return {
           data: {
             ...profileData,
@@ -677,7 +611,6 @@ export const alumniService = {
       // Normalize profile data and attach user_id before saving
       const preparedData = await prepareProfileData(profileData);
       
-      console.log('Creating alumni profile with data:', preparedData);
       
       // Check if profile already exists
       try {
@@ -691,15 +624,13 @@ export const alumniService = {
             id: existingProfile.data._id
           });
         }
-      } catch (existingProfileError) {
+      } catch {
         // If there's an error checking for an existing profile, just continue with create
-        console.log('Unable to check for existing profile:', existingProfileError.message);
       }
       
       // Try reliable endpoint first
       try {
         const reliableResponse = await alumniService.createProfileReliable(preparedData);
-        console.log('Successfully created profile using reliable endpoint');
         return reliableResponse;
       } catch (reliableError) {
         // Check if the error is "profile already exists"
@@ -727,7 +658,6 @@ export const alumniService = {
       // Standard endpoint as fallback
       try {
         const response = await api.post('/alumni', preparedData);
-        console.log('Profile created successfully using standard endpoint');
         return response;
       } catch (standardError) {
         // If standard endpoint fails with 405, try again with the simplified endpoint
@@ -748,7 +678,6 @@ export const alumniService = {
       // Try reliable endpoint first
       try {
         const reliableResponse = await alumniService.updateProfileReliable(profileData);
-        console.log('Successfully updated profile using reliable endpoint');
         return reliableResponse;
       } catch (reliableError) {
         console.warn('Reliable endpoint failed, falling back to standard endpoint:', reliableError.message);
@@ -765,13 +694,9 @@ export const alumniService = {
         throw new Error('Alumni ID is undefined or invalid. Cannot update profile.');
       }
       
-      console.log(`Updating alumni profile ${alumniId}`, {
-        data: profileData
-      });
       
       // Standard endpoint
       const response = await api.put(`/alumni/${alumniId}`, profileData);
-      console.log('Profile updated successfully using standard endpoint');
       return response;
     } catch (error) {
       console.error('Error updating alumni profile:', error.message);
@@ -781,7 +706,6 @@ export const alumniService = {
   
   getProfile: async (alumniId) => {
     try {
-      console.log(`Fetching alumni profile with ID: ${alumniId}`);
       return api.get(`/alumni/${alumniId}`);
     } catch (error) {
       console.error(`Error fetching alumni profile ${alumniId}:`, error);
@@ -791,7 +715,6 @@ export const alumniService = {
   
   getAlumniByUserId: async (userId) => {
     try {
-      console.log(`Fetching alumni profile for user ID: ${userId}`);
       
       // Try using withCORS method which has better CORS handling
       try {
@@ -836,7 +759,6 @@ export const alumniService = {
   
   uploadProfilePicture: async (alumniId, file) => {
     try {
-      console.log(`Uploading profile picture for alumni ${alumniId}`);
       
       const formData = new FormData();
       formData.append('profile_picture', file);
@@ -853,7 +775,6 @@ export const alumniService = {
         timeout: 30000 // 30 second timeout for file uploads
       });
       
-      console.log('Profile picture upload response:', response.data);
       return response;
     } catch (error) {
       console.error(`Error uploading profile picture for ${alumniId}:`, error.message);
@@ -869,20 +790,15 @@ export const alumniService = {
   
   getAllAlumni: async (params = {}) => {
     try {
-      console.log('Fetching alumni list with params:', params);
       // Use the simplified endpoint by default since it's more reliable
       try {
-        console.log('Using simplified alumni/list endpoint directly');
         const simplifiedResponse = await api.get('/alumni/list', { params });
-        console.log('Simplified alumni endpoint succeeded');
         return simplifiedResponse;
       } catch (listError) {
         console.error('Simplified alumni endpoint failed:', listError);
         
         // Try the main endpoint as a fallback
-        console.log('Trying main alumni endpoint as fallback');
         const mainResponse = await api.get('/alumni', { params });
-        console.log('Main alumni endpoint succeeded');
         return mainResponse;
       }
     } catch (error) {
@@ -1004,7 +920,6 @@ export const adminUserService = {
     } catch (error) {
       // Don't log or throw error if request was intentionally aborted
       if (error.name === 'CanceledError' || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        console.log('Request was canceled or aborted');
         return { data: { items: [], meta: { total: 0, totalPages: 0 } } };
       }
       
@@ -1141,7 +1056,7 @@ export const adminUserService = {
         timeout: 10000 
       });
       return response;
-    } catch (error) {
+    } catch {
       // Return empty array structure on error to prevent UI errors
       return { data: { items: [], meta: { total: 0, totalPages: 0 } } };
     }
@@ -1161,7 +1076,6 @@ export const roleService = {
       // If we should retry and it's a network error (not abort)
       if (retryCount > 0 && error.name !== 'AbortError' && 
          (error.code === 'ECONNABORTED' || error.message.includes('Network Error'))) {
-        console.log(`Retrying role fetch (${retryCount} attempts left)...`);
         // Wait a short time before retrying (500ms)
         await new Promise(resolve => setTimeout(resolve, 500));
         // Retry with one less retry attempt
@@ -1218,7 +1132,6 @@ export const roleService = {
     } catch (error) {
       // Don't throw error if request was aborted
       if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED' || error.code === 'ECONNABORTED') {
-        console.log('Request was aborted or timed out');
         return { data: [] };
       }
       console.error('Error fetching permissions:', error);
@@ -1384,7 +1297,7 @@ export const documentRequestService = {
 
       const contentDisposition = response.headers['content-disposition'] || '';
       const contentType = response.headers['content-type'] || response.data?.type || 'application/octet-stream';
-      const headerFilenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+      const headerFilenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
       const fallbackExtension = contentType.includes('pdf')
         ? '.pdf'
         : contentType.includes('wordprocessingml')

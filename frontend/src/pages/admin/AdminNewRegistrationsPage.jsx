@@ -38,12 +38,10 @@ export default function AdminNewRegistrationsPage() {
         }
       });
       
-      console.log("API response data:", response.data);
       
       // Map the department values if needed
       const processedUsers = response.data.map(user => {
         // Log each user to debug
-        console.log(`Processing user ${user.email}:`, user);
         
         // Check for department formatting issues
         if (user.department && typeof user.department === 'string') {
@@ -57,7 +55,6 @@ export default function AdminNewRegistrationsPage() {
           
           // Use mapped value or original if no mapping exists
           const standardDepartment = deptMap[user.department] || user.department;
-          console.log(`Mapped department '${user.department}' to '${standardDepartment}'`);
           
           return {...user, department: standardDepartment};
         }
@@ -77,7 +74,7 @@ export default function AdminNewRegistrationsPage() {
     if (!dateString) return 'Unknown';
     try {
       return format(new Date(dateString), 'MMM d, yyyy h:mm a');
-    } catch (e) {
+    } catch {
       return dateString;
     }
   };

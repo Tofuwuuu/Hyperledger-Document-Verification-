@@ -66,7 +66,7 @@ export default function AdminDocumentUploadPage() {
       formData.append('description', description);
       formData.append('file', file);
       
-      const response = await axios.post(`${API_URL}/documents/upload`, formData, {
+      await axios.post(`${API_URL}/documents/upload`, formData, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'multipart/form-data'

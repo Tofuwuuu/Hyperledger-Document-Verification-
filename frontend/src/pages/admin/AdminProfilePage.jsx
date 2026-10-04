@@ -36,7 +36,6 @@ export default function AdminProfilePage() {
     
     setLoading(true);
     try {
-      console.log('Loading admin profile...');
       
       // Using axios directly with explicit CORS headers
       const response = await axios.get(
@@ -51,7 +50,6 @@ export default function AdminProfilePage() {
       
       // Axios stores response data directly in response.data
       const data = response.data;
-      console.log('Successfully fetched user profile from API:', data);
       
       // Handle different name field formats
       let fullName = data.full_name || '';
@@ -136,14 +134,13 @@ export default function AdminProfilePage() {
     
     setIsUploading(true);
     try {
-      console.log('Uploading profile picture...');
       
       // Create a FormData object to upload the file
       const formData = new FormData();
       formData.append('profile_picture', profilePicture);
       
       // Make the profile picture upload API call
-      const response = await axios.post(
+      await axios.post(
         `${API_URL}/admin/profile/upload-picture`,
         formData,
         {
@@ -155,7 +152,6 @@ export default function AdminProfilePage() {
         }
       );
       
-      console.log('Profile picture uploaded successfully', response.data);
       setSuccessMessage('Profile picture updated successfully!');
       setProfilePicture(null);
       
@@ -203,7 +199,7 @@ export default function AdminProfilePage() {
       };
       
       // Update the user using the API
-      const updateResponse = await axios.put(
+      await axios.put(
         `${API_URL}/admin/profile`,
         profileData,
         {
@@ -215,7 +211,6 @@ export default function AdminProfilePage() {
         }
       );
       
-      console.log('Profile updated successfully', updateResponse.data);
       
       // Update local storage user data to reflect changes
       const storedUser = JSON.parse(localStorage.getItem('user') || '{}');

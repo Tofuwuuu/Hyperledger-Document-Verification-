@@ -7,7 +7,7 @@ import { API_ORIGIN } from '../../config';
 export default function AdminAlumniPage() {
   const [alumni, setAlumni] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedYear, setSelectedYear] = useState('');

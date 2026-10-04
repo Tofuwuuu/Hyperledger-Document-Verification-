@@ -2,7 +2,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'rea
 import { documentRequestService } from '../services/api';
 import { getDocumentTypeLabel } from '../constants/documentTypes';
 import { toast as toastify } from 'react-toastify';
-import { formatDistanceToNow, format, addHours } from 'date-fns';
+import { formatDistanceToNow, addHours } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import {
   CheckCircleIcon,
@@ -53,7 +53,7 @@ const DocumentRequestList = forwardRef((props, ref) => {
     fetchRequests();
   }, []);
 
-  const handleDownload = async (requestId, documentType) => {
+  const handleDownload = async (requestId) => {
     try {
       const response = await documentRequestService.downloadGeneratedDocument(requestId);
       

@@ -7,8 +7,7 @@ import {
   clearAuthTokens,
   isRememberedSession,
   isTemporarySession,
-  isUserAdmin,
-  needsTokenRefresh
+  isUserAdmin
 } from '../utils/authUtils';
 import { API_URL } from '../config';
 
@@ -151,7 +150,6 @@ export const AuthProvider = ({ children }) => {
       
       // If we've refreshed in the last 10 seconds, use cached data
       if (lastRefreshTime && (currentTime - parseInt(lastRefreshTime)) < 10000) {
-        console.log('Using cached user data (refreshed in last 10 seconds)');
         return currentUser;
       }
       
@@ -184,7 +182,6 @@ export const AuthProvider = ({ children }) => {
         // Update current user and localStorage
         setCurrentUser(response.data);
         localStorage.setItem('user', JSON.stringify(response.data));
-        console.log('User data forcefully refreshed:', response.data);
         
         // Record refresh timestamp
         sessionStorage.setItem('last_user_refresh', currentTime.toString());
@@ -219,7 +216,6 @@ export const AuthProvider = ({ children }) => {
     
     setLoading(true);
     try {
-      console.log('Loading user data from API or local storage');
       
       
       // For regular tokens, use API call
@@ -230,7 +226,6 @@ export const AuthProvider = ({ children }) => {
         
         // If we've refreshed in the last 5 seconds, use cached data
         if (lastRefreshTime && (currentTime - parseInt(lastRefreshTime)) < 5000) {
-          console.log('Using cached user data (refreshed in last 5 seconds)');
           const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
           if (cachedUser && (cachedUser.id || cachedUser.email)) {
             // Still need to update state
@@ -241,7 +236,6 @@ export const AuthProvider = ({ children }) => {
         }
         
         const userData = await authService.getCurrentUser();
-        console.log('User data loaded from API:', userData);
         
         if (userData) {
           // Store user data
@@ -268,7 +262,6 @@ export const AuthProvider = ({ children }) => {
         // Fallback to localStorage if API fails
         const localUser = JSON.parse(localStorage.getItem('user') || '{}');
         if (localUser && (localUser.id || localUser.email)) {
-          console.log('User data loaded from localStorage fallback:', localUser);
           setCurrentUser(localUser);
           setIsAuthenticated(true);
           return localUser;
@@ -384,7 +377,6 @@ export const AuthProvider = ({ children }) => {
           // For temporary sessions (not remembered), verify the session is still in this browser tab
           if (!isRememberedSession() && !isTemporarySession()) {
             // For temporary sessions, we require the session marker
-            console.log('Temporary session not found, logging out');
             await logout();
             return;
           }
@@ -398,18 +390,15 @@ export const AuthProvider = ({ children }) => {
             // If network error, try to use cached user data instead of logging out
             if (error.isNetworkError || error.message?.includes('Network Error') || 
                 error.original?.message?.includes('Network Error')) {
-              console.log('Network error detected, using cached user data from localStorage');
               
               // Try to get user data from localStorage
               try {
                 const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
                 if (cachedUser && (cachedUser.id || cachedUser.email)) {
-                  console.log('Using cached user data:', cachedUser);
                   setCurrentUser(cachedUser);
                   setIsAuthenticated(true);
                   // Don't clear loading here since we're using cached data
                 } else {
-                  console.log('No valid cached user data found');
                   // Keep the user logged in but with minimal data
                   setCurrentUser({ email: 'User', is_authenticated: true });
                   setIsAuthenticated(true);
@@ -422,7 +411,6 @@ export const AuthProvider = ({ children }) => {
               }
             } else {
               // For other errors, proceed with logout
-              console.log('Non-network error, logging out:', error);
               await logout();
             }
           }
@@ -433,13 +421,12 @@ export const AuthProvider = ({ children }) => {
         try {
           const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
           if (cachedUser && (cachedUser.id || cachedUser.email)) {
-            console.log('Using cached user data due to validation error:', cachedUser);
             setCurrentUser(cachedUser);
             setIsAuthenticated(true);
           } else {
             await logout();
           }
-        } catch (e) {
+        } catch {
           await logout();
         }
       } finally {
@@ -523,11 +510,6 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
       
-      console.log('Registering user with data:', { 
-        ...userData, 
-        password: '***REDACTED***', 
-        confirm_password: '***REDACTED***' 
-      });
       
       const response = await authService.register(userData);
       return { success: true, data: response.data || response };

@@ -17,7 +17,6 @@ export default function DocumentVerificationPage() {
   const [pendingDocuments, setPendingDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
-  const [verificationStatus, setVerificationStatus] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');

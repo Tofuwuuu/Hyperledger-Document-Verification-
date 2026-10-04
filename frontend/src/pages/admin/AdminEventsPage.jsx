@@ -48,7 +48,6 @@ const AdminEventsPage = () => {
   
   const handleGenerateQRCode = async (eventId, type = 'registration') => {
     try {
-      console.log(`Starting QR code generation for event ${eventId} with type ${type}`);
       
       // Reset state
       setQrCodeError(null);
@@ -64,18 +63,14 @@ const AdminEventsPage = () => {
         return;
       }
       
-      console.log(`Event found: ${event.title}`);
       setCurrentEventName(event.title);
       setQrCodeType(type);
       
       let qrCodeUrl;
       
       if (type === 'registration') {
-        console.log('Processing registration QR code');
         // Always generate a new QR code to avoid caching issues
-        console.log('Generating new registration QR code');
         qrCodeUrl = await generateEventQRCode(eventId, 'registration');
-        console.log('Registration QR code generated, length:', qrCodeUrl?.length);
         
         // Update the event in state with the new QR code
         setEvents(events.map(e => 
@@ -83,9 +78,7 @@ const AdminEventsPage = () => {
         ));
       } else if (type === 'attendance') {
         // For attendance QR code, we always generate a new one to ensure it's fresh
-        console.log('Generating new attendance QR code');
         qrCodeUrl = await generateAttendanceQRCode(eventId);
-        console.log('Attendance QR code generated, length:', qrCodeUrl?.length);
       }
       
       if (!qrCodeUrl) {
@@ -95,7 +88,6 @@ const AdminEventsPage = () => {
         return;
       }
       
-      console.log('Setting QR code in state');
       // Ensure QR code URL starts with data:image
       if (!qrCodeUrl.startsWith('data:image')) {
         if (qrCodeUrl.startsWith('{') || typeof qrCodeUrl === 'object') {
@@ -103,7 +95,6 @@ const AdminEventsPage = () => {
           try {
             const qrObject = typeof qrCodeUrl === 'string' ? JSON.parse(qrCodeUrl) : qrCodeUrl;
             qrCodeUrl = qrObject.qr_code_url || qrObject.attendance_qr_url;
-            console.log('Extracted QR code URL from object:', qrCodeUrl?.substring(0, 30) + '...');
           } catch (e) {
             console.error('Error parsing QR code JSON:', e);
           }

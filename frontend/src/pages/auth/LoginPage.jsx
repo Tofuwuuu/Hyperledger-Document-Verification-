@@ -313,7 +313,6 @@ export default function LoginPage() {
             onSubmit={async (values, { setSubmitting, setFieldError }) => {
               // Explicit event prevention
               try {
-                console.log('Form submitted with values:', { ...values, password: '***HIDDEN***' });
                 await handleSubmit(values, { setSubmitting, setFieldError });
               } catch (error) {
                 console.error('Form submission error:', error);

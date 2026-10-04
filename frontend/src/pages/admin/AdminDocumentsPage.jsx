@@ -8,7 +8,7 @@ import {
   XCircleIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { adminVerificationService, api, adminDocumentService } from '../../services/api';
+import { adminVerificationService, adminDocumentService } from '../../services/api';
 import { getDocumentTypeLabel } from '../../constants/documentTypes';
 
 export default function AdminDocumentsPage() {
@@ -104,16 +104,6 @@ export default function AdminDocumentsPage() {
         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Rejected</span>
       default:
         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Unknown</span>
-    }
-  };
-  
-  // Add a function to download and preview document files
-  const handleDownloadDocument = async (fileUrl) => {
-    try {
-      window.open(`${API_URL}${fileUrl}`, '_blank');
-    } catch (err) {
-      console.error('Error downloading document:', err);
-      setError('Failed to download document: ' + err.message);
     }
   };
   

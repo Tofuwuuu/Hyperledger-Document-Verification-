@@ -150,7 +150,7 @@ class PollingService {
           this.emit('message', eventData);
         });
       }
-    } catch (error) {
+    } catch {
       // Silent error handling
     } finally {
       this.isFetching = false;
@@ -187,12 +187,11 @@ class PollingService {
 
   emit(eventType, data) {
     if (this.listeners.has(eventType)) {
-      const listenerCount = this.listeners.get(eventType).length;
       
       this.listeners.get(eventType).forEach(callback => {
         try {
           callback(data);
-        } catch (error) {
+        } catch {
           // Silent error handling
         }
       });
