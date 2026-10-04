@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from pymongo import ASCENDING
+from pymongo.errors import DuplicateKeyError
 
 from app.db.collections import (
     alumni_profiles_collection,
@@ -13,6 +14,7 @@ from app.db.collections import (
     users_collection,
 )
 from app.db.session import get_motor_client
+from app.db.student_ids import ensure_student_id_index, normalize_student_id
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,8 @@ def _extract_profile_data(user_doc: dict) -> dict:
     }
     if user_doc.get("email"):
         profile["email"] = str(user_doc["email"]).strip().lower()
+    if "student_id" in profile:
+        profile["student_id"] = normalize_student_id(profile["student_id"])
     return profile
 
 
@@ -76,7 +80,7 @@ async def initialize_database() -> None:
     await _ensure_index(users, [("is_verified", ASCENDING)], "idx_users_is_verified")
     await _ensure_index(users, [("is_admin", ASCENDING)], "idx_users_is_admin")
     await _ensure_index(profiles, [("user_id", ASCENDING)], "uq_alumni_profiles_user_id", unique=True)
-    await _ensure_index(profiles, [("student_id", ASCENDING)], "idx_alumni_profiles_student_id")
+    await ensure_student_id_index(profiles)
     await _ensure_index(profiles, [("graduation_year", ASCENDING)], "idx_alumni_profiles_graduation_year")
     await _ensure_index(events, [("start_date", ASCENDING)], "idx_events_start_date")
     await _ensure_index(events, [("is_active", ASCENDING)], "idx_events_is_active")
@@ -136,11 +140,16 @@ async def initialize_database() -> None:
 
             profile_data["user_id"] = user["_id"]
             profile_data["updated_at"] = now
-            await profiles.update_one(
-                {"user_id": user["_id"]},
-                {"$set": profile_data, "$setOnInsert": {"created_at": user.get("created_at", now)}},
-                upsert=True,
-            )
+            try:
+                await profiles.update_one(
+                    {"user_id": user["_id"]},
+                    {"$set": profile_data, "$setOnInsert": {"created_at": user.get("created_at", now)}},
+                    upsert=True,
+                )
+            except DuplicateKeyError:
+                # Another profile already has this student ID; leave this one for manual review.
+                logger.error("Skipped profile migration for user %s: student ID already used by another account", user["_id"])
+                continue
             migrated_count += 1
     except Exception:
         logger.exception("Failed MongoDB normalization/migration bootstrap")

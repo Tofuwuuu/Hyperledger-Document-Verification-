@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -148,6 +149,10 @@ def _matches(doc: dict[str, Any], query: dict[str, Any]) -> bool:
         if isinstance(expected, dict):
             if "$in" in expected and actual not in expected["$in"]:
                 return False
+            if "$regex" in expected:
+                flags = re.IGNORECASE if "i" in expected.get("$options", "") else 0
+                if not isinstance(actual, str) or not re.search(expected["$regex"], actual, flags):
+                    return False
             if "$type" in expected:
                 type_name = expected["$type"]
                 if type_name == "string" and not isinstance(actual, str):
@@ -342,7 +347,7 @@ def test_student_id_must_be_unique_across_accounts(monkeypatch, tmp_path):
         assert response.status_code == 409
         detail = response.json()["detail"]
         assert detail[0]["loc"] == ["body", "student_id"]
-        assert detail[0]["msg"] == "That student ID is already in use."
+        assert detail[0]["msg"] == "That student ID is already used by another account."
 
     # Legacy records that keep student_id on the user document count too.
     users.docs[0]["student_id"] = "2015-00077"

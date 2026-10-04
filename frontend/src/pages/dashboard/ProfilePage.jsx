@@ -77,6 +77,7 @@ export default function ProfilePage() {
         profileFacts={profileFacts}
         profileInitials={profileInitials}
         requiredFields={requiredFields}
+        savedStatus={!isEditing && formStatus?.tone === 'success' ? formStatus : null}
         setActiveTab={setActiveTab}
         startEditing={startEditing}
         statusText={statusText}
@@ -178,14 +179,13 @@ export default function ProfilePage() {
       </div>
 
       {/* Add sticky action bar at the bottom */}
-      {(isEditing || formStatus?.tone === 'success') && (
+      {isEditing && (
         <ProfileActionBar
           cancelEditing={cancelEditing}
           errorMessage={errorMessage}
           formStatus={formStatus}
           loading={loading}
           saveProfile={saveProfile}
-          showActions={isEditing}
           signInAgain={signInAgain}
         />
       )}

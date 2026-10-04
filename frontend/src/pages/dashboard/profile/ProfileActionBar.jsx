@@ -52,19 +52,8 @@ export default function ProfileActionBar({
   formStatus,
   loading,
   saveProfile,
-  showActions = true,
   signInAgain,
 }) {
-  if (!showActions) {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-1">
-          <FormStatusLine status={formStatus} signInAgain={signInAgain} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">

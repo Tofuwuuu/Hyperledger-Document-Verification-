@@ -67,7 +67,7 @@ export default function PersonalInfoTab({
               </div>
               {isEditing && (
                 <div>
-                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
+                  <div className={`rounded-lg border bg-slate-50 px-4 py-3 ${photoError ? 'border-red-600' : 'border-dashed border-slate-300'}`}>
                     <div className="flex flex-wrap text-sm text-slate-600">
                       <label
                         htmlFor="profile-picture-upload"
@@ -161,7 +161,7 @@ export default function PersonalInfoTab({
           </dd>
         </div>
 
-        {/* Sex/Gender */}
+        {/* Sex */}
         <div className="py-4 sm:py-5 sm:grid sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
           <dt className="text-sm font-semibold text-slate-600">Sex</dt>
           <dd className="mt-1 text-sm text-slate-900 sm:mt-0">
@@ -173,7 +173,7 @@ export default function PersonalInfoTab({
                 onChange={handleInputChange}
                 className={getInputClass('sex')}
               >
-                <option value="">Select gender</option>
+                <option value="">Choose one</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>

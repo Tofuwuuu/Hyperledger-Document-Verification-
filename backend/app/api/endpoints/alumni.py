@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +15,7 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from app.db.session import get_motor_client
 from app.db.collections import alumni_profiles_collection
+from app.db.student_ids import normalize_student_id
 from app.schemas.alumni_profile import PROFILE_FIELDS, AlumniProfileCreate, AlumniProfileUpdate
 from app.utils.auth import get_current_user
 from app.utils.uploads import IMAGE_KINDS, read_validated_upload, safe_extension_for_mime
@@ -177,33 +179,50 @@ async def get_alumni_by_id(alumni_id: str, current_user: dict = Depends(get_curr
     return _serialize_document(document, private=_can_see_private(current_user, document))
 
 
-STUDENT_ID_IN_USE = "That student ID is already in use."
+STUDENT_ID_IN_USE = "That student ID is already used by another account."
+
+
+def _student_id_in_use() -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail=[{"loc": ["body", "student_id"], "type": "student_id_in_use", "msg": STUDENT_ID_IN_USE}],
+    )
+
+
+def _normalize_student_id_field(data: dict[str, Any]) -> None:
+    """Store student IDs trimmed and uppercased (same form the checks compare)."""
+    if isinstance(data.get("student_id"), str):
+        data["student_id"] = normalize_student_id(data["student_id"])
+
+
+def _same_student_id_query(normalized: str) -> dict[str, Any]:
+    # Also matches older values stored before normalization ("ab-123 ").
+    return {"student_id": {"$regex": f"^\\s*{re.escape(normalized)}\\s*$", "$options": "i"}}
+
+
+def _is_student_id_conflict(exc: DuplicateKeyError) -> bool:
+    details = getattr(exc, "details", None) or {}
+    return "student_id" in (details.get("keyPattern") or {}) or "student_id" in str(exc)
 
 
 async def _ensure_student_id_available(client: Any, student_id: Any, owner_id: Any) -> None:
     """A student ID may belong to one account only.
 
-    Raises 409 with a FastAPI-style detail (loc ends in "student_id") when
-    another account's profile or user record already has this student ID.
-    Blank values are not checked.
+    Compares normalized values (trimmed, case-insensitive). Raises 409 with a
+    FastAPI-style detail (loc ends in "student_id") when another account's
+    profile or user record already has this student ID. Blank values are not checked.
     """
-    value = student_id.strip() if isinstance(student_id, str) else ""
+    value = normalize_student_id(student_id) if isinstance(student_id, str) else ""
     if not value:
         return
     owner = str(owner_id)
-    async for doc in alumni_profiles_collection(client).find({"student_id": value}, {"user_id": 1}):
+    query = _same_student_id_query(value)
+    async for doc in alumni_profiles_collection(client).find(query, {"user_id": 1}):
         if str(doc.get("user_id") or doc.get("_id")) != owner:
-            break
-    else:
-        async for doc in _users_collection(client).find({"student_id": value}, {"_id": 1}):
-            if str(doc.get("_id")) != owner:
-                break
-        else:
-            return
-    raise HTTPException(
-        status_code=409,
-        detail=[{"loc": ["body", "student_id"], "type": "student_id_in_use", "msg": STUDENT_ID_IN_USE}],
-    )
+            raise _student_id_in_use()
+    async for doc in _users_collection(client).find(query, {"_id": 1}):
+        if str(doc.get("_id")) != owner:
+            raise _student_id_in_use()
 
 
 @router.post("/alumni")
@@ -229,12 +248,18 @@ async def create_alumni_profile(payload: AlumniProfileCreate, current_user: dict
         raise HTTPException(status_code=404, detail="User not found")
 
     document = _allowlisted(payload.model_dump(exclude_unset=True))
+    _normalize_student_id_field(document)
     document["updated_at"] = datetime.now(timezone.utc)
 
     try:
         await _ensure_student_id_available(client, document.get("student_id"), object_id)
         await collection.update_one({"_id": object_id}, {"$set": document})
         updated_document = await collection.find_one({"_id": object_id})
+    except DuplicateKeyError as exc:
+        if _is_student_id_conflict(exc):
+            raise _student_id_in_use() from exc
+        logger.exception("Duplicate key creating alumni profile")
+        raise HTTPException(status_code=503, detail="Database error") from exc
     except PyMongoError as exc:
         logger.exception("Database error creating alumni profile")
         raise HTTPException(status_code=503, detail="Database error") from exc
@@ -265,6 +290,7 @@ async def update_alumni_profile(
     for k, v in list(update_data.items()):
         if isinstance(v, str) and v.strip() == "":
             update_data[k] = None
+    _normalize_student_id_field(update_data)
     update_data["updated_at"] = datetime.now(timezone.utc)
 
     profiles = alumni_profiles_collection(client)
@@ -301,6 +327,12 @@ async def update_alumni_profile(
         await _ensure_student_id_available(client, update_data.get("student_id"), owner_id)
 
         await profiles.update_one(profile_filter, {"$set": update_data}, upsert=True)
+    except DuplicateKeyError as exc:
+        # Lost a race with another save, or the unique index caught it.
+        if _is_student_id_conflict(exc):
+            raise _student_id_in_use() from exc
+        logger.exception("Duplicate key updating alumni profile %s", alumni_id)
+        raise HTTPException(status_code=503, detail="Database error") from exc
     except PyMongoError as exc:
         logger.exception("Database error updating alumni profile %s", alumni_id)
         raise HTTPException(status_code=503, detail="Database error") from exc
