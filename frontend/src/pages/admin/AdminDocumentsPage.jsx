@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   DocumentIcon, 
@@ -34,11 +34,7 @@ export default function AdminDocumentsPage() {
     }
   };
   
-  useEffect(() => {
-    fetchDocuments();
-  }, [statusFilter]);
-  
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -59,7 +55,12 @@ export default function AdminDocumentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+  
   
   const handleViewDocument = (document) => {
     setSelectedDocument(document);

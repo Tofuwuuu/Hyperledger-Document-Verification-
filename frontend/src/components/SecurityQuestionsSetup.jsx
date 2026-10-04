@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 // Predefined security questions for users to choose from
 const SECURITY_QUESTIONS = [

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AcademicCapIcon,
   CalendarDaysIcon,
@@ -6,7 +7,8 @@ import {
   IdentificationIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '../../../context/useAuth';
+import { saveProfileDraft, readProfileDraft, clearProfileDraft } from '../../../utils/profileDraft';
 import api, { alumniService, referenceService } from '../../../services/api';
 import { buildDashboardProfileData } from '../../../utils/dashboard-profile-schema';
 import {
@@ -17,10 +19,23 @@ import {
   getStoredProfile,
   normalizeProfileResponse,
 } from './profileStorage';
+import {
+  FORM_MESSAGES,
+  firstErroredField,
+  isValidatedField,
+  mapServerErrors,
+  tabForField,
+  validateField,
+  validateProfile,
+} from './profileValidation';
+
+const SUCCESS_VISIBLE_MS = 2500;
+const SUCCESS_FADE_MS = 500;
 
 // State, loading, saving, and picture upload for the signed-in alumni profile page.
 export default function useAlumniProfile() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [initialProfile, setInitialProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('personal');
@@ -32,17 +47,48 @@ export default function useAlumniProfile() {
   const [isUploading, setIsUploading] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
-  // Never filled in, so FieldError renders nothing (kept as-is: no behavior change).
-  const [validationErrors] = useState({});
+  const [validationErrors, setValidationErrors] = useState({});
+  // One line above the Save button: { tone: 'error' | 'success' | 'info', text, action?, fading? }
+  const [formStatus, setFormStatus] = useState(null);
+  const [pendingFocusField, setPendingFocusField] = useState(null);
+  const statusTimersRef = useRef([]);
   const [courses, setCourses] = useState([]);
-  const [, setErrors] = useState({});
   const [, setCompletionPercentage] = useState(0);
   const [, setMissingFields] = useState(0);
 
+  const clearStatusTimers = useCallback(() => {
+    statusTimersRef.current.forEach((timer) => clearTimeout(timer));
+    statusTimersRef.current = [];
+  }, []);
+
+  const showStatus = useCallback((status) => {
+    clearStatusTimers();
+    setFormStatus(status);
+    if (status?.tone === 'success') {
+      statusTimersRef.current = [
+        setTimeout(() => setFormStatus((current) => (current === status ? { ...status, fading: true } : current)), SUCCESS_VISIBLE_MS),
+        setTimeout(() => setFormStatus((current) => (current?.text === status.text && current.fading ? null : current)), SUCCESS_VISIBLE_MS + SUCCESS_FADE_MS),
+      ];
+    }
+  }, [clearStatusTimers]);
+
+  useEffect(() => clearStatusTimers, [clearStatusTimers]);
+
+  // After a failed Save: show the first errored field's tab, then scroll to it and focus it.
   useEffect(() => {
-    fetchAlumniProfile();
-    fetchCVSUCourses();
-  }, [currentUser]);
+    if (!pendingFocusField) return;
+    const tab = tabForField(pendingFocusField);
+    if (tab && tab !== activeTab) {
+      setActiveTab(tab);
+      return;
+    }
+    const field = document.querySelector(`[name="${pendingFocusField}"]`);
+    if (field) {
+      field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      field.focus({ preventScroll: true });
+    }
+    setPendingFocusField(null);
+  }, [pendingFocusField, activeTab]);
 
   // Update the useEffect for the profile picture to also check localStorage
   useEffect(() => {
@@ -69,7 +115,100 @@ export default function useAlumniProfile() {
     }
   }, [profile.profile_picture, profile.user_id]);
 
-  const fetchAlumniProfile = async () => {
+  // Calculate profile completion percentage
+  const calculateCompletionPercentage = useCallback((data) => {
+    const requiredFields = ['full_name', 'student_id', 'email'];
+    
+    // Count how many required fields are completed
+    let completedFields = 0;
+    requiredFields.forEach(field => {
+      if (data[field] && data[field].toString().trim() !== '') {
+        completedFields++;
+      }
+    });
+    
+    // Calculate percentage
+    const percentage = Math.floor((completedFields / requiredFields.length) * 100);
+    setCompletionPercentage(percentage);
+    
+    // Set missing fields count
+    setMissingFields(requiredFields.length - completedFields);
+    
+    return percentage;
+  }, []);
+
+  // Helper function to create an empty profile with user data
+  const createEmptyProfile = useCallback((userId) => {
+        // Make sure we have a valid user ID before proceeding
+        if (!userId) {
+          console.error('Cannot create profile without user_id');
+          setErrorMessage('User ID is missing. Please try logging out and logging in again.');
+          setLoading(false);
+          return;
+        }
+
+        const localProfile = getStoredProfile(userId);
+        if (localProfile) {
+          const normalizedLocalProfile = buildDashboardProfileData(localProfile);
+          setProfile(normalizedLocalProfile);
+          setInitialProfile(normalizedLocalProfile);
+          setIsEditing(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Create a new profile with the current user data and empty fields
+    const newProfile = buildDashboardProfileData({
+          user_id: userId, // Set the user_id explicitly
+          full_name: currentUser.full_name || '',
+          student_id: currentUser.student_id || '',
+          email: currentUser.email || '',
+          department: '',
+      graduation_year: currentUser.graduation_year ? String(currentUser.graduation_year) : '',
+    });
+    
+    setProfile(newProfile);
+    setInitialProfile(newProfile);
+    setIsEditing(true); // Start in edit mode for new profiles
+      setLoading(false);
+    
+    // Show helpful message
+    setInfoMessage('Please complete your alumni profile information.');
+  }, [currentUser]);
+
+  // Fetch CVSU courses
+  const fetchCVSUCourses = useCallback(async () => {
+    try {
+      const response = await referenceService.getCVSUCourses();
+      const courseItems = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.items)
+          ? response.data.items
+          : [];
+      setCourses(courseItems);
+    } catch (error) {
+      console.error('Error fetching CVSU courses:', error);
+      // Fallback to hardcoded courses if API fails
+      setCourses([
+        "Bachelor of Science in Information Technology",
+        "Bachelor of Science in Computer Science",
+        "Bachelor of Science in Accountancy",
+        "Bachelor of Science in Accounting Information System",
+        "Bachelor of Science in Management Accounting",
+        "Bachelor of Science in Business Administration",
+        "Bachelor of Science in Entrepreneurship",
+        "Bachelor of Secondary Education",
+        "Bachelor of Science in Hospitality Management",
+        "Bachelor of Science in Tourism Management",
+        "Bachelor of Science in Psychology",
+        "Bachelor of Arts in Communication",
+        "Bachelor of Industrial Technology",
+        "Bachelor of Technical-Vocational Teacher Education"
+      ]);
+    }
+  }, []);
+
+  const fetchAlumniProfile = useCallback(async () => {
     if (!currentUser) return;
     setErrorMessage('');
     
@@ -161,82 +300,48 @@ export default function useAlumniProfile() {
 
       createEmptyProfile(userId);
     }
-  };
-  
-  // Helper function to create an empty profile with user data
-  const createEmptyProfile = (userId) => {
-        // Make sure we have a valid user ID before proceeding
-        if (!userId) {
-          console.error('Cannot create profile without user_id');
-          setErrorMessage('User ID is missing. Please try logging out and logging in again.');
-          setLoading(false);
-          return;
-        }
+  }, [currentUser, createEmptyProfile, calculateCompletionPercentage]);
 
-        const localProfile = getStoredProfile(userId);
-        if (localProfile) {
-          const normalizedLocalProfile = buildDashboardProfileData(localProfile);
-          setProfile(normalizedLocalProfile);
-          setInitialProfile(normalizedLocalProfile);
-          setIsEditing(true);
-          setLoading(false);
-          return;
-        }
-        
-        // Create a new profile with the current user data and empty fields
-    const newProfile = buildDashboardProfileData({
-          user_id: userId, // Set the user_id explicitly
-          full_name: currentUser.full_name || '',
-          student_id: currentUser.student_id || '',
-          email: currentUser.email || '',
-          department: '',
-      graduation_year: currentUser.graduation_year ? String(currentUser.graduation_year) : '',
+  // Unsaved edits kept from a session-expiry sign-in come back in edit mode.
+  const restoreDraft = useCallback(() => {
+    const userId = currentUser?.id || currentUser?._id;
+    const draft = readProfileDraft(userId);
+    if (!draft) return;
+    setProfile(buildDashboardProfileData(draft));
+    setIsEditing(true);
+    setFormStatus({ tone: 'info', text: FORM_MESSAGES.welcomeBack });
+  }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAlumniProfile().then(() => {
+      if (!cancelled) restoreDraft();
     });
-    
-    setProfile(newProfile);
-    setInitialProfile(newProfile);
-    setIsEditing(true); // Start in edit mode for new profiles
-      setLoading(false);
-    
-    // Show helpful message
-    setInfoMessage('Please complete your alumni profile information.');
-  };
+    fetchCVSUCourses();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchAlumniProfile, fetchCVSUCourses, restoreDraft]);
+  
 
-  // Fetch CVSU courses
-  const fetchCVSUCourses = async () => {
-    try {
-      const response = await referenceService.getCVSUCourses();
-      const courseItems = Array.isArray(response.data)
-        ? response.data
-        : Array.isArray(response.data?.items)
-          ? response.data.items
-          : [];
-      setCourses(courseItems);
-    } catch (error) {
-      console.error('Error fetching CVSU courses:', error);
-      // Fallback to hardcoded courses if API fails
-      setCourses([
-        "Bachelor of Science in Information Technology",
-        "Bachelor of Science in Computer Science",
-        "Bachelor of Science in Accountancy",
-        "Bachelor of Science in Accounting Information System",
-        "Bachelor of Science in Management Accounting",
-        "Bachelor of Science in Business Administration",
-        "Bachelor of Science in Entrepreneurship",
-        "Bachelor of Secondary Education",
-        "Bachelor of Science in Hospitality Management",
-        "Bachelor of Science in Tourism Management",
-        "Bachelor of Science in Psychology",
-        "Bachelor of Arts in Communication",
-        "Bachelor of Industrial Technology",
-        "Bachelor of Technical-Vocational Teacher Education"
-      ]);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setProfile({ ...profile, [name]: value });
+  };
+
+  // Validate a field when the user leaves it (not on every keystroke).
+  const handleFieldBlur = (e) => {
+    const { name, value } = e.target;
+    if (!isValidatedField(name)) return;
+    const message = validateField(name, value);
+    const nextErrors = { ...validationErrors };
+    if (message) nextErrors[name] = message;
+    else delete nextErrors[name];
+    setValidationErrors(nextErrors);
+    if (!message && Object.keys(nextErrors).length === 0 && formStatus?.text === FORM_MESSAGES.fixFields) {
+      showStatus(null);
+    }
   };
 
   const getFieldValue = (value) => value ?? '';
@@ -344,12 +449,18 @@ export default function useAlumniProfile() {
     setIsEditing(true);
     setSuccessMessage('');
     setErrorMessage('');
+    setValidationErrors({});
+    showStatus(null);
   };
 
   const cancelEditing = () => {
     setIsEditing(false);
     setSuccessMessage('');
     setErrorMessage('');
+    setValidationErrors({});
+    showStatus(null);
+    // Cancel discards edits, including any kept from an expired session.
+    clearProfileDraft(currentUser?.id || currentUser?._id);
     
     // Reset form to original data
     if (initialProfile) {
@@ -362,10 +473,11 @@ export default function useAlumniProfile() {
     
     // Validate only fields that were actually filled in or changed.
     if (!validateForm()) {
-      toast.error('Please fix the invalid fields and try again.');
+      showStatus({ tone: 'error', text: FORM_MESSAGES.fixFields });
       setLoading(false);
       return;
     }
+    showStatus(null);
       
     try {
       // Create a copy of profile data for the API call
@@ -424,7 +536,6 @@ export default function useAlumniProfile() {
                     // Update the existing profile
                     profileData.id = existingProfile.data._id || existingProfile.data.id;
                     response = await alumniService.updateProfile(profileData);
-                    toast.info('Updated your existing profile');
                   } else {
                     throw new Error('Could not find your existing profile');
                   }
@@ -464,22 +575,13 @@ export default function useAlumniProfile() {
             setInitialProfile(localProfile);
             calculateCompletionPercentage(localProfile);
             setIsEditing(false);
-            toast.success('Profile saved on this device');
+            showStatus({ tone: 'success', text: FORM_MESSAGES.savedOnDevice });
             setLoading(false);
             return;
           }
-          
-          // Special handling for network errors
-          if (error.message?.includes('Network Error')) {
-            toast.error('Network error: Please check your internet connection and try again.');
-          } else if (error.response?.status === 405) {
-            toast.error('API configuration error: Please contact support.');
-          } else {
-            toast.error(`Failed to create profile: ${error.message || 'Unknown error'}`);
-          }
-          
-          setLoading(false);
-          return;
+
+          // Shared handling below (field errors, sign-in, network).
+          throw error;
         }
       } else {
         // This is an existing profile that needs to be updated
@@ -489,8 +591,11 @@ export default function useAlumniProfile() {
           response = await api.put(`/alumni/${profileData.id}/simple`, profileData);
         } catch (directError) {
           console.error('Error with simple update endpoint:', directError);
+          // A rejected session or invalid fields won't succeed on the other endpoint either.
+          const status = directError.response?.status;
+          if (status === 401 || status === 422) throw directError;
           // Fall back to the service method
-        response = await alumniService.updateProfile(profileData);
+          response = await alumniService.updateProfile(profileData);
         }
       }
 
@@ -544,7 +649,9 @@ export default function useAlumniProfile() {
       }
       
       setIsEditing(false);
-      toast.success(profileData.id ? 'Profile updated successfully' : 'Profile created successfully');
+      setValidationErrors({});
+      clearProfileDraft(userId);
+      showStatus({ tone: 'success', text: FORM_MESSAGES.saved });
       
       // Upload profile picture if needed
       if (profilePicture) {
@@ -579,37 +686,31 @@ export default function useAlumniProfile() {
         setInitialProfile(localProfile);
         calculateCompletionPercentage(localProfile);
         setIsEditing(false);
-        toast.success('Profile saved on this device');
+        showStatus({ tone: 'success', text: FORM_MESSAGES.savedOnDevice });
         return;
       }
-      
-      if (error.response?.data?.detail) {
-        // Handle structured validation errors from backend
-        if (typeof error.response.data.detail === 'object') {
-          const fieldErrors = {};
-          Object.entries(error.response.data.detail).forEach(([field, message]) => {
-            fieldErrors[field] = Array.isArray(message) ? message[0] : message;
-          });
-          setErrors(fieldErrors);
-          toast.error('Validation failed. Please check the form fields.');
-        } else if (Array.isArray(error.response.data.detail)) {
-          // Handle FastAPI validation errors which come as an array
-          const fieldErrors = {};
-          error.response.data.detail.forEach(item => {
-            const field = item.loc[item.loc.length - 1];
-            fieldErrors[field] = item.msg;
-          });
-          setErrors(fieldErrors);
-          toast.error('Validation failed. Please check the form fields.');
-        } else {
-          toast.error(`Error: ${error.response.data.detail}`);
-        }
-      } else if (error.message && error.message.includes('CORS')) {
-        toast.error('Network error: CORS policy blocked the request. Please try again later.');
-      } else if (error.message && error.message.includes('Network Error')) {
-        toast.error('Network error: Unable to connect to the server. Please check your connection.');
+
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+
+      if (status === 401) {
+        // Session ended (12h cap): keep the edits for after sign-in.
+        saveProfileDraft(currentUser?.id || currentUser?._id || profile.user_id, profile);
+        showStatus({ tone: 'error', text: FORM_MESSAGES.signedOut, action: 'signin' });
+      } else if (status === 422 || (detail && typeof detail === 'object')) {
+        const { fieldErrors, unmatched } = mapServerErrors(detail, profile);
+        const fieldCount = Object.keys(fieldErrors).length;
+        setValidationErrors(fieldErrors);
+        showStatus({
+          tone: 'error',
+          text: unmatched > 0 || fieldCount === 0 ? FORM_MESSAGES.serverUnmatched : FORM_MESSAGES.fixFields,
+        });
+        if (fieldCount > 0) setPendingFocusField(firstErroredField(fieldErrors));
+      } else if (!error.response) {
+        // No response at all: offline, DNS, or blocked by CORS.
+        showStatus({ tone: 'error', text: FORM_MESSAGES.network });
       } else {
-        toast.error('Failed to update profile. Please try again.');
+        showStatus({ tone: 'error', text: FORM_MESSAGES.generic });
       }
     } finally {
       setLoading(false);
@@ -618,53 +719,24 @@ export default function useAlumniProfile() {
 
   // Validate only the values currently present in the form.
   const validateForm = () => {
-    const errors = {};
+    const errors = validateProfile(profile);
+    setValidationErrors(errors);
+    const first = firstErroredField(errors);
+    if (first) setPendingFocusField(first);
+    return !first;
+  };
 
-    if (profile.email && !/\S+@\S+\.\S+/.test(profile.email)) {
-      errors.email = 'Please enter a valid email address';
+  // "Sign in again": end the expired session (the draft stays in
+  // sessionStorage) and come back to this page after signing in.
+  const signInAgain = async () => {
+    sessionStorage.setItem('redirectAfterLogin', '/alumni/profile');
+    try {
+      await logout();
+    } finally {
+      navigate('/login?redirect=%2Falumni%2Fprofile');
     }
-
-    if (profile.student_id && !/^[A-Za-z0-9-]+$/.test(profile.student_id)) {
-      errors.student_id = 'Student ID can only contain letters, numbers, and hyphens';
-    }
-
-    if (profile.graduation_year) {
-      const year = parseInt(profile.graduation_year);
-      const currentYear = new Date().getFullYear();
-      if (isNaN(year)) {
-        errors.graduation_year = 'Graduation year must be a valid number';
-      } else if (year < 1948) {
-        errors.graduation_year = 'Graduation year cannot be before 1948';
-      } else if (year > currentYear) {
-        errors.graduation_year = 'Graduation year cannot be in the future';
-      }
-    }
-    
-    setErrors(errors);
-    return Object.keys(errors).length === 0;
   };
   
-  // Calculate profile completion percentage
-  const calculateCompletionPercentage = (data) => {
-    const requiredFields = ['full_name', 'student_id', 'email'];
-    
-    // Count how many required fields are completed
-    let completedFields = 0;
-    requiredFields.forEach(field => {
-      if (data[field] && data[field].toString().trim() !== '') {
-        completedFields++;
-      }
-    });
-    
-    // Calculate percentage
-    const percentage = Math.floor((completedFields / requiredFields.length) * 100);
-    setCompletionPercentage(percentage);
-    
-    // Set missing fields count
-    setMissingFields(requiredFields.length - completedFields);
-    
-    return percentage;
-  };
 
   // Helper function to determine input class based on validation state
   const getInputClass = (fieldName) => {
@@ -786,11 +858,13 @@ export default function useAlumniProfile() {
     completionTone,
     courseOptions,
     errorMessage,
+    formStatus,
     getCourseOptionLabel,
     getCourseOptionValue,
     getDisplayValue,
     getFieldValue,
     getInputClass,
+    handleFieldBlur,
     handleInputChange,
     handleProfilePictureChange,
     handleSocialMediaChange,
@@ -809,6 +883,7 @@ export default function useAlumniProfile() {
     saveProfile,
     setActiveTab,
     setProfile,
+    signInAgain,
     startEditing,
     statusText,
     successMessage,

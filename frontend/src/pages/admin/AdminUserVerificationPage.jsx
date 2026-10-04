@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { CheckCircleIcon, ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { adminUserService } from '../../services/api';
 
@@ -10,17 +10,7 @@ export default function AdminUserVerificationPage() {
   const [actionUserId, setActionUserId] = useState(null);
   const abortControllerRef = useRef(null);
 
-  useEffect(() => {
-    loadUsers(viewMode);
-
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [viewMode]);
-
-  const loadUsers = async (status = viewMode) => {
+  const loadUsers = useCallback(async (status = viewMode) => {
     setLoading(true);
     setError(null);
 
@@ -42,7 +32,18 @@ export default function AdminUserVerificationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [viewMode]);
+
+  useEffect(() => {
+    loadUsers(viewMode);
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [viewMode, loadUsers]);
+
 
   const removeUserFromList = (userId) => {
     setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId));

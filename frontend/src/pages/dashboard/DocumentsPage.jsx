@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   PaperClipIcon, 
   ArrowUpTrayIcon, 
@@ -15,7 +15,7 @@ import {
   InformationCircleIcon,
   AcademicCapIcon
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { documentService, alumniService, verificationService } from '../../services/api';
 import documentVerificationService from '../../services/document';
 import { getDocumentTypeLabel, normalizeDocumentType } from '../../constants/documentTypes';
@@ -44,11 +44,7 @@ export default function DocumentsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [filteredDocuments, setFilteredDocuments] = useState([]);
 
-  useEffect(() => {
-    fetchAlumniProfile();
-  }, [currentUser]);
-
-  const fetchAlumniProfile = async () => {
+  const fetchAlumniProfile = useCallback(async () => {
     // Check if currentUser is properly loaded
     if (!currentUser) {
       setError('User information is not loaded. Please try logging in again.');
@@ -85,7 +81,12 @@ export default function DocumentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchAlumniProfile();
+  }, [fetchAlumniProfile]);
+
 
   const fetchDocuments = async (alumniId) => {
     setLoading(true);

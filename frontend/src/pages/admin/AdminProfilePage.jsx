@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import axios from 'axios';
 import { API_URL } from '../../config';
 
@@ -27,11 +27,7 @@ export default function AdminProfilePage() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
 
-  useEffect(() => {
-    fetchAdminProfile();
-  }, [currentUser]);
-
-  const fetchAdminProfile = async () => {
+  const fetchAdminProfile = useCallback(async () => {
     if (!currentUser) return;
     
     setLoading(true);
@@ -97,7 +93,12 @@ export default function AdminProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchAdminProfile();
+  }, [fetchAdminProfile]);
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

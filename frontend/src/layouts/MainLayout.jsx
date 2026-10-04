@@ -5,7 +5,8 @@ import {
   Bars3Icon, 
   XMarkIcon, 
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { clearAllProfileDrafts } from '../utils/profileDraft';
 import cvsuLogo from '../assets/cvsu-logo.png';
 
 const navItems = [
@@ -22,6 +23,7 @@ export default function MainLayout() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    clearAllProfileDrafts();
     logout();
     navigate('/login');
   };

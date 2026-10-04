@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { MagnifyingGlassIcon, AcademicCapIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { alumniService } from '../../services/api';
@@ -16,12 +16,14 @@ export default function AdminAlumniPage() {
   const [page, setPage] = useState(0);
   const limit = 20; // Show more alumni per page in admin view
 
+  // The search box only fetches on Search/Enter, not per keystroke, so the
+  // latest term is read through a ref instead of being an effect dependency.
+  const searchTermRef = useRef(searchTerm);
   useEffect(() => {
-    fetchAlumni();
-  }, [page, selectedProgram, selectedYear, selectedDepartment]);
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
 
-  // Fetch alumni with search parameters
-  const fetchAlumni = async () => {
+  const fetchAlumni = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -31,8 +33,9 @@ export default function AdminAlumniPage() {
         offset: page * limit,
       };
       
-      if (searchTerm) {
-        params.name = searchTerm;
+      const name = searchTermRef.current;
+      if (name) {
+        params.name = name;
       }
       
       if (selectedProgram) {
@@ -67,7 +70,13 @@ export default function AdminAlumniPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, selectedProgram, selectedYear, selectedDepartment]);
+
+  useEffect(() => {
+    fetchAlumni();
+  }, [fetchAlumni]);
+
+  // Fetch alumni with search parameters
 
   // Handle search button click
   const handleSearch = () => {

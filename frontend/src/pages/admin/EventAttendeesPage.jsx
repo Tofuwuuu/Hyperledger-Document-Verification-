@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { 
@@ -33,11 +33,7 @@ const EventAttendeesPage = () => {
   const [sortDirection, setSortDirection] = useState('asc');
   const [selectedAttendees, setSelectedAttendees] = useState([]);
 
-  useEffect(() => {
-    fetchEventAttendees();
-  }, [eventId]);
-
-  const fetchEventAttendees = async () => {
+  const fetchEventAttendees = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -53,7 +49,12 @@ const EventAttendeesPage = () => {
       setError("Failed to load event attendees. Please try again.");
       setLoading(false);
     }
-  };
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchEventAttendees();
+  }, [fetchEventAttendees]);
+
 
   const handleCheckIn = async (registrationId) => {
     try {

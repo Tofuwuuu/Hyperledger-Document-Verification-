@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminDocumentRequestService, documentRequestService } from '../../services/api';
 import { getDocumentTypeLabel } from '../../constants/documentTypes';
 import { toast } from 'react-toastify';
@@ -26,7 +26,7 @@ const AdminDocumentRequests = () => {
   const [adminNotes, setAdminNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     setLoading(true);
     setError(null); // Clear previous errors
     try {
@@ -55,11 +55,12 @@ const AdminDocumentRequests = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedFilter]);
+
 
   useEffect(() => {
     fetchRequests();
-  }, [selectedFilter]);
+  }, [fetchRequests]);
 
   const handleRequestSelect = (request) => {
     setSelectedRequest(request);

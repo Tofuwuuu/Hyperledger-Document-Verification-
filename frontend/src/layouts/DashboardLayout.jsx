@@ -20,7 +20,8 @@ import {
   QrCodeIcon,
   DocumentIcon,
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { clearAllProfileDrafts } from '../utils/profileDraft';
 import pollingService from '../services/polling';
 import cvsuLogo from '../assets/cvsu-logo.png';
 import { API_ORIGIN } from '../config';
@@ -44,6 +45,7 @@ export default function DashboardLayout() {
   const isVerified = isAdminUser || Boolean(currentUser?.is_verified);
 
   const handleLogout = () => {
+    clearAllProfileDrafts();
     logout();
     navigate('/login');
   };

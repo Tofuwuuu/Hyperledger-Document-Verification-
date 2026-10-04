@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import MFASetup from '../../components/MFASetup';
 import SecurityQuestionsSetup from '../../components/SecurityQuestionsSetup';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { changePassword } from '../../services/authService';
 
 const SecuritySettingsPage = () => {

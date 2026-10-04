@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { handleQuickRegistration, getEventById } from '../services/eventService';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 const QuickRegisterPage = () => {
   const { eventId, token } = useParams();
@@ -39,7 +39,7 @@ const QuickRegisterPage = () => {
     fetchEventDetails();
   }, [eventId, token, isAuthenticated, navigate]);
 
-  const handleRegistration = async () => {
+  const handleRegistration = useCallback(async () => {
     if (!isAuthenticated || !currentUser) {
       toast.error('You must be logged in to register');
       return;
@@ -64,14 +64,18 @@ const QuickRegisterPage = () => {
     } finally {
       setRegistering(false);
     }
-  };
+  }, [isAuthenticated, currentUser, eventId, token]);
 
-  // Handle automatic registration when the component loads
+  // Handle automatic registration when the component loads. The ref makes
+  // sure it is attempted once, even though the effect lists every value it reads.
+  const autoRegisterAttemptedRef = useRef(false);
   useEffect(() => {
+    if (autoRegisterAttemptedRef.current) return;
     if (!loading && event && isAuthenticated && !registering && !success && !error) {
+      autoRegisterAttemptedRef.current = true;
       handleRegistration();
     }
-  }, [loading, event, isAuthenticated]);
+  }, [loading, event, isAuthenticated, registering, success, error, handleRegistration]);
 
   if (loading) {
     return (
