@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '')
+  // Dev proxy target only; it is never bundled into the client.
   const rawApi = env.VITE_API_URL || env.VITE_API_ORIGIN || 'http://localhost:8000'
   const API_BASE_URL = rawApi.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '')
 

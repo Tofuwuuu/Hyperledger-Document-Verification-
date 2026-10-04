@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../config';
 import { getAuthTokens } from '../utils/authUtils';
 
 class PollingService {
@@ -100,7 +101,7 @@ class PollingService {
       }
 
       // Get base API URL
-      let baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      let baseUrl = API_ORIGIN;
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
       // Add /api/v1 only if it's not already included
@@ -238,7 +239,7 @@ const fetchRecentNotifications = async (sinceId = null) => {
     }
     
     // Get the API URL with a fallback
-    let baseUrl = localStorage.getItem('api_url') || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    let baseUrl = API_ORIGIN;
     
     // Clean the URL
     baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

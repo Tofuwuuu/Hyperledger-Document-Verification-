@@ -12,6 +12,8 @@ import {
   LockClosedIcon,
 } from '@heroicons/react/24/outline';
 import AuthShell from './AuthShell';
+import { PREVIEW_MODE } from '../../config';
+import PreviewNotice from '../../components/PreviewNotice';
 
 // Validation schema
 const LoginSchema = Yup.object().shape({
@@ -30,6 +32,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
   const [showPassword, setShowPassword] = useState(false);
+  const [previewBlocked, setPreviewBlocked] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -76,6 +79,11 @@ export default function LoginPage() {
   }, [authError, clearError]);
 
   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      setSubmitting(false);
+      return;
+    }
     setGeneralError('');
     setIsLoading(true);
     
@@ -180,7 +188,7 @@ export default function LoginPage() {
               password: '',
               remember: false
             }}
-            validationSchema={LoginSchema}
+            validationSchema={PREVIEW_MODE ? undefined : LoginSchema}
             onSubmit={async (values, { setSubmitting, setFieldError }) => {
               // Explicit event prevention
               try {
@@ -300,6 +308,7 @@ export default function LoginPage() {
                       </>
                     )}
                   </button>
+                  {previewBlocked && <PreviewNotice />}
                 </div>
               </Form>
             )}

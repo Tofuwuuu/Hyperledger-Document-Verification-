@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MagnifyingGlassIcon, AcademicCapIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { alumniService } from '../../services/api';
+import { API_ORIGIN } from '../../config';
 
 export default function AdminAlumniPage() {
   const [alumni, setAlumni] = useState([]);
@@ -100,7 +101,7 @@ export default function AdminAlumniPage() {
     }
     
     // Otherwise, it's a relative path to the server
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = API_ORIGIN;
     return `${baseUrl}/${profilePicture}`;
   };
 

@@ -9,6 +9,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { authService } from '../services/api';
 import AuthShell from './auth/AuthShell';
+import { PREVIEW_MODE } from '../config';
+import PreviewNotice from '../components/PreviewNotice';
 
 const getErrorMessage = (err, fallback) => {
   if (err.status === 404 || err.response?.status === 404) {
@@ -30,9 +32,14 @@ export default function AccountRecoveryPage() {
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [previewBlocked, setPreviewBlocked] = useState(false);
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      return;
+    }
     setError('');
 
     if (!email.trim()) {
@@ -67,6 +74,10 @@ export default function AccountRecoveryPage() {
 
   const handleQuestionsSubmit = async (e) => {
     e.preventDefault();
+    if (PREVIEW_MODE) {
+      setPreviewBlocked(true);
+      return;
+    }
     setError('');
 
     const answeredCount = answers.filter((answer) => answer.trim().length > 0).length;
@@ -161,6 +172,7 @@ export default function AccountRecoveryPage() {
             {loading ? 'Checking...' : 'Continue'}
             {!loading && <ArrowRightIcon className="ml-2 h-4 w-4" aria-hidden="true" />}
           </button>
+          {previewBlocked && <PreviewNotice />}
 
           <Link
             to="/login"
@@ -218,6 +230,7 @@ export default function AccountRecoveryPage() {
             >
               {loading ? 'Verifying...' : 'Verify answers'}
             </button>
+            {previewBlocked && <PreviewNotice />}
           </div>
         </form>
       )}

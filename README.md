@@ -8,7 +8,7 @@ This is a student capstone (Mark / [Tofuwuuu](https://github.com/Tofuwuuu)) for 
 
 The full stack (React UI, FastAPI, MongoDB, and Hyperledger Fabric) runs locally with Docker Compose. There is no public live demo.
 
-An earlier public URL, [https://hyperledger-document-verification.vercel.app/](https://hyperledger-document-verification.vercel.app/), is only the Vite production shell: `index.html`, title "CVSU Document Verification | Blockchain", and hashed `/assets` JS and CSS. Probed on 2026-09-23 it returned HTTP 200. `frontend/vercel.json` rewrites every path to `/index.html`, so `/verify` and `/api/v1` on that host are the same static page. The built client calls `https://api-production-b4b1b.up.railway.app`. Probed the same day, that host returns Railway "Application not found" (HTTP 404). Login, upload, and hash checks on that page have no API behind them. That shell was removed from the portfolio. The screenshots below are captures of the local app.
+[https://hyperledger-document-verification.vercel.app/](https://hyperledger-document-verification.vercel.app/) is a **UI preview**: the Vite frontend built with no API address, so the screens load but login is turned off. In preview mode the client sends nothing to any API (see `frontend/README.md`). The screenshots below are captures of the local app.
 
 Compose starts the API with `USE_REAL_BLOCKCHAIN=false`, so approval uses the in-memory mock ledger in `backend/app/blockchain/fabric.py`. A real peer means bringing up the Fabric network in `fabric-network/` and setting `USE_REAL_BLOCKCHAIN=true` (see `backend/.env.example`).
 
