@@ -39,7 +39,7 @@ export default function AuthShell({
     <div className="min-h-[calc(100vh-73px)] bg-slate-50">
       {PREVIEW_MODE && (
         <div role="note" className="border-b border-slate-200 bg-slate-100 px-4 py-1.5 text-center text-xs font-medium text-slate-500">
-          UI preview. Login is turned off.
+          UI preview. Login is turned off in this demo.
         </div>
       )}
       <div className="mx-auto grid min-h-[calc(100vh-73px)] max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_480px] lg:px-8 lg:py-12">
