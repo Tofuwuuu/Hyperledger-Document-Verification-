@@ -5,7 +5,7 @@ import { PREVIEW_MODE } from './config';
 
 export class PreviewModeError extends Error {
   constructor() {
-    super('Login is turned off in this preview. The code is on GitHub.');
+    super('Login is turned off in this demo. The code is on GitHub.');
     this.name = 'PreviewModeError';
     this.isPreviewMode = true;
   }

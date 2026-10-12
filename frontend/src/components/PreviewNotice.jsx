@@ -4,7 +4,7 @@ import { REPO_URL } from '../config';
 export default function PreviewNotice() {
   return (
     <p role="status" className="mt-3 text-center text-sm text-slate-600">
-      Login is turned off in this preview. The code is on{' '}
+      Login is turned off in this demo. The code is on{' '}
       <a
         href={REPO_URL}
         target="_blank"
