@@ -42,7 +42,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/dashboard');
   const [showPassword, setShowPassword] = useState(false);
-  const [previewBlocked, setPreviewBlocked] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -144,7 +143,6 @@ export default function LoginPage() {
 
   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
     if (PREVIEW_MODE) {
-      setPreviewBlocked(true);
       setSubmitting(false);
       return;
     }
@@ -413,7 +411,8 @@ export default function LoginPage() {
                 <div>
                   <button
                     type="submit"
-                    disabled={isSubmitting || isLoading}
+                    disabled={PREVIEW_MODE || isSubmitting || isLoading}
+                    aria-describedby={PREVIEW_MODE ? 'login-preview-note' : undefined}
                     className="btn-primary flex w-full justify-center disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isLoading ? (
@@ -438,7 +437,7 @@ export default function LoginPage() {
                       </p>
                     </div>
                   )}
-                  {previewBlocked && <PreviewNotice />}
+                  {PREVIEW_MODE && <PreviewNotice id="login-preview-note" />}
                 </div>
               </Form>
             )}
